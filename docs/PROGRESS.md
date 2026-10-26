@@ -560,6 +560,27 @@ Review: lần 1 "changes requested" (Critical: `cycle_of` dùng mốc xanh đã 
 
 **Vướng mắc:** R35 phần tỉ lệ nhỏ (xem rulings) chờ Viktor.
 
+### 2026-10-26 — R28: B0 với check-junctions BẬT, chạy lại trên Linux (9/9 run)
+
+Lệnh: `.venv/bin/python -m thesis_sumo.sim.runner --spec B0 --day PROXY_Dk --seeds 1 2 3 --site config/site.proxy.yaml --nproc 3 --ssm off` (k = 1, 2, 3 song song; 1800 s; log `experiments/operator/task9/linux_run_PROXY_D*.txt`; manifest và collisions.xml được track).
+
+| Ngày / seed | Va chạm lane | Va chạm junction | Teleport (tổng / không do va chạm) | Backlog cuối | Wall (s) |
+|---|---|---|---|---|---|
+| D1 / 1 | 2 | 45 | 47 / 0 | 0 | 192 |
+| D1 / 2 | 3 | 66 | 69 / 0 | 0 | 179 |
+| D1 / 3 | 2 | 44 | 50 / 4 | 0 | 243 |
+| D2 / 1 | 0 | 47 | 47 / 0 | 0 | 111 |
+| D2 / 2 | 0 | 44 | 44 / 0 | 0 | 113 |
+| D2 / 3 | 1 | 57 | 62 / 4 | 0 | 156 |
+| D3 / 1 | 2 | 35 | 57 / 20 | 0 | 380 |
+| D3 / 2 | 0 | 57 | 57 / 0 | 0 | 112 |
+| D3 / 3 | 1 | 42 | 43 / 0 | 0 | 107 |
+
+- **Tái lập Windows → Linux:** 8 run đã có trên Windows (report 2026-10-26) cho đúng từng số va chạm lane/junction và teleport trên Linux (cùng SUMO 1.27.0). D3 seed 1 (bị kill trên Windows) nay có số.
+- Quy về /h: lane 4, 6, 4, 0, 0, 2, 4, 0, 2 (p90 4,4); junction 90, 132, 88, 94, 88, 114, 70, 114, 84 (p90 117,6). Công thức R24 cho `max_collisions_per_hour` = 5 và `max_junction_collisions_per_hour` = 118. Ngưỡng junction 118/h gần như không lọc gì (như đã dự báo). Không run nào `valid_strict`; D1/3, D2/3, D3/1 có teleport không do va chạm.
+- **KHÔNG đóng băng:** task F2-net đổi mạng (lane 0 thành làn rẽ phải liên tục, connection đi thẳng cho custom1/custom2), nên ngưỡng phải tính lại trên mạng F2 trước vòng 1 (R24 yêu cầu đóng băng trên mạng dùng cho vòng lặp). Hai ngưỡng trong `experiment.yaml` vẫn `null`.
+- **Metrics B0 vs PROXY_D1–D3 (checkpoint cuối Phase 5, 9 run):** G0 đạt ở cả 9 run (tỉ lệ ô GEH < 5: 1,0; D3/1 0,90). S = 1,17 (có nguồn 0,52, giả định 0,66). Lệch lớn nhất: M5 hàng chờ 53,9 m so với 11,5 m (sim>obs); M1 headway xe máy 0,47 s so với 0,31 s; M4 độ sâu vượt vạch 21,8 m so với 2,0 m (nghi xe chờ trong box bị tính, cần kiểm tra); M3 không có xe vượt đỏ (B0 không có luật); M8 = 0 (B0 không đổi làn sai).
+
 ### Bước tiếp theo
 
 - Operator đang tính lại hai ngưỡng va chạm (lane và junction) với `check-junctions` BẬT (R28): B0 trên PROXY_D1–D3 x 3 seed rồi đóng băng và commit trước vòng 1 (R24); kèm kiểm cặp seed hold so với lag 0 (R29) và một run chẩn đoán B0 D1 với time-to-teleport `-1` (R33).
