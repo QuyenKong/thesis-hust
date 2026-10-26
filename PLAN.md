@@ -7,7 +7,7 @@
 
 ## 0. Bối cảnh và các quyết định ĐÃ CHỐT (không tự ý thay đổi)
 
-**Đề tài:** Dùng LLM chạy local sinh và tinh chỉnh lặp tập luật hành vi tài xế cho SUMO, nhằm tăng độ tương đồng (realism) của mô phỏng vi mô với giao thông hỗn hợp ô tô – xe máy thực tế tại một nút giao ở Hà Nội.
+**Đề tài:** Dùng LLM chạy local sinh và tinh chỉnh lặp tập luật hành vi tài xế cho SUMO, để mô phỏng tái hiện được giao thông hỗn hợp ô tô – xe máy **không tuân thủ** tại một nút giao ở Hà Nội. Sau đó dùng mô hình đã hiệu chỉnh để **đánh giá các phương án tổ chức giao thông** (tín hiệu đèn, phân làn, tổ chức hướng rẽ, cưỡng chế). Phân tích then chốt: so thứ hạng phương án giữa SUMO mặc định (giả định người lái tuân thủ) và mô hình đã hiệu chỉnh.
 
 | Hạng mục | Quyết định |
 |---|---|
@@ -15,22 +15,33 @@
 | Loại phương tiện | Chỉ ô tô (`passenger`) và xe máy. Không có người đi bộ, xe buýt, xe tải |
 | Khung giờ | Cao điểm sáng 07:30–09:00 |
 | Dữ liệu thực | Viktor tự quay video tại nút, nhiều ngày (pipeline xử lý video **nằm ngoài plan này**; plan này chỉ định nghĩa schema dữ liệu quan sát) |
-| Kênh luật (phạm vi B) | **vType (tĩnh) + TraCI (luật có điều kiện)**, cộng **đúng 1 chỉnh sửa mạng tĩnh** cho rẽ trái trái phép. LLM KHÔNG sinh/sửa network |
-| Kịch bản trọng tâm | **Rẽ trái trái phép**: nút cấm rẽ trái, nhưng người vi phạm đi vào giữa nút trong pha xanh đi thẳng của nhánh mình, **dừng chờ giữa nút**, rồi **rẽ khi pha xanh đi thẳng của hướng đối diện kết thúc** |
-| Baseline | B0 = SUMO mặc định; B2 = Optuna tối ưu cùng không gian tham số, **cùng ngân sách số lần chạy SUMO** với LLM; P = luật do LLM sinh |
+| Kênh luật | **vType (tĩnh) + TraCI (luật có điều kiện)**, cộng **các bản vá mạng tĩnh chỉ dành cho lớp xe vi phạm** (`custom1` = xe máy vi phạm, `custom2` = ô tô vi phạm). LLM KHÔNG sinh/sửa network; LLM chỉ quyết định tỷ trọng kiểu tài xế, tham số và điều kiện kích hoạt |
+| Hạ tầng đã xác nhận | **Mọi nhánh có làn rẽ phải liên tục** (làn ngoài cùng bên phải, không bị đèn điều khiển). Lê Văn Lương có **dải phân cách cứng chỉ ở một đoạn ngắn trước vạch dừng**; phía trước không có dải phân cách |
+| Rẽ trái trái phép | Một trong 11 hành vi (không phải trọng tâm riêng): người vi phạm đi vào giữa nút trong pha xanh của nhánh mình, **dừng chờ giữa nút**, rồi **rẽ khi pha xanh đi thẳng của hướng đối diện kết thúc** |
+| Baseline | B0 = SUMO mặc định; B1 = luật thủ công chuyển từ Saval et al. (2023, PLOS ONE, mô hình GAMA cho Hà Nội) sang SUMO; B2 = Optuna chỉnh tham số trên cấu trúc cố định (= cấu trúc của B1); P1 = LLM chỉnh tham số trên cùng cấu trúc cố định; P2 = LLM sinh cả cấu trúc lẫn tham số; H = cấu trúc do LLM sinh + tham số do Optuna. Mọi phương án dùng **cùng ngân sách số lần chạy SUMO** |
+| Thí nghiệm | **E1** (P1 vs B2, cấu trúc cố định): LLM như bộ tối ưu. **E2** (B2 vs H vs P2): giá trị của cấu trúc luật do LLM sinh |
 | LLM | Local, gọi qua **OpenAI-compatible API** (Ollama / vLLM / LM Studio). Model mục tiêu: Qwen3.8-27B. Code KHÔNG được phụ thuộc vào một runtime cụ thể |
 
-**Hành vi trong phạm vi:**
-1. Ngưỡng kiên nhẫn / vượt đèn đỏ (`patience`)
-2. Áp lực bầy đàn: vượt đỏ theo đoàn (`swarm_pressure`)
-3. Xuất phát sớm trước khi đèn xanh (`early_start`)
-4. Khoảng cách ngang, lấn chiếm, luồn lách (`minGapLat`, `encroachment`)
-5. Hệ số ảo tưởng / chấp nhận khoảng trống nhỏ, tạt đầu (`f`)
-6. Đi sai làn để né đèn (`S_cheat`)
-7. Xe máy đi chậm giữa làn (`I_slow`)
-8. Rẽ trái trái phép kiểu chờ giữa nút (`illegal_left_box`)
+**Hành vi trong phạm vi (11 hành vi, 3 nhóm):**
 
-**Ngoài phạm vi** (KHÔNG cài đặt): đi ngược chiều, leo vỉa hè, ô tô đỗ bừa dưới lòng đường, mô hình quyết định chọn lộ trình (`U_route`).
+- **F1 — Không tuân thủ tín hiệu**
+  1. Ngưỡng kiên nhẫn / vượt đèn đỏ (`patience`)
+  2. Áp lực bầy đàn: vượt đỏ theo đoàn (`swarm_pressure`)
+  3. Xuất phát sớm trước khi đèn xanh (`early_start`)
+- **F2 — Tìm khoảng trống khi ùn** (chung một cơ chế: hàng chờ dài → tìm khoảng trống khác để lên đầu hàng)
+  4. Khoảng cách ngang, lấn chiếm, luồn lách (`minGapLat`, `encroachment`)
+  5. Đi sai làn để né đèn (`S_cheat`)
+  6. **Chặn làn rẽ phải liên tục**: xe máy và ô tô đi thẳng dừng trên làn rẽ phải khi hàng đi thẳng dài — **ưu tiên cao**
+  7. **Đi trên vỉa hè** để vượt hàng chờ — **ưu tiên cao**
+  8. **Đi ngược chiều** ở đoạn không có dải phân cách, cắt về trước đoạn dải phân cách cứng — **giai đoạn sau, tùy kết quả Phase 3**
+- **F3 — Tương tác trong nút**
+  9. Hệ số ảo tưởng / chấp nhận khoảng trống nhỏ, tạt đầu (`f`)
+  10. Rẽ trái trái phép kiểu chờ giữa nút (`illegal_left_box`)
+  11. Xe máy đi chậm giữa làn (`I_slow`)
+
+Vì mọi nhánh có làn rẽ phải liên tục, **rẽ phải khi đèn đỏ không phải vi phạm** và không được mô hình như vi phạm.
+
+**Ngoài phạm vi** (KHÔNG cài đặt): người đi bộ, xe buýt, ô tô đỗ bừa dưới lòng đường, mô hình quyết định chọn lộ trình (`U_route`).
 
 ---
 
@@ -80,9 +91,10 @@ thesis-sumo/
 │   ├── rules/      schema.py, validator.py, compiler.py
 │   ├── runtime/    controller.py, rules/*.py   # luật TraCI
 │   ├── sim/        runner.py, outputs.py
-│   ├── metrics/    m1_headway.py … m8_wrong_lane.py, g0_geh.py, distance.py
+│   ├── metrics/    m1_headway.py … m11_wrong_way.py, g0_geh.py, distance.py
 │   ├── llm/        client.py, prompts/, loop.py
-│   └── baselines/  optuna_search.py
+│   ├── baselines/  optuna_search.py
+│   └── policy/     evaluate.py                 # đánh giá phương án, so thứ hạng B0 vs mô hình hiệu chỉnh
 ├── experiments/
 │   └── runs/<run_id>/seed_XX/     # output SUMO thô
 ├── results/
@@ -112,13 +124,20 @@ approaches:                    # điền sau khi map edge id ↔ hướng ở Ph
     lane_widths_m: null        # TODO_MEASURE, danh sách theo làn
     left_turn_banned: null     # TODO_MEASURE
     u_turn_banned: null        # TODO_MEASURE
+    continuous_right_lane: true          # đã xác nhận: mọi nhánh có làn rẽ phải liên tục
+    right_lane_separator: null           # TODO_MEASURE: none | paint | bollards
+    sidewalk_width_m: null               # TODO_MEASURE
+    hard_median_length_m: null           # TODO_MEASURE: chiều dài đoạn dải phân cách cứng trước vạch dừng (0 nếu không có)
 signal:
   type: static
   cycle_s: null                # TODO_MEASURE từ video
   phases: null                 # TODO_MEASURE: [{name, duration_s, green_movements}], gồm vàng và all-red
 illegal_left:
   approaches: null             # TODO_MEASURE: nhánh có người rẽ trái trái phép
-  vclass: custom1
+violator_classes:
+  moto: custom1                # xe máy vi phạm: rẽ trái bị cấm, đi thẳng từ làn rẽ phải, làn vỉa hè
+  car: custom2                 # ô tô vi phạm: đi thẳng từ làn rẽ phải
+f2_measured_approaches: null   # TODO: 1–2 nhánh dùng để đo nhóm F2 (camera thấy hàng chờ 50–100 m, vỉa hè)
 ```
 
 **Tiêu chí xong:** `python -c "import traci, sumolib"` chạy được; `pytest` chạy (chưa có test); `CLAUDE.md` đã tạo.
@@ -136,8 +155,11 @@ illegal_left:
 3. **Hiện trạng OSM đã biết:** cả 4 nhánh đều có connection rẽ trái (`l`) và quay đầu (`t`) từ làn trong cùng, trạng thái `g`, trong chương trình đèn 2 pha đoán 41s/4s. OSM không có quan hệ cấm rẽ tại nút này. Mọi bề rộng làn đều là mặc định 3.2 m.
 4. `apply_patches.py`: áp các plain-XML patch lên `base.net.xml` qua `netconvert -s base.net.xml -e ... -x ... -i ...`, ra `site.net.xml`. Sinh patch từ `site.yaml`:
    - `lanes.edg.xml`: bề rộng làn thực đo.
-   - `turns.con.xml`: với nhánh `left_turn_banned: true`, xóa connection rẽ trái hợp lệ, rồi **thêm lại connection rẽ trái chỉ cho phép vClass `custom1`** (kiểm tra cú pháp permission ở mức `<connection>` trong docs netconvert). Làm tương tự với `u_turn_banned`.
-   - `signal.tll.xml`: chương trình đèn static từ `site.yaml → signal`. Link rẽ trái trái phép có trạng thái `g` trong pha xanh đi thẳng của nhánh nó.
+   - `turns.con.xml`:
+     - Với nhánh `left_turn_banned: true`, xóa connection rẽ trái hợp lệ, rồi **thêm lại connection rẽ trái chỉ cho phép vClass `custom1`** (kiểm tra cú pháp permission ở mức `<connection>` trong docs netconvert). Làm tương tự với `u_turn_banned`.
+     - **Làn rẽ phải liên tục**: làn ngoài cùng bên phải chỉ có connection rẽ phải cho xe tuân thủ. Thêm **connection đi thẳng từ làn này chỉ cho `custom1` và `custom2`** (hành vi chặn làn rẽ phải).
+   - `sidewalk.edg.xml` / `sidewalk.con.xml`: trên các nhánh trong `f2_measured_approaches`, thêm **một làn vỉa hè** ở mép phải (bề rộng = `sidewalk_width_m`, chỉ `allow="custom1"`, tốc độ thấp), nối vào hướng rẽ phải và vào làn ngoài cùng trước vạch dừng. Người đi bộ nằm ngoài phạm vi, nên làn này không có tương tác với người đi bộ.
+   - `signal.tll.xml`: chương trình đèn static từ `site.yaml → signal`. Link rẽ trái trái phép có trạng thái `g` trong pha xanh đi thẳng của nhánh nó. **Link rẽ phải liên tục ở trạng thái xanh trong mọi pha** (không bị đèn điều khiển).
    - Khi `site.yaml` còn `null`: sinh mạng dùng giá trị OSM hiện tại và **in cảnh báo rõ ràng** là đang dùng giá trị chưa đo.
 5. Xuất ảnh/SVG sơ đồ nút (dùng sumolib + matplotlib) có ghi chú edge id và hướng để Viktor đối chiếu với thực tế.
 
@@ -151,6 +173,7 @@ illegal_left:
    - `car`: vClass `passenger`.
    - `moto`: vClass `motorcycle`.
    - `moto_violator`: vClass `custom1`; kích thước, tốc độ và động học **sao chép từ giá trị mặc định của `motorcycle`** (đọc docs vClass defaults; vClass custom1 không tự có các giá trị này).
+   - `car_violator`: vClass `custom2`; sao chép từ giá trị mặc định của `passenger`.
    - Tất cả dùng `laneChangeModel="SL2015"`; các tham số khác để mặc định SUMO.
 2. **Demand tạm** (cho tới khi có số đếm thật):
    - Sinh `candidate_routes.rou.xml` gồm mọi lộ trình hợp lệ qua nút (vào → ra).
@@ -171,8 +194,20 @@ illegal_left:
 
 ---
 
-## Phase 3 — Thí nghiệm khả thi: chờ giữa nút (BẮT BUỘC trước Phase 4)
+## Phase 3 — Thí nghiệm khả thi (BẮT BUỘC trước Phase 4)
 
+Bốn thí nghiệm nhỏ, mỗi cái một kịch bản riêng, báo cáo kèm số liệu.
+
+### 3A. Chặn làn rẽ phải liên tục
+Khi có connection đi thẳng từ làn rẽ phải cho `custom1`/`custom2` và hàng đi thẳng dài: xe vi phạm có tự chuyển sang làn rẽ phải (do mô hình chuyển làn tìm làn nhanh hơn) không? Xe rẽ phải phía sau có bị kẹt thật không? Có cần luật TraCI để chỉ kích hoạt khi hàng chờ vượt ngưỡng không (nếu không có luật, xe vi phạm có thể vào làn này cả khi không ùn)?
+
+### 3B. Làn vỉa hè
+Xe `custom1` có vào làn vỉa hè, đi hết và nhập lại đúng chỗ không; có kẹt hoặc teleport ở điểm nhập không.
+
+### 3C. Đi ngược chiều (khả thi hay hoãn)
+Kiểm tra tính năng vượt sang làn đối diện của SUMO (tìm trong docs: opposite direction driving / overtaking, option netconvert tạo cặp cạnh đối diện) có chạy với `laneChangeModel="SL2015"` không. Nếu không: thử phương án làn ảo ngược chiều chỉ cho `custom1`, và ghi rõ là SUMO **không tính xung đột** giữa làn ảo và dòng ngược chiều thật. Báo cáo để Viktor quyết định làm hay hoãn.
+
+### 3D. Chờ giữa nút (rẽ trái trái phép)
 Câu hỏi cần trả lời: **SUMO (sublane, SL2015) cho bao nhiêu xe máy cùng dừng chờ tại điểm chờ bên trong nút (internal junction) trên link rẽ trái?** Ngoài thực tế có thể có hàng chục xe máy tích tụ giữa nút.
 
 1. Kịch bản test: dòng đi thẳng ngược chiều dày đặc trong pha xanh; nhiều `moto_violator` rẽ trái từ một nhánh.
@@ -184,7 +219,9 @@ Câu hỏi cần trả lời: **SUMO (sublane, SL2015) cho bao nhiêu xe máy c�
    - **(a) Native:** internal junction đủ dùng.
    - **(b) Vùng chờ tường minh:** thêm một edge "khu chờ" giữa nút cho `custom1`, có link đèn riêng, xanh khi pha đi thẳng đối diện đỏ. Hướng này dùng khi sức chứa native quá nhỏ so với thực tế.
 
-**Dừng lại chờ Viktor chọn hướng.**
+Thêm cho 3D: xe đang vượt đỏ nhờ tham số `jm*` có còn nhường xe hướng khác theo logic xung đột của nút không (ảnh hưởng trực tiếp đến PET).
+
+**Dừng lại chờ Viktor chọn hướng cho 3C và 3D.**
 
 ---
 
@@ -200,7 +237,7 @@ Câu hỏi cần trả lời: **SUMO (sublane, SL2015) cho bao nhiêu xe máy c�
   "driver_archetypes": [            // -> vTypeDistribution, KHÔNG phải 1 vType
     {
       "id": "moto_compliant",
-      "base_vclass": "motorcycle | passenger | custom1",
+      "base_vclass": "motorcycle | passenger | custom1 | custom2",
       "share": 0.0,                 // tỷ trọng trong distribution của vClass đó, tổng = 1
       "params": { "<sumo_attr>": 0.0 },      // chỉ attr có trong param_bounds.yaml
       "rationale": "string"          // LLM giải thích (bắt buộc với source=llm)
@@ -208,7 +245,7 @@ Câu hỏi cần trả lời: **SUMO (sublane, SL2015) cho bao nhiêu xe máy c�
   ],
   "traci_rules": [
     {
-      "rule_type": "early_start | swarm_red_running | wrong_lane_dodge | illegal_left_box | slow_lane_center",
+      "rule_type": "early_start | swarm_red_running | queue_space_seeking | illegal_left_box | slow_lane_center",
       "applies_to": ["archetype_id"],
       "params": { },                 // theo schema riêng của từng rule_type
       "rationale": "string"
@@ -219,7 +256,7 @@ Câu hỏi cần trả lời: **SUMO (sublane, SL2015) cho bao nhiêu xe máy c�
 
 ### 4.2 `param_bounds.yaml`
 
-- Danh sách attribute vType được phép tune, kèm `min`, `max`, `default`, `unit`, `model` (vType/carFollow/LC/junction), **`source_url`**, và `behavior_group` (map sang 8 hành vi ở mục 0).
+- Danh sách attribute vType được phép tune, kèm `min`, `max`, `default`, `unit`, `model` (vType/carFollow/LC/junction), **`source_url`**, và `behavior_group` (map sang 11 hành vi ở mục 0).
 - Các nhóm ứng viên (phải kiểm tra từng tên trong docs trước khi đưa vào):
   - **car-follow:** `tau`, `minGap`, `accel`, `decel`, `sigma`, `speedFactor`, `speedDev`.
   - **sublane:** `minGapLat`, `maxSpeedLat`, `latAlignment`.
@@ -234,7 +271,10 @@ Câu hỏi cần trả lời: **SUMO (sublane, SL2015) cho bao nhiêu xe máy c�
 | early_start | — | `early_start` |
 | minGapLat / encroachment | `minGapLat`, `latAlignment`, `lcSublane`, `lcPushy`, `lcMaxSpeedLatStanding` | — |
 | f (ảo tưởng) | `lcAssertive`, `lcPushyGap`, `jmTimegapMinor`, `jmIgnoreFoeProb`, `tau` | — |
-| S_cheat | — | `wrong_lane_dodge` |
+| S_cheat (sai làn né đèn) | — | `queue_space_seeking` (lựa chọn `wrong_lane`) |
+| Chặn làn rẽ phải liên tục | tham số của `custom1`/`custom2` | `queue_space_seeking` (lựa chọn `right_lane`) |
+| Đi trên vỉa hè | tham số của `custom1` | `queue_space_seeking` (lựa chọn `sidewalk`) |
+| Đi ngược chiều (sau) | tham số LC đối diện nếu 3C khả thi | `queue_space_seeking` (lựa chọn `opposite`) |
 | I_slow | `speedFactor`, `speedDev` (archetype riêng) | `slow_lane_center` (tùy chọn) |
 | illegal_left_box | các tham số `jm*` của archetype `custom1` | `illegal_left_box` (chỉ khi Phase 3 chọn hướng b, hoặc cần điều chỉnh lúc xả) |
 
@@ -259,7 +299,7 @@ Câu hỏi cần trả lời: **SUMO (sublane, SL2015) cho bao nhiêu xe máy c�
 - Logic các rule (tham số là ngưỡng/xác suất mà LLM điền):
   - `early_start`: trong `t_before_green` giây cuối pha đỏ, xe đầu hàng thuộc archetype áp dụng nhích qua vạch với xác suất `p`, tốc độ ≤ `v_max`. Cần đọc thời gian còn lại của pha từ TLS.
   - `swarm_red_running`: xác suất vượt đỏ của một xe tăng theo số xe đã vượt đỏ trong `Δt` giây gần nhất trên cùng nhánh: `p = p0 + k·n` (cắt ở `p_max`).
-  - `wrong_lane_dodge`: khi đèn đỏ và hàng ở làn đúng dài hơn `q_min`, xe chuyển sang làn sai (ví dụ làn rẽ) để tiến lên với tốc độ ≤ `v_creep`. Cần connection tương ứng với hành vi quan sát; nếu mạng không cho phép thì báo cáo.
+  - `queue_space_seeking` (gộp sai làn, chặn làn rẽ phải, vỉa hè, ngược chiều): kích hoạt khi hàng chờ ở làn đúng dài ≥ `q`, hoặc thời gian chờ ≥ `t_w`, hoặc đèn sắp xanh. Xe chọn một khoảng trống thay thế **đang tồn tại trong mạng** (`wrong_lane`, `right_lane`, `sidewalk`, `opposite`) theo xác suất `p_*` do LLM điền, tốc độ ≤ `v_creep`. Khi một lựa chọn không có trong mạng (ví dụ phương án chính sách đã chặn vỉa hè), xác suất của nó được **phân bổ lại** cho các lựa chọn còn lại theo tỷ lệ — đây là cơ chế "dồn hành vi" dùng trong đánh giá phương án. Ngoài khi được kích hoạt, xe vi phạm phải bị khóa không vào các làn/liên kết vi phạm (dùng `setLaneChangeMode` hoặc cơ chế tương đương, theo kết quả 3A).
   - `illegal_left_box`: theo kết quả Phase 3.
   - `slow_lane_center` (tùy chọn): giữ archetype I_slow chạy ở giữa làn.
 
@@ -282,6 +322,9 @@ Pipeline video sau này phải xuất ra **đúng các file này**. Phía mô ph
 | `lateral_snapshots.csv` | `cycle_id, approach, track_id, vclass, lat_m, long_m_from_stopline` |
 | `trajectories.parquet` (tầng 2) | `track_id, t, x, y, vclass` trong hệ tọa độ đã homography về mặt đường |
 | `box_queue.csv` | `cycle_id, t, approach, n_waiting_in_box, t_clear_start, t_clear_end` |
+| `queue_timeseries.csv` | `t (mỗi 2–5 s), approach, queue_length_m, n_car, n_moto` |
+| `space_seeking_events.csv` | `t, cycle_id, approach, track_id, vclass, space(wrong_lane/right_lane/sidewalk/opposite), queue_length_m_at_t` |
+| `right_turn_delay.csv` | `track_id, approach, vclass, t_enter, t_exit, blocked(bool)` |
 
 ### 5.2 Metric
 
@@ -294,11 +337,15 @@ Mỗi metric viết thành một hàm `compute(source) -> distribution | scalar`
 - **M4:** phân bố vị trí ngang của xe máy tại thời điểm đèn chuyển xanh; khoảng xe máy vượt qua vạch dừng.
 - **M5:** chiều dài hàng chờ và mật độ xe máy tại thời điểm đèn chuyển xanh, theo nhánh.
 - **M6:** thời gian đi qua nút / tốc độ theo hướng × vClass.
-- **M7 (trọng tâm: rẽ trái trái phép):**
+- **M7 (chấp nhận khoảng trống và rẽ trái trái phép):**
   - M7a: số xe chờ giữa nút khi pha đi thẳng đối diện kết thúc, và phân phối thời điểm xả trong chu kỳ;
   - M7b: PET giữa xe rẽ trái trái phép đang xả và xe của hướng giao cắt / xe đi thẳng ngược chiều cuối pha;
   - M7c: tổn thất thời gian khởi động của hướng giao cắt, so giữa các chu kỳ có hàng chờ giữa nút lớn và nhỏ.
 - **M8:** tỷ lệ xe ở làn không khớp hướng đi ra (cần tracking).
+- **M9 (chặn làn rẽ phải liên tục):** số xe đi thẳng đứng trên làn rẽ phải lúc chuyển xanh, theo độ dài hàng đi thẳng; phân phối thời gian trễ của xe rẽ phải.
+- **M10 (vỉa hè):** số xe máy trên vỉa hè mỗi chu kỳ, theo độ dài hàng chờ.
+- **M11 (ngược chiều, giai đoạn sau):** số xe đi ngược chiều mỗi chu kỳ, theo độ dài hàng chờ.
+- Với nhóm F2, tính thêm **xác suất chọn từng khoảng trống theo độ dài hàng chờ** (từ `space_seeking_events.csv` + `queue_timeseries.csv`): đây là đại lượng ràng buộc trực tiếp các tham số `q`, `t_w`, `p_*` của `queue_space_seeking`.
 
 ### 5.3 `distance.py`
 
@@ -329,23 +376,31 @@ Mỗi metric viết thành một hàm `compute(source) -> distribution | scalar`
 
 ## Phase 7 — Baseline Optuna và benchmark
 
-1. `baselines/optuna_search.py`: cùng không gian tham số (sinh từ `param_bounds.yaml` cộng tham số của các rule TraCI), cùng hàm mục tiêu, **cùng ngân sách số lần chạy SUMO** với vòng LLM.
-2. `benchmark.py`: chạy B0, B1 (thủ công), B2 (Optuna tốt nhất), P (LLM tốt nhất) trên validation days với ≥ 20 seed. Ghi `results/metrics.csv`; vẽ phân phối sim vs obs cho từng metric; chạy kiểm định Wilcoxon / Mann-Whitney và tính effect size.
-3. Ablation: tắt lần lượt từng rule TraCI / từng nhóm tham số.
-4. Kịch bản chính sách: lưu lượng rẽ trái trái phép 0% / 50% / 100% so với quan sát, đo delay và số xung đột PET < ngưỡng. Gắn nhãn rõ đây là ngoại suy.
+1. `baselines/optuna_search.py`: nhận một spec làm **cấu trúc** (archetypes + rule_type đang bật), chỉ tối ưu **tham số** trong cấu trúc đó (bounds từ `param_bounds.yaml` + params của các rule TraCI), cùng hàm mục tiêu, **cùng ngân sách số lần chạy SUMO** với vòng LLM. Dùng cho B2 (cấu trúc của B1) và H (cấu trúc do LLM sinh).
+2. `llm/loop.py` có hai chế độ: `params_only` (P1: cấu trúc khóa, LLM chỉ được sửa giá trị; validator từ chối mọi thay đổi cấu trúc) và `full` (P2: LLM sửa cả cấu trúc lẫn tham số).
+3. `rules/specs/B1_saval.json`: chuyển các luật của Saval et al. (2023) sang schema (ví dụ xe máy hàng đầu dừng đèn đỏ với xác suất 0,5). Ghi nguồn cho từng luật; mục nào không chuyển được sang SUMO thì ghi rõ lý do.
+4. `benchmark.py`: chạy B0, B1, B2, P1, P2, H trên validation days với ≥ 20 seed. Báo cáo theo hai thí nghiệm: **E1** = P1 vs B2; **E2** = B2 vs H vs P2. Ghi `results/metrics.csv`; vẽ phân phối sim vs obs cho từng metric; chạy kiểm định Wilcoxon / Mann-Whitney và tính effect size.
+5. Ablation: tắt lần lượt từng rule TraCI / từng nhóm tham số.
+6. **Đánh giá phương án tổ chức giao thông** (`policy/evaluate.py`), chỉ chạy khi mô hình tốt nhất đạt R ≤ 1 trên validation days:
+   - Mỗi phương án = một bộ patch (đèn / làn / connection) + giả định hành vi, khai báo trong `config/policies/<id>.yaml`. Nhóm: tín hiệu đèn, phân làn (cọc phân cách làn rẽ phải liên tục, chắn vỉa hè, kéo dài dải phân cách cứng, làn riêng xe máy, vùng chờ xe máy), tổ chức hướng rẽ, cưỡng chế (giảm tỷ trọng kiểu vi phạm và xác suất luật TraCI). Danh sách cụ thể do Viktor chốt.
+   - Chạy **mỗi phương án với cả B0 (SUMO mặc định) và mô hình đã hiệu chỉnh**, ≥ 20 seed. Chỉ số: độ trễ theo nhánh và loại xe, hàng chờ lớn nhất, năng lực thông qua, số xung đột PET < ngưỡng, tỷ lệ vi phạm, và tỷ lệ chọn từng khoảng trống thay thế (để thấy hành vi bị dồn sang đâu).
+   - Xuất **bảng so thứ hạng** phương án giữa hai mô hình (kèm kiểm định thứ hạng, ví dụ Kendall tau).
+   - Mọi giả định hành vi (ví dụ mức giảm vi phạm khi tăng cưỡng chế) chạy phân tích độ nhạy và báo cáo khoảng dao động.
+   - Không tính chỉ số an toàn cho vỉa hè và làn ảo ngược chiều (SUMO không mô phỏng xung đột ở đó).
 
 ---
 
 ## 8. Việc cần Viktor cung cấp (Claude Code KHÔNG tự điền)
 
 - Đường dẫn thư mục OWZ trên máy.
-- `site.yaml`: bề rộng làn thực đo; nhánh nào cấm rẽ trái/quay đầu; nhánh có người rẽ trái trái phép; chu kỳ và các pha đèn (gồm vàng, all-red).
-- Chọn hướng (a)/(b) sau Phase 3.
+- `site.yaml`: bề rộng làn thực đo; nhánh nào cấm rẽ trái/quay đầu; nhánh có người rẽ trái trái phép; chu kỳ và các pha đèn (gồm vàng, all-red); loại phân cách làn rẽ phải; bề rộng vỉa hè; chiều dài đoạn dải phân cách cứng; 1–2 nhánh dùng để đo nhóm F2.
+- Quyết định sau Phase 3: làm hay hoãn đi ngược chiều (3C); hướng (a)/(b) cho chờ giữa nút (3D).
+- Danh sách phương án tổ chức giao thông cần đánh giá (Phase 7).
 - Endpoint LLM local (Ollama hay vLLM, tên model, GPU).
 - Dữ liệu quan sát theo schema Phase 5.1 (sau khi xử lý video).
 
 ## 9. Thứ tự và điểm dừng
 
-`Phase 0 → 1 → 2 → 3 (DỪNG: chọn a/b) → 4 → 5 → (DỪNG: chờ dữ liệu thực hoặc chạy tiếp với SYNTHETIC) → 6 → 7`
+`Phase 0 → 1 → 2 → 3 (DỪNG: quyết 3C, 3D) → 4 → 5 → (DỪNG: chờ dữ liệu thực hoặc chạy tiếp với SYNTHETIC) → 6 → 7`
 
 Sau mỗi phase báo cáo: đã làm gì, lệnh để tái tạo, tiêu chí đạt/chưa đạt, các giả định đã dùng, các mục `TODO_MEASURE` còn lại.
