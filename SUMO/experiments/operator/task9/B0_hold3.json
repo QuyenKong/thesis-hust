@@ -1,0 +1,47 @@
+{
+  "spec_id": "B0_hold3",
+  "source": "manual",
+  "provenance": {
+    "model": null,
+    "prompt_version": null,
+    "iteration": 0,
+    "sample_idx": 0,
+    "reference": null
+  },
+  "description": "Scratch (operator, R29 proxy check): B0 plus only illegal_left_box release_lag_s 3 on the custom1 archetype.",
+  "driver_archetypes": [
+    {
+      "id": "car_B0",
+      "base_vclass": "passenger",
+      "share": 1.0,
+      "params": {},
+      "rationale": "SUMO passenger defaults."
+    },
+    {
+      "id": "moto_B0",
+      "base_vclass": "motorcycle",
+      "share": 1.0,
+      "params": {},
+      "rationale": "SUMO motorcycle defaults."
+    },
+    {
+      "id": "moto_violator_B0",
+      "base_vclass": "custom1",
+      "share": 1.0,
+      "params": {},
+      "rationale": "SUMO motorcycle defaults on vClass custom1 (the only class allowed on the banned LVL_W left turn)."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_violator_B0"
+      ],
+      "params": {
+        "release_lag_s": 3.0
+      },
+      "rationale": "Operator scratch for the R29 paired check: hold lag 3 s on the custom1 archetype, everything else B0."
+    }
+  ]
+}

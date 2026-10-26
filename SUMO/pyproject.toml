@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thesis-sumo"
+version = "0.1.0"
+description = "LLM-generated driver behaviour rules for SUMO at Le Van Luong x Hoang Dao Thuy (Hanoi)"
+requires-python = ">=3.10"
+# traci / sumolib are NOT installed from PyPI: they come from %SUMO_HOME%/tools
+# (added to sys.path by .venv/Lib/site-packages/sumo_tools.pth) so they match the SUMO binary.
+dependencies = [
+    "pyyaml>=6.0",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "lxml>=5.0",
+    "matplotlib>=3.8",
+    "jsonschema>=4.20",
+    "scipy>=1.11",
+    "pyproj>=3.6",  # sumolib lon/lat <-> net xy (convertLonLat2XY)
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+llm = ["openai>=1.30"]
+optuna = ["optuna>=3.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # SWIG-generated libsumo bindings on Python 3.12
+    "ignore:builtin type Swig.* has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+]

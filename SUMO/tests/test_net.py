@@ -1,0 +1,352 @@
+"""Network build (PLAN Phase 1): base net from OSM, site patches, signal program, edge table.
+
+One CLI run (session fixture) builds base + proxy site net into a temp dir; tests read its outputs.
+"""
+
+import gzip
+import math
+import subprocess
+import sys
+import warnings
+from pathlib import Path
+
+import pytest
+import sumolib
+from lxml import etree
+
+from thesis_sumo.config import REPO_ROOT, MissingFieldDataError, Site, load_site
+from thesis_sumo.net.apply_patches import (
+    ProxySiteWarning,
+    build_site_net,
+    movement_of,
+    phase_states,
+    site_net_name,
+)
+from thesis_sumo.net.build_net import (
+    approach_edges,
+    edge_table,
+    exit_edges,
+    inbound_edges,
+    outbound_edges,
+    target_node,
+    target_tls,
+)
+
+PROXY = REPO_ROOT / "config" / "site.proxy.yaml"
+MEASURED = REPO_ROOT / "config" / "site.yaml"
+OSM = REPO_ROOT / "scenario_raw" / "2026-10-02-06-34-26" / "osm_bbox.osm.xml.gz"
+COMMITTED = REPO_ROOT / "scenario" / "net"
+
+
+def _cli(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", "thesis_sumo.net.build", *args],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=REPO_ROOT,
+    )
+
+
+@pytest.fixture(scope="session")
+def built(tmp_path_factory):
+    out_dir = tmp_path_factory.mktemp("net")
+    proc = _cli("--site", str(PROXY), "--out-dir", str(out_dir))
+    return out_dir, proc
+
+
+@pytest.fixture(scope="session")
+def site_net(built):
+    out_dir, proc = built
+    assert proc.returncode == 0, proc.stderr[-3000:]
+    return sumolib.net.readNet(str(out_dir / "site.proxy.net.xml"), withInternal=True, withPrograms=True)
+
+
+@pytest.fixture(scope="session")
+def proxy():
+    return load_site(PROXY)
+
+
+def _strip_header(path: Path) -> str:
+    """Net file text without the leading netconvert comment (it holds the date and input paths)."""
+    text = path.read_text(encoding="utf-8")
+    end = text.index("-->") + 3
+    return text[end:]
+
+
+# --- tests named in the task brief -------------------------------------------------------------
+
+def test_base_net_builds(built):
+    out_dir, proc = built
+    assert proc.returncode == 0, proc.stderr[-3000:]
+    for name in ("base.net.xml", "site.proxy.net.xml", "edge_table.csv", "diagram.svg",
+                 "removed_nodes.csv", "patches/site.proxy/lanes.edg.xml",
+                 "patches/site.proxy/turns.con.xml", "patches/site.proxy/signal.tll.xml"):
+        assert (out_dir / name).is_file(), name
+
+
+def test_target_tls_static(site_net):
+    tls = target_tls(site_net)
+    programs = tls.getPrograms()
+    assert programs, "target junction has no tlLogic"
+    assert {p.getType() for p in programs.values()} == {"static"}
+    # the only signal left in the cut network is the target one (arm signals removed, PLAN 1.1)
+    assert [t.getID() for t in site_net.getTrafficLights()] == [tls.getID()]
+
+
+def test_banned_left_only_custom1(site_net, proxy):
+    banned = [a for a in proxy["approaches"] if a["left_turn_banned"]]
+    assert banned, "proxy site must ban at least one left turn"
+    vclass = proxy["illegal_left"]["vclass"]
+    for a in banned:
+        lefts = [c for c in _conns_from(site_net, a["edge"]) if movement_of(c.getDirection()) == "l"]
+        assert lefts, f"{a['id']}: no left connection left for {vclass}"
+        for c in lefts:
+            via = site_net.getLane(c.getViaLaneID())
+            assert via.getPermissions() == {vclass}, (a["id"], via.getID(), via.getPermissions())
+            assert c.allows(vclass) and not c.allows("motorcycle") and not c.allows("passenger")
+    # approaches without a ban keep their ordinary left turns
+    for a in proxy["approaches"]:
+        if not a["left_turn_banned"]:
+            lefts = [c for c in _conns_from(site_net, a["edge"]) if movement_of(c.getDirection()) == "l"]
+            assert lefts and all(c.allows("motorcycle") and c.allows("passenger") for c in lefts)
+
+
+def test_signal_matches_site(site_net, proxy):
+    (program,) = target_tls(site_net).getPrograms().values()
+    phases = program.getPhases()
+    assert sum(p.duration for p in phases) == proxy["signal"]["cycle_s"]
+    assert [p.duration for p in phases] == [p["duration_s"] for p in proxy["signal"]["phases"]]
+    # every link shows the colour the site file asks for, by movement
+    approach_of = {a["edge"]: a["id"] for a in proxy["approaches"]}
+    for k, (ph, spec) in enumerate(zip(phases, proxy["signal"]["phases"])):
+        for conn in target_tls(site_net).getConnections():
+            in_lane, _, idx = conn
+            c = _link(site_net, idx)
+            mv = f"{approach_of[in_lane.getEdge().getID()]}:{movement_of(c.getDirection())}"
+            ch = ph.state[idx]
+            if mv in spec["green_movements"]:
+                assert ch in "Gg", (k, mv, ch)
+            elif mv in spec["yellow_movements"]:
+                assert ch == "y", (k, mv, ch)
+            else:
+                assert ch == "r", (k, mv, ch)
+
+
+# --- further behaviour ---------------------------------------------------------------------------
+
+def test_illegal_left_green_in_own_through_phase(site_net, proxy):
+    """PLAN 1.4: the illegal (custom1) left link is `g` in the through-green phase of its approach."""
+    (program,) = target_tls(site_net).getPrograms().values()
+    for app_id in proxy["illegal_left"]["approaches"]:
+        edge = next(a["edge"] for a in proxy["approaches"] if a["id"] == app_id)
+        conns = _conns_from(site_net, edge)
+        through = {c.getTLLinkIndex() for c in conns if movement_of(c.getDirection()) == "s"}
+        lefts = {c.getTLLinkIndex() for c in conns if movement_of(c.getDirection()) == "l"}
+        through_green = [p for p in program.getPhases() if all(p.state[i] == "G" for i in through)]
+        assert through_green
+        for p in through_green:
+            assert all(p.state[i] == "g" for i in lefts)
+
+
+def test_edges_mapped_and_inbound(site_net, proxy):
+    incoming = {e.getID() for e in inbound_edges(target_node(target_tls(site_net)))}
+    edges = [a["edge"] for a in proxy["approaches"]]
+    assert len(set(edges)) == 4 and set(edges) == incoming
+    assert approach_edges(site_net) == {a["id"]: a["edge"] for a in proxy["approaches"]}
+
+
+def test_measured_site_edges_match_proxy():
+    """Edge ids are geometry, not field data: both site files carry the same mapping."""
+    m, p = load_site(MEASURED), load_site(PROXY)
+    for key in ("approaches", "exits"):
+        assert [(a["id"], a["edge"]) for a in m[key]] == [(a["id"], a["edge"]) for a in p[key]], key
+    assert all(x["lane_widths_m"] is None for x in m["exits"])
+
+
+def test_lane_widths_from_site(site_net, proxy):
+    for a in [*proxy["approaches"], *proxy["exits"]]:
+        lanes = site_net.getEdge(a["edge"]).getLanes()
+        assert [round(l.getWidth(), 2) for l in lanes] == a["lane_widths_m"], a["id"]
+
+
+def test_exits_mapped_and_outbound(site_net, proxy):
+    outgoing = {e.getID() for e in outbound_edges(target_node(target_tls(site_net)))}
+    edges = [x["edge"] for x in proxy["exits"]]
+    assert len(set(edges)) == 4 and set(edges) == outgoing
+    assert exit_edges(site_net) == {x["id"]: x["edge"] for x in proxy["exits"]}
+    # an exit lies on the arm of the approach with the same prefix: the approach's turnaround leads into it
+    approach = {a["id"]: a["edge"] for a in proxy["approaches"]}
+    for x in proxy["exits"]:
+        turns = [c for c in _conns_from(site_net, approach[x["id"].removesuffix("_out")])
+                 if movement_of(c.getDirection()) == "t"]
+        assert {c.getTo().getID() for c in turns} == {x["edge"]}, x["id"]
+
+
+def test_internal_lanes_as_wide_as_outbound_lane(site_net, proxy):
+    """R21: no width step inside the box. netconvert gives an internal lane the width of its outbound lane
+    (Task 4 operator report); with exit widths = approach widths every link keeps the approach width."""
+    node = target_node(target_tls(site_net))
+    widths = {a["edge"]: a["lane_widths_m"] for a in [*proxy["approaches"], *proxy["exits"]]}
+    n_internal = 0
+    for edge in inbound_edges(node):
+        for c in _conns_from(site_net, edge.getID()):
+            out = c.getToLane()
+            assert round(out.getWidth(), 2) == widths[out.getEdge().getID()][out.getIndex()]
+            assert round(c.getFromLane().getWidth(), 2) == widths[edge.getID()][c.getFromLane().getIndex()]
+            via = site_net.getLane(c.getViaLaneID())
+            while via is not None:  # a link may run over several internal lanes (internal junctions)
+                assert math.isclose(via.getWidth(), out.getWidth()), (via.getID(), via.getWidth(), out.getID())
+                n_internal += 1
+                (nxt,) = via.getOutgoing()
+                via = site_net.getLane(nxt.getViaLaneID()) if nxt.getViaLaneID() else None
+    assert n_internal >= len(target_tls(site_net).getConnections())
+
+
+def test_exit_widths_required_and_checked(built, proxy, tmp_path):
+    """R7: a null exit width raises MissingFieldDataError naming the key; a wrong lane count raises."""
+    out_dir, _ = built
+    for widths, err, match in ((None, MissingFieldDataError, r"exits\.2\.lane_widths_m"),
+                               ([3.5, 3.5], ValueError, "2 lane widths for 3 lanes")):
+        data = dict(proxy)
+        data["exits"] = [dict(x) for x in proxy["exits"]]
+        data["exits"][2]["lane_widths_m"] = widths
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ProxySiteWarning)
+            with pytest.raises(err, match=match):
+                build_site_net(Site(data, proxy.path), out_dir / "base.net.xml", tmp_path / "x.net.xml")
+        assert not (tmp_path / "x.net.xml").exists()
+
+
+def test_unnamed_osm_way_is_hoang_dao_thuy(site_net):
+    """PLAN 1.2: OSM way 1071601648 has no name; its wikidata id is Hoang Dao Thuy's."""
+    tags = {}
+    with gzip.open(OSM) as f:
+        for _, el in etree.iterparse(f, tag="way"):
+            if el.get("id") in ("1071601648", "953158817", "37871458"):
+                tags[el.get("id")] = {t.get("k"): t.get("v") for t in el.findall("tag")}
+            el.clear()
+    assert "name" not in tags["1071601648"]
+    hdt = tags["37871458"]["name:etymology:wikidata"]
+    assert tags["1071601648"]["name:etymology:wikidata"] == hdt == tags["953158817"]["name:etymology:wikidata"]
+    assert tags["953158817"]["name"] == "Phố Hoàng Đạo Thúy"
+    # in the built net the HDT_N approach carries the HĐT name
+    assert site_net.getEdge(approach_edges(site_net)["HDT_N"]).getName() == "Phố Hoàng Đạo Thúy"
+
+
+def test_edge_table_columns(built):
+    out_dir, _ = built
+    df = edge_table(out_dir / "base.net.xml")
+    assert list(df.columns) == ["edge_id", "name", "direction", "n_lanes", "length_m", "connections"]
+    assert len(df) == 8
+    inbound = df[df["direction"].str.startswith("in")]
+    assert len(inbound) == 4 and all(inbound["connections"].str.len() > 0)
+
+
+def test_removed_nodes_reported(built):
+    out_dir, _ = built
+    text = (out_dir / "removed_nodes.csv").read_text(encoding="utf-8")
+    assert "cluster_2291072471_443393357" in text  # the signal on the HĐT north arm
+
+
+def test_measured_site_raises(built):
+    out_dir, _ = built
+    with pytest.raises(MissingFieldDataError):
+        build_site_net(load_site(MEASURED), out_dir / "base.net.xml", out_dir / "site.net.xml")
+    assert not (out_dir / "site.net.xml").exists()
+    proc = _cli("--site", str(MEASURED), "--out-dir", str(out_dir / "measured"))
+    assert proc.returncode != 0 and "TODO_MEASURE" in proc.stderr
+    assert not (out_dir / "measured" / "site.net.xml").exists()
+
+
+def test_proxy_build_warns(built, proxy, tmp_path):
+    out_dir, proc = built
+    assert "LITERATURE_PROXY" in proc.stderr
+    with pytest.warns(ProxySiteWarning):
+        build_site_net(proxy, out_dir / "base.net.xml", tmp_path / "site.proxy.net.xml")
+
+
+def test_site_net_name(proxy):
+    assert site_net_name(proxy) == "site.proxy.net.xml"
+    assert site_net_name(load_site(MEASURED)) == "site.net.xml"
+
+
+def test_phase_states_rules():
+    links = [("A", "s"), ("A", "l"), ("A", "r"), ("A", "t"), ("B", "s")]
+    phases = [
+        {"name": "g", "duration_s": 10, "green_movements": ["A:s", "A:l", "A:r", "A:t"], "yellow_movements": []},
+        {"name": "y", "duration_s": 3, "green_movements": [], "yellow_movements": ["A:s", "A:l"]},
+        {"name": "b", "duration_s": 7, "green_movements": ["B:s"], "yellow_movements": []},
+    ]
+    assert phase_states(links, phases, cycle_s=20) == ["GgGgr", "yyrrr", "rrrrG"]
+    with pytest.raises(ValueError, match="cycle"):
+        phase_states(links, phases, cycle_s=21)
+    bad = [dict(phases[0], green_movements=["A:x"])]
+    with pytest.raises(ValueError, match="A:x"):
+        phase_states(links, bad, cycle_s=10)
+    missing = [dict(phases[0], green_movements=["C:s"])]
+    with pytest.raises(ValueError, match="C:s"):
+        phase_states(links, missing, cycle_s=10)
+
+
+def test_movement_codes():
+    assert [movement_of(d) for d in ("s", "l", "L", "r", "R", "t")] == ["s", "l", "l", "r", "r", "t"]
+    with pytest.raises(ValueError):
+        movement_of("invalid")
+
+
+def test_u_turn_ban_and_unbanned_illegal_left_rejected(built, proxy, tmp_path):
+    out_dir, _ = built
+    data = dict(proxy)
+    data["approaches"] = [dict(a) for a in proxy["approaches"]]
+    data["approaches"][1]["u_turn_banned"] = True
+    site = Site(data, proxy.path)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ProxySiteWarning)
+        net_path = build_site_net(site, out_dir / "base.net.xml", tmp_path / "u.net.xml")
+    net = sumolib.net.readNet(str(net_path), withInternal=True)
+    turns = [c for c in _conns_from(net, data["approaches"][1]["edge"]) if movement_of(c.getDirection()) == "t"]
+    assert turns and all(net.getLane(c.getViaLaneID()).getPermissions() == {"custom1"} for c in turns)
+
+    data["illegal_left"] = dict(proxy["illegal_left"], approaches=["LVL_E"])
+    with pytest.raises(ValueError, match="LVL_E"):
+        build_site_net(Site(data, proxy.path), out_dir / "base.net.xml", tmp_path / "v.net.xml")
+
+
+def test_illegal_left_mode_checked(built, proxy, tmp_path):
+    """`illegal_left.mode` (Phase 3 decision) is required and must be native | box_edge."""
+    out_dir, _ = built
+    for mode, err, match in ((None, MissingFieldDataError, "illegal_left.mode"),
+                             ("teleport", ValueError, "illegal_left.mode"),
+                             ("box_edge", NotImplementedError, "box_edge")):
+        data = dict(proxy)
+        data["illegal_left"] = dict(proxy["illegal_left"], mode=mode)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ProxySiteWarning)
+            with pytest.raises(err, match=match):
+                build_site_net(Site(data, proxy.path), out_dir / "base.net.xml", tmp_path / "m.net.xml")
+        assert not (tmp_path / "m.net.xml").exists()
+
+
+def test_committed_outputs_match_build(built):
+    """scenario/net/*.net.xml are exactly what the script produces (no hand edits)."""
+    out_dir, _ = built
+    for name in ("base.net.xml", "site.proxy.net.xml"):
+        assert _strip_header(COMMITTED / name) == _strip_header(out_dir / name), name
+    for name in ("edge_table.csv", "removed_nodes.csv", "patches/site.proxy/signal.tll.xml",
+                 "patches/site.proxy/turns.con.xml", "patches/site.proxy/lanes.edg.xml"):
+        assert (COMMITTED / name).read_text(encoding="utf-8") == (out_dir / name).read_text(encoding="utf-8"), name
+
+
+# --- helpers ---------------------------------------------------------------------------------------
+
+def _conns_from(net, edge_id):
+    edge = net.getEdge(edge_id)
+    return [c for conns in edge.getOutgoing().values() for c in conns]
+
+
+def _link(net, idx):
+    tls = target_tls(net)
+    for in_lane, out_lane, i in tls.getConnections():
+        if i == idx:
+            for c in in_lane.getOutgoing():
+                if c.getToLane() == out_lane:
+                    return c
+    raise KeyError(idx)

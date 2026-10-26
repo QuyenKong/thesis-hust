@@ -1,0 +1,383 @@
+# LITERATURE PROXY targets for the observed-data generator (thesis_sumo.proxy.generate) -- NOT field data.
+# Read docs/research/proxy_targets.md for the reasoning behind every number. Source ids [S..] are in
+# docs/research/proxy_sources.md, ids [T..] in docs/research/proxy_targets.md.
+#
+# Every target is a mapping with
+#   value            the mean (a number, or a mapping per approach / vclass / movement)
+#   unit, family     the distribution family the generator samples from (and its dispersion parameter)
+#   between_day_cv   coefficient of variation of the day-level mean (a day multiplier, mean 1)
+#   source, evidence literature | literature_transferred | assumed (ruling R13). literature = a source states the
+#                    value for this site/quantity; literature_transferred = taken from a source but transferred
+#                    across site, denominator or country, with `transfer_note:` saying how; assumed = no source,
+#                    or an assumption carries the number. Prefixed siblings (`cv_evidence`, ...) follow the same rule.
+# Values of targets with `derived: true` are not inputs: they follow from other targets and are reported
+# (computed from the generated days) in docs/research/proxy_targets.md.
+# The generator is independent of any SUMO output: nothing here was fitted to a simulation run.
+
+site_source: LITERATURE_PROXY
+window_s: 3600            # observed window per day, in seconds from 0 (simulation seconds on the SUMO side)
+window_s_source: "PLAN 0 / config/experiment.yaml sim.end_s: one 3600 s window per day"
+window_s_evidence: assumed
+warmup_s: 240             # arrivals are generated from -warmup_s so the window starts with queues in place
+warmup_s_source: "modelling choice: two signal cycles before the window"
+warmup_s_evidence: assumed
+
+day_factor:
+  family: lognormal multiplier with mean 1 (sigma = sqrt(ln(1 + cv^2))), one draw per target and day
+  source: "spec 4.2: literature if available, else +-10-15 % assumed"
+  evidence: assumed
+
+geometry:
+  # path length from the stop line to the start of the outbound lane, by movement
+  path_length_m: {s: 40.6, r: 13.1, l: 40.9, u: 15.9, illegal_l: 36.5}
+  path_length_m_source: "mean internal-lane chain length per movement of scenario/net/site.proxy.net.xml (junction geometry from OSM, Task 2); measure on video"
+  path_length_m_evidence: assumed
+  moto_length_m: 1.87
+  moto_length_m_source: "[T2] Minh et al. 2005 Table 1 (motorcycle 1.87 x 0.64 m, after Chandra et al. 2003)"
+  moto_length_m_evidence: literature_transferred
+  moto_length_m_transfer_note: "country/fleet: Indian vehicle dimensions (Chandra et al. 2003) as tabulated by [T2] for Hanoi, applied to today's Hanoi motorcycles"
+  car_length_m: 4.5
+  car_length_m_source: "assumed typical Hanoi passenger car (no local source found); [T2] lists 3.72 m (Indian fleet)"
+  car_length_m_evidence: assumed
+  box_wait_position_share: {low: 0.4, high: 0.6}
+  box_wait_position_share_source: "assumed: illegal lefts wait near the middle of their path (share of path_length_m.illegal_l past the stop line)"
+  box_wait_position_share_evidence: assumed
+
+targets:
+  # ------------------------------------------------------------------ G0: counts (turn_counts.csv)
+  G0_counts:
+    approach_volume_veh_h:
+      value: {LVL_W: 2620, LVL_E: 2130, HDT_N: 1800, HDT_S: 1630}
+      unit: veh/h crossing the stop line
+      family: poisson arrivals (per approach, vclass, movement, 15-min bin)
+      between_day_cv: 0.087
+      between_day_cv_source: "[T6] Abdy & Hellinga 2007: weekday peak-hour volume COV 5.4-13.1 %, mean 8.7 % (normal); Sullivan et al. 2006 mean 0.089. One common factor for all approaches (assumed full correlation)"
+      between_day_cv_evidence: literature_transferred
+      between_day_cv_transfer_note: "country: weekday peak-hour volumes at North American (Waterloo, Milwaukee) count stations, applied to a Hanoi junction"
+      source: "total 8180 veh/h = [S5] Lang Ha x Lang (3-lane major road, same corridor) 16352 veh in 2 h of video; split 32/26/22/20 % over LVL_W/LVL_E/HDT_N/HDT_S assumed (inbound LVL heaviest in the AM peak [S6])"
+      evidence: assumed
+    moto_share:
+      value: 0.865
+      unit: share of vehicles that are motorcycles
+      family: binomial per vehicle
+      between_day_cv: 0.03
+      between_day_cv_source: "assumed small (fleet mix is stable from day to day)"
+      between_day_cv_evidence: assumed
+      source: "[S5] Lang Ha x Lang: 14148 motorcycles of 16352 vehicles"
+      evidence: literature_transferred
+      transfer_note: "site: vehicle mix of Lang Ha x Lang (all approaches, 7-8 am and 5-6 pm, 2018) applied to every LVL x HDT approach in the AM peak"
+    movement_split:
+      value:
+        legal: {s: 0.70, r: 0.15, l: 0.10, u: 0.05}
+        banned_left: {s: 0.80, r: 0.15, u: 0.05}   # approach with left_turn_banned (illegal lefts: see M7)
+      unit: share of the approach's legal vehicles
+      family: multinomial per vehicle
+      between_day_cv: 0.0
+      source: "no turning-movement count found for LVL x HDT or comparable Hanoi junctions; assumed"
+      evidence: assumed
+    profile_15min:
+      value: [1.0, 1.0, 1.0, 1.0]
+      unit: factor on the hourly rate per 15-min bin
+      family: deterministic
+      between_day_cv: 0.0
+      source: "[S5]: 'during the peak hours, the traffic volume do not change much'; flat profile assumed"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M1: discharge headway (stopline_crossings.csv)
+  # Headway of the n-th queued vehicle = time since the previous stop-line crossing of the approach (all lanes),
+  # n = 2.. in discharge order after green onset: h_n = h_sat[vclass] * (1 + ramp_a * exp(-(n - 2) / ramp_b)) * e,
+  # e ~ lognormal(mean 1, cv).
+  M1_headway:
+    moto_saturation_headway_s:
+      value: 0.254
+      unit: s between consecutive stop-line crossings of the whole approach (10.5 m)
+      family: lognormal
+      cv: 0.56
+      cv_source: "[T2] Minh et al. 2005: motorcycle headway mean 1.16 s, sd 0.65 s (cv 0.56)"
+      cv_evidence: literature_transferred
+      cv_transfer_note: "denominator/context: dispersion of moving mid-block motorcycle headways (same sub-lane) applied to stop-line discharge headways of the whole approach"
+      between_day_cv: 0.08
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "[T1] Tuan & Man 2015 (HCMC): motorcycle-car mixed flow on an 11.5 m approach settles at 15525 veh/h of green; scaled by width to 10.5 m -> 14175 veh/h -> 3600/14175 = 0.254 s"
+      evidence: literature_transferred
+      transfer_note: "site/city and geometry: HCMC approach of 11.5 m (Nguyen Thai Hoc, motorcycle-car flow) scaled linearly by width to the 10.5 m proxy approach"
+    car_headway_factor:
+      value: 1.4
+      unit: car headway / motorcycle headway
+      family: deterministic
+      between_day_cv: 0.0
+      source: "[T1] passenger-car adjustment f_PC = 1/(1.01 * 1.004^P_PC): each % of cars lowers the flow by 0.4 %, i.e. one car takes the time of ~1.4 motorcycles"
+      evidence: literature_transferred
+      transfer_note: "city: HCMC passenger-car adjustment factor (per % of cars) converted to a per-vehicle headway ratio"
+    startup_ramp:
+      value: {a: 1.0, b: 3.0}
+      unit: "headway factor 1 + a * exp(-(n-2)/b) by queue position n"
+      family: deterministic
+      between_day_cv: 0.0
+      source: "[T1]: the flow rate climbs to its peak within the first 6-12 s of green; shape and size of the ramp assumed"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M2: early start, first-vehicle delay
+  M2_early_start:
+    early_start_share:
+      value:
+        LVL_W: {moto: 0.0945, car: 0.0027}
+        LVL_E: {moto: 0.0945, car: 0.0027}
+        HDT_N: {moto: 0.1582, car: 0.0068}
+        HDT_S: {moto: 0.1582, car: 0.0068}
+      unit: share of the approach's vehicles of that class that cross the stop line before green onset (early departure)
+      family: negative binomial count per cycle (var/mean as M3 per_cycle_var_to_mean), taken from the front of the queue
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed (spec 4.2); [S5] two sites differ by ~15 %"
+      between_day_cv_evidence: assumed
+      source: "[S5] Mai et al. 2019: LVL (3-lane major road) = Table 3 site 1 'go-through major traffic' (motorbike 9.45 %, car 0.27 %); HDT = Table 2 site 1 all flows (motorbike 2238/14148 = 15.82 %, car 15/2204 = 0.68 %); mapping of sites/streams to approaches assumed"
+      evidence: literature_transferred
+      transfer_note: "site and denominator: [S5] Lang Ha x Lang 2018; LVL uses the 'go-through major traffic' subset of Table 3, HDT uses all flows of Table 2; applied as a share of the approach's class total; site -> approach mapping assumed"
+    early_start_lead_s:
+      value: {low: 4.0, high: 10.0}
+      unit: s before green onset at which an early starter crosses the stop line
+      family: uniform
+      between_day_cv: 0.0
+      source: "[S5] defines early departure as starting >= 5 s before green; ~1 s from start to the line and a 10 s upper bound assumed"
+      evidence: assumed
+    first_crossing_delay_s:
+      value: 1.2
+      unit: s from green onset to the first stop-line crossing of the remaining (not early) queue
+      family: lognormal
+      cv: 0.4
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "[T1] motorcycle-front queues reach > 14000 veh/h of green within the first 2 s; car start-up lost time 3.3 s [S13] is for car-front queues; 1.2 s assumed"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M3: red-light running
+  M3_red_running:
+    red_run_share:
+      value:
+        LVL_W: {moto: 0.0649, car: 0.0027}
+        LVL_E: {moto: 0.0649, car: 0.0027}
+        HDT_N: {moto: 0.1106, car: 0.0050}
+        HDT_S: {moto: 0.1106, car: 0.0050}
+      unit: share of the approach's vehicles of that class that cross the stop line during red (excluding early starters)
+      family: negative binomial count per cycle
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed (spec 4.2)"
+      between_day_cv_evidence: assumed
+      source: "[S5] Mai et al. 2019: LVL = Table 3 site 1 'go-through major traffic' (motorbike 6.49 %, car 0.27 %); HDT = Table 2 site 1 (motorbike 1565/14148 = 11.06 %, car 11/2204 = 0.50 %); mapping assumed"
+      evidence: literature_transferred
+      transfer_note: "site and denominator: [S5] Lang Ha x Lang 2018; LVL uses the 'go-through major traffic' subset of Table 3, HDT uses all flows of Table 2; applied as a share of the approach's class total; site -> approach mapping assumed"
+    per_cycle_var_to_mean:
+      value: 1.3
+      unit: variance / mean of the per-cycle count (red runners, early starters, box entrants use their own)
+      family: negative binomial dispersion
+      between_day_cv: 0.0
+      source: "[S5]: violations 'distributed nearly even among cycles' (Poisson-like); conformity raises clustering ([T4] +33 % hazard when others violate); 1.3 assumed"
+      evidence: assumed
+    late_share:
+      value: {car: 1.0, moto: 0.5}
+      unit: share of red runners crossing within late_window_s after the end of yellow (the rest cross in mid-red, in gaps)
+      family: bernoulli
+      between_day_cv: 0.0
+      source: "[S5]: car red-light passing 'all happened right after the end of yellow time'; motorcycles 'also occurred inside the middle of red phase'; moto split 0.5 assumed"
+      evidence: assumed
+    late_window_s:
+      value: 2.0
+      unit: s after the end of yellow
+      family: uniform
+      between_day_cv: 0.0
+      source: "assumed ('right after the end of yellow' [S5])"
+      evidence: assumed
+    mid_red_cluster_size:
+      value: 2.0
+      unit: mean number of mid-red runners crossing together (within cluster_gap_s of each other)
+      family: 1 + poisson(mean - 1)
+      between_day_cv: 0.0
+      source: "conformity / follow-the-crowd effect ([T4] Shanghai e-cyclists +33 % hazard when others violate); size assumed"
+      evidence: assumed
+    cluster_gap_s:
+      value: 1.0
+      unit: s, mean gap between consecutive runners of a cluster
+      family: exponential
+      between_day_cv: 0.0
+      source: "assumed"
+      evidence: assumed
+    early_start_exclusion_s:
+      value: 10.0
+      unit: s before green onset; mid-red runners cross before this (later red crossings are early starts)
+      family: deterministic
+      between_day_cv: 0.0
+      source: "assumed, equals early_start_lead_s.high"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M4: lateral position and stop-line overshoot
+  M4_lateral:
+    overshoot_share_moto:
+      value: 0.63
+      unit: share of halting motorcycles at green onset whose front is past the stop line
+      family: bernoulli per queued motorcycle (overshooters wait at the front)
+      between_day_cv: 0.10
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "[T3] Syed Tajul Arif & Harun 2023 (MIROS, 4133 motorcycles, 4 signalised junctions in Malaysia): > 63 % queue in front of the stop line; transfer to Hanoi assumed (also 'parking beyond the stop line' [T5])"
+      evidence: literature_transferred
+      transfer_note: "country: Malaysian signalised junctions (share of observed motorcyclists queueing ahead of the stop line) applied to the share of halting motorcycles at green onset in Hanoi"
+    overshoot_depth_m:
+      value: {low: 0.0, high: 4.0}
+      unit: m past the stop line (front bumper)
+      family: uniform
+      between_day_cv: 0.0
+      source: "assumed: overshooters fill the pedestrian-crossing strip (~4 m) in front of the stop line"
+      evidence: assumed
+    moto_lateral_margin_m:
+      value: 0.32
+      unit: m, smallest distance of a motorcycle centre from a lane-band edge it is drawn in
+      family: deterministic
+      between_day_cv: 0.0
+      source: "[T2] motorcycle width 0.64 m / 2"
+      evidence: literature_transferred
+      transfer_note: "country/fleet: motorcycle width 0.64 m from the Indian dimensions tabulated by [T2]"
+    car_lateral_sd_m:
+      value: 0.3
+      unit: m, sd of a car centre around its lane centre
+      family: normal
+      between_day_cv: 0.0
+      source: "assumed"
+      evidence: assumed
+    moto_lateral_distribution:
+      derived: true
+      value: null
+      unit: lat_m of halting motorcycles at green onset (m from the right edge)
+      family: "lane band from the movement (M8 lane_movements + wrong_lane_share), uniform within the band"
+      source: "no lateral distribution found for Hanoi queues; follows from lane model"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M5: queue at green onset
+  M5_queue:
+    moto_area_m2:
+      value: 2.6
+      unit: m2 of queue area per halting motorcycle
+      family: deterministic
+      between_day_cv: 0.0
+      source: "[T2] lateral spacing of paired motorcycles 1.10 m (mixed traffic) x (length 1.87 m + 0.5 m assumed gap)"
+      evidence: assumed
+    car_area_m2:
+      value: 17.4
+      unit: m2 of queue area per halting car
+      family: deterministic
+      between_day_cv: 0.0
+      source: "assumed: (4.5 m + 1.5 m gap) x (1.8 m + 1.1 m lateral clearance)"
+      evidence: assumed
+    queue_length_and_density:
+      derived: true
+      value: null
+      unit: queue_length_m, n_moto / area_m2 at green onset
+      family: "follows from arrivals during red, footprints and overshoot (behind-line queue = cumulative area / roadway width)"
+      source: "no Hanoi queue-length or queue-density measurement found"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M6: traversal
+  M6_traversal:
+    approach_speed_kmh:
+      value: {moto: 27.3, car: 25.0}
+      unit: km/h over the observed range upstream of the stop line (unimpeded)
+      family: normal, truncated to [10, 50]
+      sd: {moto: 5.2, car: 5.0}
+      sd_source: "[T2] motorcycle spot speeds in Hanoi sd 5.2 km/h; car assumed"
+      sd_evidence: literature_transferred
+      sd_transfer_note: "context: mid-block spot-speed spread (4 Hanoi road sections) applied to the last 80 m before the stop line"
+      between_day_cv: 0.05
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "[T2] Minh et al. 2005: mean motorcycle spot speed 27.3 km/h over 4 Hanoi sites; car 25 km/h assumed (cars constrained by motorcycles)"
+      evidence: literature_transferred
+      transfer_note: "context: mid-block spot speeds (4 Hanoi road sections away from junctions) applied to the unimpeded approach within 80 m of the stop line"
+    crossing_speed_kmh:
+      value: {moto: 21.3, car: 20.0}
+      unit: km/h from the stop line to the outbound lane (path_length_m / speed)
+      family: normal, truncated to [8, 45]
+      sd: {moto: 5.1, car: 4.0}
+      sd_source: "[T2] sd 5.1 km/h on mixed undivided roadways; car assumed"
+      sd_evidence: literature_transferred
+      sd_transfer_note: "context: speed spread on a mixed undivided 5.54 m Hanoi road applied to movement through the junction"
+      between_day_cv: 0.05
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "[T2] Minh et al. 2005: 21.3 km/h mean motorcycle speed in mixed traffic (5.54 m road), used for the in-junction movement; car 20 km/h assumed"
+      evidence: literature_transferred
+      transfer_note: "context: mean motorcycle speed on a mixed undivided 5.54 m Hanoi road applied to movement through the junction"
+    yellow_use_s:
+      value: 2.0
+      unit: s of yellow during which vehicles reaching the stop line still cross (later ones stop or run the red)
+      family: deterministic
+      between_day_cv: 0.0
+      source: "assumed (yellow 4 s, site.proxy.yaml)"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M7: illegal left waiting in the box (box_queue.csv)
+  M7_illegal_left:
+    n_waiting_in_box:
+      value: 6.0
+      unit: halting illegal-left motorcycles in the box when the opposing through green ends (per cycle)
+      family: "box entrants per cycle ~ negative binomial(mean value / (1 - early_leave_share), var/mean entrants_var_to_mean); waiting = entrants - early leavers"
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed (spec 4.2)"
+      between_day_cv_evidence: assumed
+      source: "[S5] Lang Ha x Lang: 'a large amount of motorcycle of minor flow runs into the middle of the intersection and wait for passing when time phase changes' (no count given); 6 assumed"
+      evidence: assumed
+    entrants_var_to_mean:
+      value: 1.5
+      unit: variance / mean of box entrants per cycle
+      family: negative binomial dispersion
+      between_day_cv: 0.0
+      source: "assumed"
+      evidence: assumed
+    early_leave_share:
+      value: 0.2
+      unit: share of box entrants that leave through a gap in the opposing flow before the opposing green ends
+      family: bernoulli
+      between_day_cv: 0.0
+      source: "assumed ([S5]: motorcycles pass 'whenever they find an acceptable time gap')"
+      evidence: assumed
+    clear_lag_s:
+      value: 5.65
+      unit: "s from max(opposing green end, last opposing straight stop-line crossing before it) to the first box exit at or after the opposing green end (M7b, PET proxy on tier-1 tables)"
+      family: lognormal
+      cv: 0.5
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "[T7] Hsu et al. 2024 (Taiwan, mixed traffic): mean PET of left-turn crossing conflicts 2.15 s; + 2.0 s opposing stop line -> conflict point and + 1.5 s conflict point -> outbound lane assumed"
+      evidence: assumed
+    box_exit_headway_s:
+      value: 0.5
+      unit: s between consecutive box exits while the box clears
+      family: lognormal
+      cv: 0.56
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "assumed; lower bound from [T1]: 3.5 m motorcycle stream 9650 veh/h of green = 0.37 s; turning stream slower"
+      evidence: assumed
+    crossing_start_delay_per_waiter_s:
+      value: 0.3
+      unit: s added to the crossing road's first-crossing delay at its green onset per vehicle waiting in the box (M7c)
+      family: deterministic slope
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "assumed: clearing box waiters block the start of the crossing road (no measurement found)"
+      evidence: assumed
+
+  # ------------------------------------------------------------------ M8: lane vs movement
+  M8_wrong_lane:
+    wrong_lane_share:
+      value: {moto: 0.25, car: 0.05}
+      unit: share of turning vehicles (r, l, u) whose stop-line lane (lat_m_at_stopline + lane widths) does not permit their movement (lane_movements in the site file)
+      family: bernoulli per turning vehicle
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed"
+      between_day_cv_evidence: assumed
+      source: "no measured share found; Da Nang turn-signal use by motorcyclists only 40 % ([T8]) suggests weak lane discipline; assumed"
+      evidence: assumed

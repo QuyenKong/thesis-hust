@@ -1,0 +1,13 @@
+# Local LLM via an OpenAI-compatible API (Ollama / vLLM / LM Studio).
+# Code must not depend on a specific runtime.
+
+base_url: null                 # TODO_DECIDE, e.g. http://localhost:11434/v1 (Ollama)
+api_key: null                  # most local runtimes ignore it
+runtime: null                  # TODO_DECIDE: ollama | vllm | lmstudio (only selects the structured-output flavour)
+model: null                    # TODO_DECIDE: runtime-specific id of the target model (Qwen3.8-27B)
+quant: null                    # TODO_DECIDE: record for reproducibility
+temperature: null              # TODO_DECIDE
+seed: null                     # if the runtime supports it
+n_samples: null                # TODO_DECIDE: specs per iteration
+max_retries: 3
+prompt_version: v001

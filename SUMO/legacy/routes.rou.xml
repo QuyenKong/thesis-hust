@@ -1,0 +1,51 @@
+<routes>
+    <vType id="motorcycle_normal"
+           vClass="motorcycle"
+           length="1.9"
+           width="0.7"
+           maxSpeed="16.0"
+           accel="2.2"
+           decel="4.0"
+           sigma="0.5"
+           tau="0.8"
+           minGap="0.5"
+           lcStrategic="0.3"
+           lcCooperative="0.2"
+           lcSpeedGain="1.5"
+           lcKeepRight="0.1"
+           lcAssertive="2.0"
+           lcPushy="1.0" />
+
+    <vType id="car_normal"
+           vClass="passenger"
+           length="4.5"
+           width="1.8"
+           maxSpeed="13.0"
+           accel="1.4"
+           decel="3.5"
+           sigma="0.3"
+           tau="1.2"
+           minGap="1.5"
+           lcStrategic="1.0"
+           lcCooperative="0.8"
+           lcSpeedGain="0.7"
+           lcKeepRight="0.6"
+           lcAssertive="1.2"
+           lcPushy="0.3" />
+
+    <route id="r0" edges="edgeA edgeB edgeC"/>
+
+    <flow id="moto_flow"
+          type="motorcycle_normal"
+          route="r0"
+          begin="0"
+          end="3600"
+          vehsPerHour="1800" />
+
+    <flow id="car_flow"
+          type="car_normal"
+          route="r0"
+          begin="0"
+          end="3600"
+          vehsPerHour="600" />
+</routes>

@@ -1,0 +1,71 @@
+base3600 seed 1 rc=0 collisions=5 (t<900: 2) by_type={'collision': 2, 'side': 1, 'junction': 2} on_internal=3 {'tp': 5.0, 'jam': 0.0, 'yield': 0.0, 'wl': 0.0, 'wait': 0} 0_118' performs emergency braking on lane '953158817#2_1' with decel=9.00, wished=4.50, severity=1.00, time=3430.80.
+Warning: Vehicle 'car_2700_143' performs emergency braking on lane ':cluster_229107
+base3600 seed 2 rc=0 collisions=16 (t<900: 1) by_type={'side': 5, 'junction': 8, 'collision': 3} on_internal=11 {'tp': 16.0, 'jam': 0.0, 'yield': 0.0, 'wl': 0.0, 'wait': 0} 0.80.
+Warning: Teleporting vehicle 'car_2700_118'; junction collision with vehicle 'moto_2700_615', lane=':cluster_2291072469_2291073251_317366886_444501629_19_1', gap=-4.51, latGap=-0.06, time=3432.0
+base3600 seed 3 rc=0 collisions=10 (t<900: 1) by_type={'junction': 5, 'collision': 3, 'side': 2} on_internal=6 {'tp': 12.0, 'jam': 1.0, 'yield': 1.0, 'wl': 0.0, 'wait': 0} , wished=4.50, severity=1.00, time=3555.20.
+Warning: Teleporting vehicle 'moto_2700_757'; side collision with vehicle 'moto_2700_747', lane='37876499#0_0', gap=-2.05, latGap=-0.20, time=3589.90, stage
+base3600 TOTAL collisions 31
+outw seed 1 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: File 'experiments/operator/task4/net_outw/site.outw.net.xml' is not accessible (No such file or directory).
+Quitting (on error).
+outw seed 2 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: File 'experiments/operator/task4/net_outw/site.outw.net.xml' is not accessible (No such file or directory).
+Quitting (on error).
+outw seed 3 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: File 'experiments/operator/task4/net_outw/site.outw.net.xml' is not accessible (No such file or directory).
+Quitting (on error).
+outw TOTAL collisions 0
+Traceback (most recent call last):
+  File "D:\hust-master\Thesis\SUMO\experiments\operator\task4\run_variant.py", line 41, in <module>
+    res = list(ex.map(one, a.seeds))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 619, in result_iterator
+    yield _result_or_cancel(fs.pop())
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 317, in _result_or_cancel
+    return fut.result(timeout)
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 456, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\hust-master\Thesis\SUMO\experiments\operator\task4\run_variant.py", line 35, in one
+    st = {"tp": float(t.find("teleports").get("total")), "jam": float(t.find("teleports").get("jam")),
+                      ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
+latres02 seed 1 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: A value for the option 'lateral-resolution' was already set.
+ Possible synonymes: 
+Error: Could not parse commandline options.
+Quitting (on error).
+latres02 seed 2 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: A value for the option 'lateral-resolution' was already set.
+ Possible synonymes: 
+Error: Could not parse commandline options.
+Quitting (on error).
+latres02 seed 3 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: A value for the option 'lateral-resolution' was already set.
+ Possible synonymes: 
+Error: Could not parse commandline options.
+Quitting (on error).
+latres02 TOTAL collisions 0
+latres08 seed 1 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: A value for the option 'lateral-resolution' was already set.
+ Possible synonymes: 
+Error: Could not parse commandline options.
+Quitting (on error).
+latres08 seed 2 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: A value for the option 'lateral-resolution' was already set.
+ Possible synonymes: 
+Error: Could not parse commandline options.
+Quitting (on error).
+latres08 seed 3 rc=1 collisions=0 (t<900: 0) by_type={} on_internal=0 {} Error: A value for the option 'lateral-resolution' was already set.
+ Possible synonymes: 
+Error: Could not parse commandline options.
+Quitting (on error).
+latres08 TOTAL collisions 0
+checkjunc seed 1 rc=0 collisions=33 (t<900: 4) by_type={'junction': 30, 'collision': 2, 'side': 1} on_internal=30 {'tp': 33.0, 'jam': 0.0, 'yield': 0.0, 'wl': 0.0, 'wait': 0} 80.
+Warning: Teleporting vehicle 'moto_2700_675'; junction collision with vehicle 'moto_2700_678', lane=':cluster_2291072469_2291073251_317366886_444501629_13_2', gap=-4.59, latGap=-0.30, time=3486.50
+checkjunc seed 2 rc=0 collisions=28 (t<900: 6) by_type={'junction': 24, 'side': 1, 'collision': 3} on_internal=25 {'tp': 28.0, 'jam': 0.0, 'yield': 0.0, 'wl': 0.0, 'wait': 0} 00, time=3248.60, stage=move.
+Warning: Vehicle 'moto_2700_462' ends teleporting on edge '711526328#0', time=3248.60.
+Warning: Vehicle 'car_2700_163' performs emergency braking on lane ':cluster_229107
+checkjunc seed 3 rc=0 collisions=25 (t<900: 3) by_type={'junction': 23, 'side': 1, 'collision': 1} on_internal=23 {'tp': 25.0, 'jam': 0.0, 'yield': 0.0, 'wl': 0.0, 'wait': 0} 6886_444501629_19_1', gap=-3.04, latGap=-0.02, time=3433.70, stage=move.
+Warning: Vehicle 'moto_2700_644' ends teleporting on edge '37871458#0', time=3433.70.
+Warning: Vehicle 'car_2700_164' performs 
+checkjunc TOTAL collisions 86

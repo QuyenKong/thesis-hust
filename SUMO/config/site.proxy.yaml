@@ -1,0 +1,156 @@
+# LITERATURE PROXY for the study site -- NOT field data.
+# Same structure as config/site.yaml. Values that are `null # TODO_MEASURE` in site.yaml are filled
+# here from published sources or explicit assumptions, each with sibling keys
+#   <key>_source   : citation (ids [S..] refer to docs/research/proxy_sources.md)
+#   <key>_evidence : literature | literature_transferred | assumed (ruling R13; literature_transferred =
+#                    from a source but transferred across site, denominator or country, with <key>_transfer_note)
+#                    | experiment (a modelling choice, TODO_DECIDE in site.yaml, taken by an experiment of this repo;
+#                    allowed only on thesis_sumo.config.EXPERIMENT_EVIDENCE_KEYS)
+# Any result built from this file must be reported as site_source: LITERATURE_PROXY.
+# Replace with real measurements by editing config/site.yaml, never this file.
+
+site_source: LITERATURE_PROXY
+
+source:
+  # OpenWebWizard export, immutable (never edit files under scenario_raw/)
+  owz_dir: scenario_raw/2026-10-02-06-34-26
+  osm_file: scenario_raw/2026-10-02-06-34-26/osm_bbox.osm.xml.gz
+
+intersection:
+  name: "Le Van Luong x Hoang Dao Thuy"
+  center_lonlat: [105.8047, 21.0053]
+  cut_radius_m: 300
+
+# lane_widths_m: one entry per lane, list index = SUMO lane index (0 = rightmost).
+# lane_movements: per lane (same index), the movements its markings permit (turn_counts codes r/s/l/u;
+# a banned left is in no lane). Used by M8 (wrong-lane share, ruling R9).
+# Lane count 3 per approach from OSM (lanes=3 on all four approach ways); Le Van Luong's leftmost
+# lane is the BRT lane (OSM psv:lanes=designated|yes|yes) [S3][S4].
+approaches:
+  - id: LVL_W
+    edge: "711526326#1"        # arm from SW (To Huu side), heading NE = AM inbound (Task 2, scenario/net/edge_table.csv)
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m; BRT lane >= 3.50 m); lane count [S3] OSM, [S4] VietnamFinance 2026"
+    lane_widths_m_evidence: literature
+    lane_movements: [[r, s], [s], [s, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements_evidence: assumed
+    left_turn_banned: true
+    left_turn_banned_source: "assumed: no source found on turn bans at LVL x HDT [S3][S9]; Hanoi bans left turns at nearby arterial junctions [S9][S10]; inbound AM-peak LVL approach chosen as the focus approach"
+    left_turn_banned_evidence: assumed
+    u_turn_banned: false
+    u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
+    u_turn_banned_evidence: assumed
+  - id: LVL_E
+    edge: "37876499#0"         # arm from NE (Task 2)
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m; BRT lane >= 3.50 m); lane count [S3] OSM, [S4] VietnamFinance 2026"
+    lane_widths_m_evidence: literature
+    lane_movements: [[r, s], [s], [s, l, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements_evidence: assumed
+    left_turn_banned: false
+    left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
+    left_turn_banned_evidence: assumed
+    u_turn_banned: false
+    u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
+    u_turn_banned_evidence: assumed
+  - id: HDT_N
+    edge: "953158817#2"        # arm from NW; includes unnamed OSM way 1071601648 (= HDT, Task 2)
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
+    lane_widths_m_evidence: literature
+    lane_movements: [[r, s], [s], [s, l, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements_evidence: assumed
+    left_turn_banned: false
+    left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
+    left_turn_banned_evidence: assumed
+    u_turn_banned: false
+    u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
+    u_turn_banned_evidence: assumed
+  - id: HDT_S
+    edge: "1346358303"         # arm from SE (Task 2)
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
+    lane_widths_m_evidence: literature
+    lane_movements: [[r, s], [s], [s, l, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements_evidence: assumed
+    left_turn_banned: false
+    left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
+    left_turn_banned_evidence: assumed
+    u_turn_banned: false
+    u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
+    u_turn_banned_evidence: assumed
+
+# exits: the four outbound edges of the target junction, id = <id of the approach on the same arm>_out.
+# lane_widths_m as for approaches (index 0 = rightmost). netconvert gives every internal lane of a link the
+# width of its outbound lane, so these widths are also the widths inside the junction box (ruling R21).
+exits:
+  - id: LVL_W_out
+    edge: "711526328#0"        # out to SW (scenario/net/edge_table.csv)
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m; BRT lane >= 3.50 m); lane count [S3] OSM, [S4] VietnamFinance 2026"
+    lane_widths_m_evidence: literature
+  - id: LVL_E_out
+    edge: "37877893#0"         # out to NE
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m; BRT lane >= 3.50 m); lane count [S3] OSM, [S4] VietnamFinance 2026"
+    lane_widths_m_evidence: literature
+  - id: HDT_N_out
+    edge: "408823207#0"        # out to NW
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
+    lane_widths_m_evidence: literature
+  - id: HDT_S_out
+    edge: "37871458#0"         # out to SE
+    lane_widths_m: [3.5, 3.5, 3.5]
+    lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
+    lane_widths_m_evidence: literature
+
+# Phases: green_movements / yellow_movements are "<approach_id>:<dir>", dir = SUMO connection dir
+# (r right, s straight, l left, t turnaround). Movements not listed are red. Durations sum to cycle_s.
+# LVL_W:l stays in the LVL green phase: after the ban it is the custom1-only (illegal) link (PLAN 1.4).
+signal:
+  type: static
+  cycle_s: 120
+  cycle_s_source: "[S2] TCCS 24:2018/TCDBVN cl. 6.7.5 (cycle normally 60-90 s, special cases up to 120 s); [S5] Mai et al. 2019 measured 127 s at Lang Ha x Lang (same corridor, 3-lane major road) and 70 s at a 2-lane junction"
+  cycle_s_evidence: literature_transferred
+  cycle_s_transfer_note: "site: 120 s is the top of the TCCS normal range, chosen because the measured cycle at Lang Ha x Lang (another junction on the corridor) is 127 s"
+  phases:
+    - name: LVL_green
+      duration_s: 64
+      green_movements: [LVL_W:r, LVL_W:s, LVL_W:l, LVL_W:t, LVL_E:r, LVL_E:s, LVL_E:l, LVL_E:t]
+      yellow_movements: []
+    - name: LVL_yellow
+      duration_s: 4
+      green_movements: []
+      yellow_movements: [LVL_W:r, LVL_W:s, LVL_W:l, LVL_W:t, LVL_E:r, LVL_E:s, LVL_E:l, LVL_E:t]
+    - name: LVL_allred
+      duration_s: 2
+      green_movements: []
+      yellow_movements: []
+    - name: HDT_green
+      duration_s: 44
+      green_movements: [HDT_N:r, HDT_N:s, HDT_N:l, HDT_N:t, HDT_S:r, HDT_S:s, HDT_S:l, HDT_S:t]
+      yellow_movements: []
+    - name: HDT_yellow
+      duration_s: 4
+      green_movements: []
+      yellow_movements: [HDT_N:r, HDT_N:s, HDT_N:l, HDT_N:t, HDT_S:r, HDT_S:s, HDT_S:l, HDT_S:t]
+    - name: HDT_allred
+      duration_s: 2
+      green_movements: []
+      yellow_movements: []
+  phases_source: "2 phases: [S2] TCCS 24 cl. 6.4.2 (urban 3-4 arm junction >= 2 phases), OSM/netconvert guess is 2-phase; yellow 4 s: [S2] cl. 6.7.6 (4 s for V <= 60 km/h, OSM maxspeed 60 [S3]); all-red 2 s: assumed, consistent with [S2] Annex G intergreen 11 s per 2-phase cycle; green split 64/44 s: assumed (LVL radial artery gets more green in AM peak [S6])"
+  phases_evidence: assumed
+
+illegal_left:
+  approaches: [LVL_W]
+  approaches_source: "assumed: follows left_turn_banned of LVL_W; box-waiting by motorcycles observed at Hanoi signalised junctions [S5]"
+  approaches_evidence: assumed
+  vclass: custom1
+  mode: native
+  mode_source: "experiments/phase3/box_capacity.py (results_native.csv), docs/research/phase3_box_capacity.md: native SUMO box capacity 8 halting moto_violators with B0 vTypes (5 seeds x 900 s) >= M7 target mean 6 (data/proxy/targets.yaml); target p90 10 reached with custom1 minGap 1.8 m (measured 10) and exceeded at 1.0 m (measured 12)"
+  mode_evidence: experiment

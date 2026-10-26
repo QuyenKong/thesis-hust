@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Raw SUMO run outputs (large, reproducible from manifest.json)
+experiments/runs/
+# validator outcomes (thesis_sumo.rules.validator.ValidityLog), runtime output
+experiments/validity_log.csv
+
+# Video (processed outside this repo)
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# Tooling scratch
+.superpowers/
+
+# Personal Claude Code settings
+.claude/settings.local.json
+
+# netconvert logs written by thesis_sumo.net.build
+scenario/net/logs/

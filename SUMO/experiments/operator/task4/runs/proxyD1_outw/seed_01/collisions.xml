@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-10-25T14:37:31.859087+07:00 by Eclipse SUMO sumo 1.27.0
+<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="D:\hust-master\Thesis\SUMO\experiments\operator\task4\net_outw\site.outw.net.xml"/>
+        <route-files value="D:\hust-master\Thesis\SUMO\scenario\demand\routes_PROXY_D1.rou.xml"/>
+        <additional-files value="D:\hust-master\Thesis\SUMO\rules\compiled\B0\vtypes.add.xml"/>
+    </input>
+
+    <output>
+        <lanechange-output value="lanechange.xml"/>
+        <collision-output value="collisions.xml"/>
+        <statistic-output value="statistics.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="3600"/>
+        <step-length value="0.1"/>
+    </time>
+
+    <processing>
+        <lateral-resolution value="0.4"/>
+    </processing>
+
+    <routing>
+        <device.rerouting.probability value="0"/>
+    </routing>
+
+    <report>
+        <log value="sumo.log"/>
+        <no-step-log value="true"/>
+    </report>
+
+    <random_number>
+        <seed value="1"/>
+    </random_number>
+
+</sumoConfiguration>
+-->
+
+<collisions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/collision_file.xsd">
+    <collision time="661.40" type="side" lane="711526326#1_0" pos="279.50" collider="moto_0_1354" victim="moto_0_1347" colliderType="moto_B0" victimType="moto_B0" colliderSpeed="12.04" victimSpeed="9.40" colliderFront="277.64,216.26" colliderBack="275.89,214.94" victimFront="279.31,216.64" victimBack="277.55,215.32"/>
+    <collision time="2283.10" type="side" lane="711526326#1_2" pos="40.78" collider="moto_violator_1800_20" victim="moto_violator_1800_21" colliderType="moto_violator_B0" victimType="moto_violator_B0" colliderSpeed="1.95" victimSpeed="8.67" colliderFront="82.45,78.44" colliderBack="80.71,77.09" victimFront="83.82,78.54" victimBack="82.08,77.19"/>
+    <collision time="2283.30" type="collision" lane="711526326#1_2" pos="43.36" collider="moto_violator_1800_21" victim="moto_1800_590" colliderType="moto_violator_B0" victimType="moto_B0" colliderSpeed="6.67" victimSpeed="1.76" colliderFront="84.95,79.42" colliderBack="83.22,78.07" victimFront="88.03,82.69" victimBack="86.29,81.34"/>
+</collisions>

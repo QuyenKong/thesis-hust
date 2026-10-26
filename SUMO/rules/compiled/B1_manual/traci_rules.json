@@ -1,0 +1,58 @@
+{
+  "spec_id": "B1_manual",
+  "archetypes": {
+    "car_saval": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_saval",
+      "share": 1.0
+    },
+    "moto_saval": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_saval",
+      "share": 1.0
+    },
+    "moto_violator_saval": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_violator_saval",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_violator_saval"
+      ],
+      "vtype_ids": [
+        "moto_saval",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.5,
+        "k": 0.0,
+        "p_max": 0.5,
+        "dt": 10.0
+      }
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_violator_saval"
+      ],
+      "vtype_ids": [
+        "moto_saval",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 5.0,
+        "p": 0.0,
+        "v_max": 2.0
+      }
+    }
+  ]
+}

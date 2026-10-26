@@ -1,0 +1,374 @@
+# Tunable vType attributes (PLAN 4.2): the search space shared by the LLM loop (Task 13) and Optuna (Task 14).
+# Loaded by thesis_sumo.rules.schema.load_bounds(); thesis_sumo.rules.validator rejects any spec attribute not
+# listed under `params`.
+#
+# Every row:
+#   model           vType | carFollow | LC (SL2015) | junction
+#   unit            SI unit, "-" if dimensionless
+#   behavior_group  one or more of the 8 behaviours of PLAN 0 (patience, swarm_pressure, early_start,
+#                   encroachment, f_risk, S_cheat, I_slow, illegal_left_box)
+#   constrained_by  metrics M1-M8 (PLAN 5.2) through which the attribute can be matched to observations.
+#                   Methodology: an attribute that no metric constrains is not tuned: `fixed: true`, min = max =
+#                   default, so the validator accepts only its SUMO default.
+#   min, max, default  apply to every base vclass (passenger, motorcycle, custom1) unless `by_vclass`
+#                   overrides them for that vclass. `default` = the value the B0 vType has when a spec omits the
+#                   attribute (SUMO's vClass default; custom1 = moto_violator gets the motorcycle defaults that
+#                   rules/compiled/B0/vtypes.add.xml copies explicitly). A default may lie outside [min, max]
+#                   (e.g. "disabled" sentinels such as infinity); the validator never checks it.
+#   values          (instead of min/max) the allowed strings of a categorical attribute
+#   vclasses        (optional) the only base vclasses on which the attribute may be set, with `vclasses_reason`;
+#                   default: all three
+#   source_url      sumo.dlr.de docs page proving the attribute exists in SUMO 1.27 and stating its default.
+#                   Checked against the 1.27.0 userdoc shipped in %SUMO_HOME%/doc/userdoc (same pages), and
+#                   tests/test_validator.py::test_bounds_load_in_sumo loads every row at min and max in SUMO
+#                   1.27.0 with --xml-validation always (an undeclared vType attribute, or a value outside the
+#                   type of %SUMO_HOME%/data/xsd/types/route.xsd, is an error there).
+#   range_source / range_evidence  where [min, max] comes from: docs (SUMO's stated domain), ruling (SDD ruling
+#                   R15), literature, literature_transferred, assumed.
+#
+# Not in the space (see `excluded` below): jmIgnoreFoeProb, jmIgnoreFoeSpeed.
+
+behavior_groups: [patience, swarm_pressure, early_start, encroachment, f_risk, S_cheat, I_slow, illegal_left_box]
+
+params:
+  # ------------------------------------------------------------------ car-following (Krauss, the B0 model)
+  tau:
+    model: carFollow
+    unit: s
+    behavior_group: [f_risk]
+    constrained_by: [M1, M5]
+    min: 0.4
+    max: 3.0
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#car-following_model_parameters"
+    range_source: >-
+      lower: https://sumo.dlr.de/docs/Car-Following-Models.html#tau (tau below the reaction time, i.e. step-length
+      0.1 s / actionStepLength, leads to unsafe driving and collisions); 0.4 s keeps 4 steps of margin (assumed).
+      upper: covers Saval et al. 2023 Table 11 (car time headway T = 2.5 s, IDM)
+    range_evidence: assumed
+
+  minGap:
+    model: vType
+    unit: m
+    behavior_group: [encroachment, illegal_left_box]
+    constrained_by: [M1, M5, M7]
+    min: 1.0
+    max: 3.0
+    default: 2.5
+    by_vclass:
+      motorcycle: {min: 0.5, max: 2.5, default: 2.5}
+      custom1: {min: 0.5, max: 2.5, default: 2.5}
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#available_vtype_attributes"
+    default_source: "https://sumo.dlr.de/docs/Vehicle_Type_Parameter_Defaults.html (passenger 2.5 m, motorcycle 2.5 m)"
+    range_source: >-
+      assumed (rulings R15, R34). motorcycle and custom1 [0.5, 2.5] m: up to the SUMO default 2.5 m; the only
+      sourced standstill gap is Saval et al. 2023 Table 11 motorcycle s0 = 1.9 m (IDM, Hanoi, transferred), inside
+      the range; no source for the lower end. passenger [1.0, 3.0] m around the default, covers Saval et al. 2023
+      Table 11 car s0 = 1.1 m
+    range_evidence: assumed
+
+  accel:
+    model: carFollow
+    unit: m/s^2
+    behavior_group: [I_slow]
+    constrained_by: [M1, M6]
+    min: 0.8
+    max: 4.0
+    default: 2.6
+    by_vclass:
+      motorcycle: {min: 0.8, max: 6.0, default: 6.0}
+      custom1: {min: 0.8, max: 6.0, default: 6.0}
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#available_vtype_attributes"
+    default_source: "https://sumo.dlr.de/docs/Vehicle_Type_Parameter_Defaults.html (passenger 2.6, motorcycle 6)"
+    range_source: >-
+      assumed; lower bound below Saval et al. 2023 Table 11 (motorcycle a = 1.1, car 1.2 m/s^2), upper bound =
+      the motorcycle default (6) / 4.0 for cars
+    range_evidence: assumed
+
+  decel:
+    model: carFollow
+    unit: m/s^2
+    behavior_group: [f_risk]
+    constrained_by: [M3, M6]
+    min: 2.0
+    max: 7.5
+    default: 4.5
+    by_vclass:
+      motorcycle: {min: 2.0, max: 10.0, default: 10.0}
+      custom1: {min: 2.0, max: 10.0, default: 10.0}
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#available_vtype_attributes"
+    default_source: "https://sumo.dlr.de/docs/Vehicle_Type_Parameter_Defaults.html (passenger 4.5, motorcycle 10)"
+    range_source: >-
+      assumed; upper bound kept at or below emergencyDecel (passenger 9, motorcycle 10 m/s^2, same page), covers
+      Saval et al. 2023 Table 11 (motorcycle b = 4.6, car 4.8 m/s^2). M3: decel decides which vehicles can still
+      stop at the onset of red
+    range_evidence: assumed
+
+  sigma:
+    model: carFollow
+    unit: "-"
+    behavior_group: [I_slow]
+    constrained_by: [M1, M6]
+    min: 0.0
+    max: 1.0
+    default: 0.5
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#car-following_model_parameters"
+    range_source: "docs (Krauss sigma: range [0,1], same page)"
+    range_evidence: docs
+
+  speedFactor:
+    model: vType
+    unit: "-"
+    behavior_group: [I_slow]
+    constrained_by: [M6]
+    min: 0.5
+    max: 1.3
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#available_vtype_attributes"
+    range_source: "assumed (mean multiplier on the 60 km/h limit of the site net; 0.5 for a slow-rider archetype)"
+    range_evidence: assumed
+
+  speedDev:
+    model: vType
+    unit: "-"
+    behavior_group: [I_slow]
+    constrained_by: [M6]
+    min: 0.0
+    max: 0.3
+    default: 0.1
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#available_vtype_attributes"
+    default_source: "https://sumo.dlr.de/docs/Vehicle_Type_Parameter_Defaults.html (passenger and motorcycle 0.1)"
+    range_source: "assumed"
+    range_evidence: assumed
+
+  # ------------------------------------------------------------------ sublane
+  minGapLat:
+    model: LC
+    unit: m
+    behavior_group: [encroachment]
+    constrained_by: [M4, M5, M7]
+    min: 0.3
+    max: 1.0
+    default: 0.6
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: >-
+      lower: ruling R15 (0.3 m). upper: assumed. The validator also rejects a value above the narrowest lane
+      width of the site file (logic)
+    range_evidence: ruling
+
+  maxSpeedLat:
+    model: vType
+    unit: m/s
+    behavior_group: [encroachment]
+    constrained_by: [M4]
+    min: 0.5
+    max: 3.0
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#available_vtype_attributes"
+    range_source: "assumed"
+    range_evidence: assumed
+
+  latAlignment:
+    model: vType
+    unit: "-"
+    behavior_group: [encroachment]
+    constrained_by: [M4, M8]
+    values: [right, center, left, compact, nice, arbitrary]
+    default: center
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#available_vtype_attributes"
+    range_source: >-
+      docs (the six named alignments; numeric offsets, also accepted by SUMO, are left out of the space)
+    range_evidence: docs
+
+  # ------------------------------------------------------------------ lane changing (SL2015)
+  lcSublane:
+    model: LC
+    unit: "-"
+    behavior_group: [encroachment]
+    constrained_by: [M4]
+    min: 0.0
+    max: 5.0
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: "assumed (docs: range [0, inf))"
+    range_evidence: assumed
+
+  lcPushy:
+    model: LC
+    unit: "-"
+    behavior_group: [encroachment]
+    constrained_by: [M4, M5]
+    min: 0.0
+    max: 1.0
+    default: 0.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: "docs (range [0-1])"
+    range_evidence: docs
+
+  lcPushyGap:
+    model: LC
+    unit: m
+    behavior_group: [f_risk]
+    constrained_by: [M4]
+    min: 0.0
+    max: 1.0
+    default: 0.6   # = minGapLat
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: >-
+      docs (range 0 to minGapLat; the validator checks lcPushyGap <= the archetype's minGapLat and rejects setting
+      it together with lcPushy, which SUMO 1.27 then silently ignores - experiment in the Task 7 report)
+    range_evidence: docs
+
+  lcAssertive:
+    model: LC
+    unit: "-"
+    behavior_group: [f_risk]
+    constrained_by: [M4, M8]
+    min: 0.5
+    max: 5.0
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: "assumed (docs: positive reals)"
+    range_evidence: assumed
+
+  lcImpatience:
+    model: LC
+    unit: "-"
+    behavior_group: [patience]
+    constrained_by: [M4, M8]
+    min: 0.0
+    max: 1.0
+    default: 0.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: >-
+      docs give -1 to 1, but SUMO 1.27's own schema (%SUMO_HOME%/data/xsd/types/route.xsd) declares lcImpatience
+      nonNegativeFloatType, so a negative value fails --xml-validation; the space keeps the overlap [0, 1]
+    range_evidence: docs
+
+  lcTimeToImpatience:
+    model: LC
+    unit: s
+    behavior_group: [patience]
+    constrained_by: [M4, M8]
+    min: 1.0
+    max: 600.0
+    default: .inf   # docs: infinity disables impatience growth
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: "assumed (finite values only; leave the attribute out to keep the default infinity)"
+    range_evidence: assumed
+
+  lcAccelLat:
+    model: LC
+    unit: m/s^2
+    behavior_group: [encroachment]
+    constrained_by: []
+    fixed: true   # no metric observes lateral acceleration
+    min: 1.0
+    max: 1.0
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+
+  lcMaxSpeedLatStanding:
+    model: LC
+    unit: m/s
+    behavior_group: [encroachment]
+    constrained_by: [M4]
+    min: 0.0
+    max: 3.0
+    default: 1.0   # = maxSpeedLat (docs: "default: maxSpeedLat (i.e., disabled)")
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: "assumed (0 = no lateral sliding while standing, docs)"
+    range_evidence: assumed
+
+  lcSpeedGain:
+    model: LC
+    unit: "-"
+    behavior_group: [encroachment]
+    constrained_by: [M8]
+    min: 0.0
+    max: 10.0
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#lane-changing_models"
+    range_source: "assumed (docs: range [0, inf), 0 disables speed-gain changes)"
+    range_evidence: assumed
+
+  # ------------------------------------------------------------------ junction model
+  impatience:
+    model: junction
+    unit: "-"
+    behavior_group: [patience]
+    constrained_by: [M7]
+    min: 0.0
+    max: 1.0
+    default: 0.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#impatience"
+    range_source: >-
+      docs (value used is clipped to [0, 1]; at 1 the driver takes any collision-free gap even if foes must brake
+      hard). The string 'off' is left out of the space. M7: gap acceptance of the illegal left against the opposing
+      through (early leaving)
+    range_evidence: docs
+
+  jmDriveAfterRedTime:
+    model: junction
+    unit: s
+    behavior_group: [patience]
+    constrained_by: [M3]
+    min: 0.0
+    max: 10.0
+    default: -1.0   # -1: never drive at red (leave the attribute out to keep it)
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#junction_model_parameters"
+    range_source: >-
+      assumed (red runners enter within the first seconds of red); lower bound 0 because SUMO 1.27's route.xsd
+      allows only values >= 0 or exactly -1 (nonNegativeFloatTypeWithErrorValue)
+    range_evidence: assumed
+
+  jmDriveRedSpeed:
+    model: junction
+    unit: m/s
+    behavior_group: [patience]
+    constrained_by: [M3, M6]
+    min: 1.0
+    max: 13.9
+    default: 55.55555555555556   # = maxSpeed (200 km/h for passenger and motorcycle)
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#junction_model_parameters"
+    range_source: "assumed (upper 13.9 m/s = 50 km/h, below the 60 km/h limit of the site net)"
+    range_evidence: assumed
+
+  jmDriveAfterYellowTime:
+    model: junction
+    unit: s
+    behavior_group: [patience]
+    constrained_by: []
+    fixed: true   # M3 counts red crossings only; no metric observes crossings at yellow
+    min: -1.0
+    max: -1.0
+    default: -1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#junction_model_parameters"
+
+  jmTimegapMinor:
+    model: junction
+    unit: s
+    behavior_group: [illegal_left_box, f_risk]
+    constrained_by: [M7]
+    vclasses: [custom1]
+    vclasses_reason: >-
+      ruling R15: jmTimegapMinor is the early-leaving lever of the illegal-left box waiters (custom1 =
+      moto_violator); M7 is the only metric that constrains it, so it is not tuned on passenger or motorcycle
+    min: 0.5
+    max: 3.0
+    default: 1.0
+    source_url: "https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#junction_model_parameters"
+    range_source: >-
+      ruling R15 ([0.5, 3] s, evidence assumed): on the custom1 archetype it controls early leaving of the illegal
+      left through gaps in the opposing through (instead of a TraCI rule)
+    range_evidence: ruling
+
+# Candidates of PLAN 4.2 that exist in SUMO 1.27 but are NOT in the space. The validator reports them as
+# unknown_attr with this reason.
+excluded:
+  jmIgnoreFoeProb: >-
+    excluded by ruling R15: it makes vehicles ignore foes with right of way, which creates real collisions by
+    design (https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#junction_model_parameters)
+  jmIgnoreFoeSpeed: >-
+    excluded by ruling R15: only acts together with jmIgnoreFoeProb (ignoring foes creates real collisions by
+    design) (https://sumo.dlr.de/docs/Definition_of_Vehicles%2C_Vehicle_Types%2C_and_Routes.html#junction_model_parameters)

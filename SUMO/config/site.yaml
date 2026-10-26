@@ -1,0 +1,66 @@
+# Field data for the study site. Every measured value comes from Viktor's own survey/video.
+# Rule: values not yet measured stay `null` with `# TODO_MEASURE`. Code must raise on a required
+# null, never substitute a default.
+
+site_source: MEASURED          # MEASURED (this file) | LITERATURE_PROXY (config/site.proxy.yaml)
+
+source:
+  # OpenWebWizard export, immutable (never edit files under scenario_raw/)
+  owz_dir: scenario_raw/2026-10-02-06-34-26
+  osm_file: scenario_raw/2026-10-02-06-34-26/osm_bbox.osm.xml.gz
+
+intersection:
+  name: "Le Van Luong x Hoang Dao Thuy"
+  center_lonlat: [105.8047, 21.0053]
+  cut_radius_m: 300            # length of each approach kept
+
+approaches:                    # logical ids are placeholders; edge <-> direction is verified in Phase 1
+  - id: LVL_W                  # Le Van Luong, west approach
+    edge: "711526326#1"        # arm from SW (To Huu side), heading NE = AM inbound (Task 2, scenario/net/edge_table.csv)
+    lane_widths_m: null        # TODO_MEASURE, list per lane
+    lane_movements: null       # TODO_MEASURE: per lane (index 0 = rightmost), permitted movements r/s/l/u from markings
+    left_turn_banned: null     # TODO_MEASURE
+    u_turn_banned: null        # TODO_MEASURE
+  - id: LVL_E                  # Le Van Luong, east approach
+    edge: "37876499#0"         # arm from NE (Task 2)
+    lane_widths_m: null        # TODO_MEASURE
+    lane_movements: null       # TODO_MEASURE
+    left_turn_banned: null     # TODO_MEASURE
+    u_turn_banned: null        # TODO_MEASURE
+  - id: HDT_N                  # Hoang Dao Thuy, north approach
+    edge: "953158817#2"        # arm from NW; includes unnamed OSM way 1071601648 (= HDT, Task 2)
+    lane_widths_m: null        # TODO_MEASURE
+    lane_movements: null       # TODO_MEASURE
+    left_turn_banned: null     # TODO_MEASURE
+    u_turn_banned: null        # TODO_MEASURE
+  - id: HDT_S                  # Hoang Dao Thuy, south approach
+    edge: "1346358303"         # arm from SE (Task 2)
+    lane_widths_m: null        # TODO_MEASURE
+    lane_movements: null       # TODO_MEASURE
+    left_turn_banned: null     # TODO_MEASURE
+    u_turn_banned: null        # TODO_MEASURE
+
+exits:                         # outbound edges of the target junction; their widths are also the box widths
+  - id: LVL_W_out
+    edge: "711526328#0"        # out to SW (scenario/net/edge_table.csv)
+    lane_widths_m: null        # TODO_MEASURE, list per lane (index 0 = rightmost)
+  - id: LVL_E_out
+    edge: "37877893#0"         # out to NE
+    lane_widths_m: null        # TODO_MEASURE
+  - id: HDT_N_out
+    edge: "408823207#0"        # out to NW
+    lane_widths_m: null        # TODO_MEASURE
+  - id: HDT_S_out
+    edge: "37871458#0"         # out to SE
+    lane_widths_m: null        # TODO_MEASURE
+
+signal:
+  type: static
+  cycle_s: null                # TODO_MEASURE from video
+  phases: null                 # TODO_MEASURE: [{name, duration_s, green_movements}], incl. yellow and all-red
+
+illegal_left:
+  approaches: null             # TODO_MEASURE: approaches where illegal left turns occur
+  vclass: custom1
+  mode: null                   # TODO_DECIDE: native | box_edge (PLAN Phase 3: wait at SUMO's internal junction, or an
+                               # explicit waiting edge with its own signal link); decide from the measured box counts

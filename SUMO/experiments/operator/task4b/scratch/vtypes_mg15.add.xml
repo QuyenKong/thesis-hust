@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- B0 = SUMO defaults (PLAN Phase 2.1). Vehicles reference the distribution ids car, moto, moto_violator;
+     compiled specs (rules/compiled/<spec_id>/) use the same three ids.
+     All types: laneChangeModel SL2015 (sublane), every other parameter left at the SUMO default.
+     moto_violator: vClass custom1 (the only class allowed on the banned LVL_W left turn) has passenger defaults,
+     so the motorcycle defaults are copied explicitly from
+     https://sumo.dlr.de/docs/Vehicle_Type_Parameter_Defaults.html (SUMO 1.27.0, "Pedestrians and Two-Wheelers",
+     row motorcycle): length 2.2 m, width 0.9 m, height 1.5 m, mass 200 kg, minGap 2.5 m, accel 6 m/s2,
+     decel 10 m/s2, emergencyDecel 10 m/s2, maxSpeed 200 km/h (= 55.55555555555556 m/s), personCapacity 2 (but the
+     SUMO 1.27.0 binary gives motorcycle personCapacity 1, so 1 is copied),
+     emissionClass HBEFA4/MC_4S_gt250cc_preEuro, speedDev 0.1, guiShape motorcycle.
+     tests/test_demand.py::test_moto_violator_matches_motorcycle_defaults checks it against SUMO itself. -->
+<additional>
+    <vTypeDistribution id="car">
+        <vType id="car_B0" vClass="passenger" laneChangeModel="SL2015" probability="1"/>
+    </vTypeDistribution>
+    <vTypeDistribution id="moto">
+        <vType id="moto_B0" vClass="motorcycle" minGap="1.5" laneChangeModel="SL2015" probability="1"/>
+    </vTypeDistribution>
+    <vTypeDistribution id="moto_violator">
+        <vType id="moto_violator_B0" vClass="custom1" laneChangeModel="SL2015" probability="1"
+               guiShape="motorcycle" length="2.2" width="0.9" height="1.5" mass="200" minGap="1.5"
+               accel="6" decel="10" emergencyDecel="10" maxSpeed="55.55555555555556" personCapacity="1"
+               emissionClass="HBEFA4/MC_4S_gt250cc_preEuro" speedDev="0.1"/>
+    </vTypeDistribution>
+</additional>

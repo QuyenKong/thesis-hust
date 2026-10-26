@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Driver-behaviour rule spec (PLAN 4.1)",
+  "description": "Structure only. Attribute names and ranges come from rules/bounds/param_bounds.yaml, TraCI rule params from thesis_sumo.rules.schema.TRACI_RULE_PARAMS; thesis_sumo.rules.validator checks both.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_id", "source", "driver_archetypes", "traci_rules"],
+  "properties": {
+    "spec_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"},
+    "source": {"enum": ["manual", "llm", "optuna"]},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {"type": ["string", "null"]},
+        "prompt_version": {"type": ["string", "null"]},
+        "iteration": {"type": ["integer", "null"], "minimum": 0},
+        "sample_idx": {"type": ["integer", "null"], "minimum": 0},
+        "reference": {"type": ["string", "null"]}
+      }
+    },
+    "description": {"type": "string"},
+    "driver_archetypes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/archetype"}
+    },
+    "traci_rules": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/traci_rule"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"source": {"const": "llm"}}, "required": ["source"]},
+      "then": {
+        "required": ["provenance"],
+        "properties": {
+          "provenance": {
+            "required": ["model", "prompt_version", "iteration", "sample_idx"],
+            "properties": {
+              "model": {"type": "string", "pattern": "\\S"},
+              "prompt_version": {"type": "string", "pattern": "\\S"},
+              "iteration": {"type": "integer"},
+              "sample_idx": {"type": "integer"}
+            }
+          },
+          "driver_archetypes": {"items": {"required": ["rationale"]}},
+          "traci_rules": {"items": {"required": ["rationale"]}}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "archetype": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "base_vclass", "share", "params"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$"},
+        "base_vclass": {"enum": ["passenger", "motorcycle", "custom1"]},
+        "share": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "params": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[A-Za-z][A-Za-z0-9]*$"},
+          "additionalProperties": {"type": ["number", "string"]}
+        },
+        "rationale": {"type": "string", "pattern": "\\S"}
+      }
+    },
+    "traci_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_type", "applies_to", "params"],
+      "properties": {
+        "rule_type": {"enum": ["early_start", "swarm_red_running", "wrong_lane_dodge", "illegal_left_box",
+                               "slow_lane_center"]},
+        "applies_to": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "params": {"type": "object", "additionalProperties": {"type": "number"}},
+        "rationale": {"type": "string", "pattern": "\\S"}
+      }
+    }
+  }
+}

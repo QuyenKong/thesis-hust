@@ -1,0 +1,100 @@
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "D:\hust-master\Thesis\SUMO\src\thesis_sumo\sim\runner.py", line 254, in _simulate
+    backend.simulationStep()
+  File "D:\hust-master\Thesis\SUMO\.venv\Lib\site-packages\libsumo\__init__.py", line 231, in simulationStep
+    _libsumo_step(time)
+  File "D:\hust-master\Thesis\SUMO\.venv\Lib\site-packages\libsumo\libsumo.py", line 3714, in step
+    return _libsumo.simulation_step(time)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+libsumo.libsumo.FatalTraCIError: bad allocation
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py", line 51, in starmapstar
+    return list(itertools.starmap(args[0], args[1]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\hust-master\Thesis\SUMO\src\thesis_sumo\sim\runner.py", line 350, in _run_job
+    return run(spec_id, day, seed, site_path=site_path, sim_end_s=sim_end_s, runs_root=runs_root)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\hust-master\Thesis\SUMO\src\thesis_sumo\sim\runner.py", line 293, in run
+    sim = _simulate(cfg, float(exp["sim"]["end_s"]), backend_name, use_gui, controller_factory, inputs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\hust-master\Thesis\SUMO\src\thesis_sumo\sim\runner.py", line 263, in _simulate
+    raise RuntimeError(f"SUMO run in {run_dir} failed: {e}\n--- end of {log.name} ---\n{tail}") from e
+RuntimeError: SUMO run in D:\hust-master\Thesis\SUMO\experiments\runs\B0__PROXY_D1\seed_03 failed: bad allocation
+--- end of sumo.log ---
+2 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Simulation ended at time: 894.20.
+Reason: Libsumo requested termination.
+Performance:
+ Duration: 504.84s
+ Real time factor: 1.77124
+ UPS: 4087.627069
+Vehicles:
+ Inserted: 2279 (Loaded: 2564)
+ Running: 310
+ Waiting: 0
+ Teleports: 8 (Collisions: 8)
+ Emergency Braking: 13
+
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\hust-master\Thesis\SUMO\src\thesis_sumo\sim\runner.py", line 392, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "D:\hust-master\Thesis\SUMO\src\thesis_sumo\sim\runner.py", line 377, in main
+    results = run_many([(args.spec, args.day, s) for s in args.seeds], args.nproc, site_path=args.site,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\hust-master\Thesis\SUMO\src\thesis_sumo\sim\runner.py", line 360, in run_many
+    return pool.starmap(_run_job, args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py", line 375, in starmap
+    return self._map_async(func, iterable, starmapstar, chunksize).get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\qdcon\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\pool.py", line 774, in get
+    raise self._value
+RuntimeError: SUMO run in D:\hust-master\Thesis\SUMO\experiments\runs\B0__PROXY_D1\seed_03 failed: bad allocation
+--- end of sumo.log ---
+2 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 22 and 10 not found.
+Warning: Cannot compute SSM due to bad internal lane geometry at junction 'cluster_2291072469_2291073251_317366886_444501629'. Crossing point between traffic from links 10 and 22 not found.
+Simulation ended at time: 894.20.
+Reason: Libsumo requested termination.
+Performance:
+ Duration: 504.84s
+ Real time factor: 1.77124
+ UPS: 4087.627069
+Vehicles:
+ Inserted: 2279 (Loaded: 2564)
+ Running: 310
+ Waiting: 0
+ Teleports: 8 (Collisions: 8)
+ Emergency Braking: 13
+

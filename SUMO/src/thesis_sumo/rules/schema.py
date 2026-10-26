@@ -1,0 +1,215 @@
+"""The rule-spec space (PLAN 4.1-4.2): vType attribute bounds, TraCI rule parameters and the JSON schema.
+
+- `load_bounds()` reads `rules/bounds/param_bounds.yaml` (every row cites the sumo.dlr.de page of its attribute).
+  A row's `min/max/default` apply to every base vclass unless `by_vclass` overrides them; use
+  `Bound.for_vclass(vclass)`.
+- `TRACI_RULE_PARAMS`: per `rule_type` the parameters the runtime rules (Task 9) read, each with its range. All
+  parameters of a rule are required in a spec (no defaults: the LLM / Optuna fills every one).
+- `RULE_VCLASSES`: which archetype base vclasses a rule may be applied to.
+- `DISTRIBUTION_OF_VCLASS`: archetype base vclass -> vTypeDistribution id referenced by the demand
+  (`thesis_sumo.demand.build_demand.VEHICLE_TYPES`).
+"""
+
+from __future__ import annotations
+
+import json
+import math
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import yaml
+
+from thesis_sumo.config import REPO_ROOT
+
+BOUNDS_PATH = REPO_ROOT / "rules" / "bounds" / "param_bounds.yaml"
+SCHEMA_PATH = REPO_ROOT / "rules" / "schema" / "rule_spec.schema.json"
+
+VCLASSES = ("passenger", "motorcycle", "custom1")
+# archetype base vclass -> vTypeDistribution id (demand references these ids; PLAN 4.4)
+DISTRIBUTION_OF_VCLASS = {"passenger": "car", "motorcycle": "moto", "custom1": "moto_violator"}
+BEHAVIOR_GROUPS = ("patience", "swarm_pressure", "early_start", "encroachment", "f_risk", "S_cheat", "I_slow",
+                   "illegal_left_box")
+MODELS = ("vType", "carFollow", "LC", "junction")
+RANGE_EVIDENCE = ("docs", "ruling", "literature", "literature_transferred", "assumed")
+
+
+@dataclass(frozen=True)
+class Range:
+    min: float | None
+    max: float | None
+    default: float | str
+
+
+@dataclass(frozen=True)
+class Bound:
+    """One tunable vType attribute. `min/max/default` are the generic range (all vclasses without override)."""
+
+    name: str
+    min: float | None
+    max: float | None
+    default: float | str
+    unit: str
+    model: str
+    source_url: str
+    behavior_group: tuple[str, ...]
+    constrained_by: tuple[str, ...] = ()
+    fixed: bool = False
+    values: tuple[str, ...] | None = None  # categorical attribute: the allowed strings
+    by_vclass: dict[str, Range] = field(default_factory=dict)
+    range_source: str | None = None
+    range_evidence: str | None = None
+    vclasses: tuple[str, ...] = VCLASSES  # base vclasses on which the attribute may be set
+    vclasses_reason: str | None = None
+
+    def for_vclass(self, vclass: str) -> Range:
+        if vclass not in VCLASSES:
+            raise ValueError(f"unknown base vclass {vclass!r}; expected one of {VCLASSES}")
+        return self.by_vclass.get(vclass, Range(self.min, self.max, self.default))
+
+
+@dataclass(frozen=True)
+class RuleParam:
+    min: float
+    max: float
+    unit: str
+    reason: str
+
+
+# Ranges are modelling choices (evidence assumed unless stated). Units: s, m, m/s, probability "-", 1/veh.
+TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
+    "early_start": {
+        "t_before_green": RuleParam(0.0, 10.0, "s", "window before green onset in which a front-row vehicle may "
+                                    "creep over the stop line; 10 s = upper end of the M2 target lead time "
+                                    "(data/proxy/targets.yaml early_start_lead_s 4-10 s)"),
+        "p": RuleParam(0.0, 1.0, "-", "probability per front-row vehicle and red phase"),
+        "v_max": RuleParam(0.5, 5.0, "m/s", "creep speed cap; 5 m/s = 18 km/h, assumed walking-to-slow-rolling range"),
+    },
+    "swarm_red_running": {
+        "p0": RuleParam(0.0, 1.0, "-", "base probability to run the red for a vehicle at the stop line; Saval et al. "
+                        "2023 (Sec 4) report 0.5 for front-row motorcycles in Hanoi, so the full [0, 1] is kept"),
+        "k": RuleParam(0.0, 0.5, "1/veh", "increase of the probability per vehicle that ran the red on the same "
+                       "approach within dt; 0 = no swarm effect; 0.5 assumed upper (two followers saturate p)"),
+        "p_max": RuleParam(0.0, 1.0, "-", "cap of p0 + k*n; must be >= p0"),
+        "dt": RuleParam(1.0, 30.0, "s", "look-back window for counting red runners; assumed, at most a quarter "
+                        "of the 120 s proxy cycle"),
+    },
+    "wrong_lane_dodge": {
+        "q_min": RuleParam(5.0, 80.0, "m", "queue length on the correct lane that triggers the dodge; 80 m = "
+                           "experiment.yaml observation.queue_range_m (queues beyond it are not observed)"),
+        "v_creep": RuleParam(0.5, 5.0, "m/s", "speed cap while advancing on the wrong lane; assumed"),
+    },
+    "illegal_left_box": {  # rulings R15, R25: the rule only holds, never pushes through foes
+        "release_lag_s": RuleParam(0.0, 4.0, "s", "extra hold added to SUMO's native release of box waiters "
+                                   "(setSpeed(0) hold, no safety bits changed); ruling R15. R25 dropped the second "
+                                   "param max_clear_into_cross_green_s: holding waiters into the crossing green "
+                                   "either locks the crossing road or, with foes told to ignore them, collides"),
+    },
+    "slow_lane_center": {
+        "lat_offset": RuleParam(-1.0, 1.0, "m", "lateral offset from the lane centre the slow rider keeps (0 = "
+                                "centre); |1 m| keeps a 0.9 m wide motorcycle inside a 3.5 m proxy lane; assumed"),
+    },
+}
+
+# Ruling R19: early start, red running and lane dodging are observed for cars too (targets M2/M3/M8 have car
+# values), so these rules apply to passenger and motorcycle archetypes; custom1 (moto_violator, the illegal-left
+# riders) keeps early_start and swarm_red_running (they queue at the LVL_W stop line like other motorcycles). custom1
+# vehicles drive only the illegal left (thesis_sumo.demand.build_demand), so a lane dodge is undefined for them.
+# The slow-rider rule is a motorcycle behaviour (PLAN 0, I_slow); the box rule is defined for custom1 only.
+RULE_VCLASSES: dict[str, tuple[str, ...]] = {
+    "early_start": ("passenger", "motorcycle", "custom1"),
+    "swarm_red_running": ("passenger", "motorcycle", "custom1"),
+    "wrong_lane_dodge": ("passenger", "motorcycle"),
+    "illegal_left_box": ("custom1",),
+    "slow_lane_center": ("motorcycle",),
+}
+
+
+def _num(x, where: str) -> float | None:
+    if x is None:
+        return None
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        raise ValueError(f"{where}: expected a number, got {x!r}")
+    return float(x)
+
+
+def _range(row: dict, where: str, categorical: bool) -> Range:
+    default = row.get("default")
+    if default is None:
+        raise ValueError(f"{where}: `default` is required")
+    if categorical:
+        return Range(None, None, default)
+    lo, hi = _num(row.get("min"), where), _num(row.get("max"), where)
+    if lo is None or hi is None or lo > hi:
+        raise ValueError(f"{where}: need numeric min <= max, got min={lo!r} max={hi!r}")
+    d = _num(default, where)
+    assert d is not None
+    if math.isnan(d):
+        raise ValueError(f"{where}: default is NaN")
+    return Range(lo, hi, d)
+
+
+def _as_tuple(x) -> tuple[str, ...]:
+    if x is None:
+        return ()
+    return (x,) if isinstance(x, str) else tuple(x)
+
+
+def load_bounds(path: Path | None = None) -> dict[str, Bound]:
+    """Read and check the bounds file; raise ValueError on a malformed row."""
+    path = Path(path) if path is not None else BOUNDS_PATH
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    out: dict[str, Bound] = {}
+    for name, row in doc["params"].items():
+        where = f"{path.name}: params.{name}"
+        for key in ("model", "unit", "source_url", "behavior_group"):
+            if row.get(key) in (None, "", []):
+                raise ValueError(f"{where}: `{key}` is required")
+        if row["model"] not in MODELS:
+            raise ValueError(f"{where}: model must be one of {MODELS}")
+        groups = _as_tuple(row["behavior_group"])
+        if not set(groups) <= set(BEHAVIOR_GROUPS):
+            raise ValueError(f"{where}: behavior_group {groups} not in {BEHAVIOR_GROUPS}")
+        if not str(row["source_url"]).startswith("https://sumo.dlr.de/docs/"):
+            raise ValueError(f"{where}: source_url must be a sumo.dlr.de/docs page")
+        if row.get("range_source") is not None and row.get("range_evidence") not in RANGE_EVIDENCE:
+            raise ValueError(f"{where}: range_evidence must be one of {RANGE_EVIDENCE}")
+        values = tuple(row["values"]) if row.get("values") is not None else None
+        generic = _range(row, where, values is not None)
+        if values is not None and generic.default not in values:
+            raise ValueError(f"{where}: default {generic.default!r} not in values {values}")
+        by_vclass = {}
+        for vc, sub in (row.get("by_vclass") or {}).items():
+            if vc not in VCLASSES:
+                raise ValueError(f"{where}: by_vclass key {vc!r} not in {VCLASSES}")
+            by_vclass[vc] = _range(sub, f"{where}.by_vclass.{vc}", values is not None)
+        vclasses = _as_tuple(row.get("vclasses")) or VCLASSES
+        if not set(vclasses) <= set(VCLASSES):
+            raise ValueError(f"{where}: vclasses {vclasses} not in {VCLASSES}")
+        if vclasses != VCLASSES and not row.get("vclasses_reason"):
+            raise ValueError(f"{where}: a vclass-restricted attribute needs `vclasses_reason`")
+        fixed = bool(row.get("fixed", False))
+        if fixed:
+            for vc in VCLASSES:
+                r = by_vclass.get(vc, generic)
+                if not (r.min == r.max == r.default):
+                    raise ValueError(f"{where}: a fixed attribute needs min = max = default ({vc})")
+        out[name] = Bound(name=name, min=generic.min, max=generic.max, default=generic.default,
+                          unit=str(row["unit"]), model=row["model"], source_url=row["source_url"],
+                          behavior_group=groups, constrained_by=_as_tuple(row.get("constrained_by")), fixed=fixed,
+                          values=values, by_vclass=by_vclass, range_source=row.get("range_source"),
+                          range_evidence=row.get("range_evidence"), vclasses=vclasses,
+                          vclasses_reason=" ".join(str(row["vclasses_reason"]).split())
+                          if row.get("vclasses_reason") else None)
+    return out
+
+
+def load_excluded(path: Path | None = None) -> dict[str, str]:
+    """Attributes deliberately left out of the space -> reason (reported to the LLM)."""
+    path = Path(path) if path is not None else BOUNDS_PATH
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return {k: " ".join(str(v).split()) for k, v in (doc.get("excluded") or {}).items()}
+
+
+def load_json_schema(path: Path | None = None) -> dict:
+    path = Path(path) if path is not None else SCHEMA_PATH
+    return json.loads(path.read_text(encoding="utf-8"))
