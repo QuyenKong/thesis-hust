@@ -3,22 +3,24 @@
 LLM-generated driver-behaviour rules for SUMO: mixed car/motorcycle traffic at Le Van Luong x
 Hoang Dao Thuy (Hanoi), AM peak. See `PLAN.md` for scope and phases, `CLAUDE.md` for working rules.
 
-## Setup (Windows)
+## Setup (Windows and Linux)
 
-Requires SUMO 1.27.x with `SUMO_HOME` set, and Python ≥ 3.10.
+Needs Python ≥ 3.10 and Git LFS (`git lfs pull`: `scenario_raw/*.gz` and other binaries are LFS objects). Run
+from `SUMO/`:
 
 ```bash
-py -3.12 -m venv .venv
-# make traci/sumolib from SUMO_HOME importable inside the venv (matches the SUMO binary)
-.venv/Scripts/python -c "import os,sysconfig,pathlib; pathlib.Path(sysconfig.get_paths()['purelib'],'sumo_tools.pth').write_text(os.path.join(os.environ['SUMO_HOME'],'tools')+'\n')"
-.venv/Scripts/python -m pip install -e ".[dev]"
-# libsumo (fast in-process backend). --no-deps is required: its deps would pull traci/sumolib 1.28
-# from PyPI and shadow the SUMO_HOME 1.27 copies. sumo-data supplies the DLLs libsumo links against.
-.venv/Scripts/python -m pip install --no-deps libsumo==1.27.0 sumo-data==1.27.0
-.venv/Scripts/python -m pytest
+py -3.12 scripts/setup_env.py      # Windows: uses the installed SUMO 1.27 at %SUMO_HOME%
+python3.12 scripts/setup_env.py    # Linux: no SUMO_HOME -> installs the eclipse-sumo 1.27.0 wheel into .venv
+.venv/Scripts/python -m pytest     # Windows
+.venv/bin/python -m pytest         # Linux
 ```
 
-Optional extras: `.[llm]` (Phase 6), `.[optuna]` (Phase 7).
+The script creates `.venv` (with `uv` when available), installs the project with all extras and
+`libsumo`/`sumo-data` 1.27.0 with `--no-deps` (their deps would pull traci/sumolib 1.28 from PyPI), and writes
+`sumo_tools.pth` so traci/sumolib come from `<SUMO_HOME>/tools` and `SUMO_HOME` is set inside the venv. The operator
+shell scripts (`experiments/operator/*/*.sh`) source `experiments/operator/env.sh` and run on both (Git Bash on
+Windows). Each run's `manifest.json` and `collisions.xml` and the SDD ledger (`.superpowers/sdd/`) are tracked in git
+so either machine can pick up the work; the rest of `experiments/runs/` is not.
 
 ## Status
 

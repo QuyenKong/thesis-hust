@@ -5,8 +5,12 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Raw SUMO run outputs (large, reproducible from manifest.json)
-experiments/runs/
+# Raw SUMO run outputs (large, reproducible from manifest.json). Each run's manifest.json and collisions.xml are
+# tracked (small) so run records and the R28 thresholds can be checked on both the Windows and the Linux machine.
+experiments/runs/**
+!experiments/runs/**/
+!experiments/runs/**/manifest.json
+!experiments/runs/**/collisions.xml
 # validator outcomes (thesis_sumo.rules.validator.ValidityLog), runtime output
 experiments/validity_log.csv
 
@@ -16,8 +20,9 @@ experiments/validity_log.csv
 *.avi
 *.mkv
 
-# Tooling scratch
-.superpowers/
+# Tooling scratch; the SDD ledger (.superpowers/sdd/) is tracked so work can resume on either machine
+.superpowers/*
+!.superpowers/sdd/
 
 # Personal Claude Code settings
 .claude/settings.local.json

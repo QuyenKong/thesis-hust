@@ -28,9 +28,15 @@ and wait for confirmation. Phase 3 and the end of Phase 5 are hard stops.
 
 ## Environment
 
-- SUMO 1.27.0 at `C:\Program Files (x86)\Eclipse\Sumo` (`SUMO_HOME` set).
-- `traci`/`sumolib` come from `%SUMO_HOME%/tools` via `.venv/Lib/site-packages/sumo_tools.pth`
-  (not from PyPI) so they match the binary.
+- Two machines, same SUMO 1.27.0: Windows (installed at `C:\Program Files (x86)\Eclipse\Sumo`, `SUMO_HOME` set)
+  and Linux (`eclipse-sumo==1.27.0` wheel inside `.venv`, no system SUMO). `scripts/setup_env.py` builds `.venv` on
+  either; venv python is `.venv/Scripts/python` (Windows) or `.venv/bin/python` (Linux).
+- `traci`/`sumolib` come from `<SUMO_HOME>/tools` via `sumo_tools.pth` in the venv site-packages (not from PyPI)
+  so they match the binary; the same `.pth` sets `SUMO_HOME` inside the venv when it is not set.
+- Large files are Git LFS (`git lfs pull` after cloning). Run records (`experiments/runs/**/manifest.json`,
+  `collisions.xml`) and the SDD ledger (`.superpowers/sdd/`) are tracked; other raw output is not.
+- Linux has no Ollama yet: the LLM loop's stand-in is a Claude Sonnet subagent; specs it writes carry
+  `provenance.model` "claude-sonnet (stand-in)" and are not results of the local-LLM method.
 - `libsumo` 1.27.0 + `sumo-data` 1.27.0 (its DLLs) are pip-installed with `--no-deps`: their declared
   deps pull traci/sumolib 1.28 from PyPI, which would shadow the SUMO_HOME copies. Never `pip install
   libsumo` without `--no-deps`. `tests/test_backends.py` checks libsumo and traci give identical runs.
@@ -39,10 +45,10 @@ and wait for confirmation. Phase 3 and the end of Phase 5 are hard stops.
 ## Commands
 
 ```bash
-py -3.12 -m venv .venv                       # first time only, then recreate sumo_tools.pth (see README)
-.venv/Scripts/python -m pip install -e ".[dev]"
-.venv/Scripts/python -m pip install --no-deps libsumo==1.27.0 sumo-data==1.27.0
-.venv/Scripts/python -m pytest
+git lfs pull                                 # after cloning: scenario_raw/*.gz etc. are LFS objects
+py -3.12 scripts/setup_env.py                # Windows, from SUMO/ (Linux: python3.12 scripts/setup_env.py)
+.venv/Scripts/python -m pytest               # Linux: .venv/bin/python -m pytest
+bash experiments/operator/task9/run_b0.sh    # operator scripts run as-is on both (Git Bash on Windows)
 ```
 
 ## Layout

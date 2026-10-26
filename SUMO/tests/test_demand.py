@@ -198,7 +198,8 @@ def test_moto_violator_matches_motorcycle_defaults():
 def test_synthetic_counts_marked_and_valid(candidates):
     """data/observed/SYNTHETIC is a pipeline test input, clearly marked, in the Phase 5.1 schema."""
     assert (SYNTHETIC / "SYNTHETIC").is_file()
-    assert "SYNTHETIC" in (SYNTHETIC / "README.md").read_text(encoding="utf-8")
+    # README.md moved to docs/SYNTHETIC_README.md; the marker file itself carries the warning
+    assert "Never use in results" in (SYNTHETIC / "SYNTHETIC").read_text(encoding="utf-8")
     df = pd.read_csv(SYNTHETIC / "turn_counts.csv")
     assert list(df.columns) == TURN_COUNT_COLUMNS
     assert set(df["vclass"]) == {"car", "moto"}
