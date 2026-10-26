@@ -41,8 +41,8 @@ from jsonschema import Draft202012Validator
 
 from thesis_sumo.config import REPO_ROOT, Site, load_site
 from thesis_sumo.net.apply_patches import site_net_name
-from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, RULE_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound,
-                                      load_bounds, load_excluded, load_json_schema)
+from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, OPTIONAL_VCLASSES, RULE_VCLASSES, TRACI_RULE_PARAMS,
+                                      VCLASSES, Bound, load_bounds, load_excluded, load_json_schema)
 
 ISSUE_CODES = ("schema", "unknown_attr", "out_of_bounds", "share_sum", "rule_params", "logic")
 SHARE_TOL = 1e-6
@@ -144,10 +144,12 @@ def _distribution_issues(spec: dict) -> list[ValidationIssue]:
         dist = DISTRIBUTION_OF_VCLASS[vc]
         archs = by_vc.get(vc, [])
         if not archs:
+            if vc in OPTIONAL_VCLASSES:  # no demand references its distribution: leaving it out is fine
+                continue
             issues.append(_issue("driver_archetypes", "logic",
                                  f"no archetype with base_vclass {vc}: the demand uses vTypeDistribution '{dist}', "
                                  f"which needs at least one archetype (base_vclass passenger -> 'car', motorcycle "
-                                 f"-> 'moto', custom1 -> 'moto_violator')."))
+                                 f"-> 'moto', custom1 -> 'moto_violator'; custom2 -> 'car_violator' is optional)."))
             continue
         total = math.fsum(a["share"] for a in archs)
         if abs(total - 1.0) > SHARE_TOL:
@@ -160,7 +162,7 @@ def _distribution_issues(spec: dict) -> list[ValidationIssue]:
         if arch["id"] in DISTRIBUTION_OF_VCLASS.values():
             issues.append(_issue(f"driver_archetypes[{i}].id", "logic",
                                  f"archetype id '{arch['id']}' clashes with a vTypeDistribution id (car, moto, "
-                                 f"moto_violator are reserved); choose another id."))
+                                 f"moto_violator, car_violator are reserved); choose another id."))
         if seen[arch["id"]] > 1:
             issues.append(_issue(f"driver_archetypes[{i}].id", "logic",
                                  f"archetype id '{arch['id']}' is used {seen[arch['id']]} times; ids must be unique."))

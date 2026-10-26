@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         warnings.simplefilter("ignore", ProxySiteWarning)
         net = build_site_net(site, base, out_dir / site_net_name(site))
     draw_diagram(net, out_dir / "diagram.svg", {e: a for a, e in mapping.items()},
-                 site.require("illegal_left.vclass"),
+                 (site.require("violator_classes.moto"), site.require("violator_classes.car")),
                  title=f"{site['intersection']['name']} - {net.name} ({site.source})")
     print(f"Wrote {net} and {out_dir / 'diagram.svg'}")
     return 0

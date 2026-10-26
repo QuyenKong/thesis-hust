@@ -7,10 +7,13 @@
 `rules/compiled/<spec_id>/`):
 
 - `vtypes.add.xml`: one vTypeDistribution per base vclass, ids `car` (passenger), `moto` (motorcycle),
-  `moto_violator` (custom1), the ids the demand references (`schema.DISTRIBUTION_OF_VCLASS`). Each archetype is
+  `moto_violator` (custom1), the ids the demand references, then `car_violator` (custom2)
+  (`schema.DISTRIBUTION_OF_VCLASS`). car_violator is optional (`schema.OPTIONAL_VCLASSES`): no demand references
+  it yet, so a spec without a custom2 archetype gets no car_violator distribution (rather than an invented
+  default one); the validator still requires the three others. Each archetype is
   one member vType with `id` = archetype id, `probability` = share, `laneChangeModel="SL2015"`. custom1 vTypes
-  first get the motorcycle defaults the hand-written B0 file copies (`CUSTOM1_MOTORCYCLE_DEFAULTS`), then the
-  spec params override them. Every spec param is written explicitly, also when it equals its default: some SUMO
+  first get the motorcycle defaults the hand-written B0 file copies (`CUSTOM1_MOTORCYCLE_DEFAULTS`), custom2
+  vTypes the passenger defaults (`CUSTOM2_PASSENGER_DEFAULTS`), then the spec params override them. Every spec param is written explicitly, also when it equals its default: some SUMO
   defaults are derived from other attributes (lcPushyGap = minGapLat, lcMaxSpeedLatStanding = maxSpeedLat,
   jmDriveRedSpeed = maxSpeed), so dropping a "default-valued" param could change its meaning. Attributes not in
   the spec are omitted (SUMO default), so excluded attributes never appear. The file declares SUMO's
@@ -36,7 +39,8 @@ from pathlib import Path
 from xml.sax.saxutils import quoteattr
 
 from thesis_sumo.config import REPO_ROOT, MissingFieldDataError, Site, load_site
-from thesis_sumo.rules.schema import DISTRIBUTION_OF_VCLASS, TRACI_RULE_PARAMS, VCLASSES, Bound, load_bounds
+from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, OPTIONAL_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound,
+                                      load_bounds)
 from thesis_sumo.rules.validator import ValidationIssue, validate
 
 COMPILED_DIR = REPO_ROOT / "rules" / "compiled"
@@ -56,6 +60,15 @@ CUSTOM1_MOTORCYCLE_DEFAULTS: dict[str, float | str] = {
     "accel": 6, "decel": 10, "emergencyDecel": 10, "maxSpeed": 55.55555555555556, "personCapacity": 1,
     "emissionClass": "HBEFA4/MC_4S_gt250cc_preEuro", "speedDev": 0.1,
 }
+# custom2 (car_violator, PLAN 2.1): the passenger defaults of SUMO 1.27.0 (same page, row passenger; values as the
+# 1.27.0 binary reports them), same attributes and order as CUSTOM1_MOTORCYCLE_DEFAULTS. SUMO already gives custom2
+# these values; PLAN 2.1 asks for them explicitly. tests/test_compiler.py checks them in SUMO.
+CUSTOM2_PASSENGER_DEFAULTS: dict[str, float | str] = {
+    "guiShape": "passenger", "length": 5, "width": 1.8, "height": 1.5, "mass": 1500, "minGap": 2.5,
+    "accel": 2.6, "decel": 4.5, "emergencyDecel": 9, "maxSpeed": 55.55555555555556, "personCapacity": 4,
+    "emissionClass": "HBEFA4/PC_petrol_Euro-4", "speedDev": 0.1,
+}
+VIOLATOR_DEFAULTS = {"custom1": CUSTOM1_MOTORCYCLE_DEFAULTS, "custom2": CUSTOM2_PASSENGER_DEFAULTS}
 
 
 class InvalidSpecError(ValueError):
@@ -86,13 +99,12 @@ def fmt_value(v) -> str:
 def _vtype_attrs(arch: dict, bounds: dict[str, Bound]) -> dict[str, str]:
     attrs: dict = {"id": arch["id"], "vClass": arch["base_vclass"], "laneChangeModel": LANE_CHANGE_MODEL,
                    "probability": arch["share"]}
-    if arch["base_vclass"] == "custom1":
-        attrs.update(CUSTOM1_MOTORCYCLE_DEFAULTS)
+    attrs.update(VIOLATOR_DEFAULTS.get(arch["base_vclass"], {}))
     params = arch["params"]
     unknown = set(params) - set(bounds)
     if unknown:  # the validator rejects these; guard against a bounds file changed in between
         raise ValueError(f"archetype {arch['id']!r}: params {sorted(unknown)} not in the bounds file")
-    for name in bounds:  # bounds-file order; overrides keep the position of a custom1 default
+    for name in bounds:  # bounds-file order; overrides keep the position of a custom1 / custom2 default
         if name in params:
             attrs[name] = params[name]
     return {k: fmt_value(v) for k, v in attrs.items()}
@@ -107,6 +119,8 @@ def render_vtypes(spec: dict, bounds: dict[str, Bound] | None = None) -> str:
              '<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
              'xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">']
     for vc in VCLASSES:
+        if vc in OPTIONAL_VCLASSES and not any(a["base_vclass"] == vc for a in spec["driver_archetypes"]):
+            continue
         lines.append(f"    <vTypeDistribution id={quoteattr(DISTRIBUTION_OF_VCLASS[vc])}>")
         for arch in spec["driver_archetypes"]:
             if arch["base_vclass"] == vc:

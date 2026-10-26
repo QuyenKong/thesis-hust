@@ -74,6 +74,18 @@ that are defined only in this file, and they must be computed the same way on bo
 - **M2 / M3**: a crossing in `r` that lies at most **N = 10 s** before the next green onset of its approach is an
   early start. Any other crossing in `r` is red running. Red crossings after the last observed onset cannot be
   classified (the next onset is outside the window).
+- **Continuous right-turn lane** (Task F2-net, PLAN 0: every approach has one, so a right turn on red is not a
+  violation): the right turns (movement `r`) of approaches with `continuous_right_lane: true` are not signal
+  controlled. They are neither early starts nor red runners and are left out of the M2/M3 shares (numerator and
+  denominator), the M2 first-crossing delay (and M7c), the M1 queue and discharge, and the M4 rows
+  (`metrics.common.uncontrolled_tracks`). The generator lets them cross at their unimpeded arrival time, never
+  queues them, and draws red runners / early starters only from the other vehicles, with per-cycle counts =
+  target share x the approach's rate without them. **The target values are unchanged.** [S5] gives the shares
+  per approach (LVL: major-through subset, HDT: all flows), so for LVL the denominator already had no right
+  turners, but for HDT the [S5] denominator contained right turners that our definition now drops. Applied to
+  the smaller denominator, the HDT shares imply fewer red runners / early starters per cycle than before. Whether
+  [S5]'s right turners were signal controlled is not stated, so this is flagged, not rescaled: with field data
+  the shares are measured on our definition directly.
 - **M7b**: the clear lag is computed per `box_queue` row. It is the first box exit (`traversals.t_exit` of
   `illegal_l`) at or after `t`, among the vehicles that entered in that cycle, minus `max(t, last stop-line
   crossing of the opposing approach's straight movement before that exit)`. Tier-1 tables have no positions
@@ -93,11 +105,18 @@ that are defined only in this file, and they must be computed the same way on bo
 ## 3. What the generated days look like (D1–D5, derived, not inputs)
 
 The raw 5-day means are compared with the **nominal** targets.yaml values at 15 % (`tests/test_proxy.py`).
-- Every scalar passes except one: car red running, pooled over approaches, at +18.3 %. That is ~22 events in
-  5 days (Poisson SE ~21 %), so it is a strict `xfail`. The generator is unbiased for it over a 36000 s run.
-- The other large gaps are early start for cars −12 %, car wrong-lane share +8 %, M7c slope −6 % and
-  red running for LVL_W motorcycles −6 %.
-- Everything else is within ±4 %.
+- After Task F2-net (continuous right turns excluded, which also changed the generator's random stream), three
+  checks are strict `xfail` because of noise: car red running pooled −45 % (~20 events in 5 days, Poisson SE
+  ~21 %; it was +18.3 % before), car early start pooled −19 % and LVL_W motorcycle red running +17.6 %.
+  `SUMO/experiments/proxy_bias/bias_check.py 200` (200 independent 5-day campaigns, result in
+  `result_200.txt`): relative error mean / SD / min / max — motorcycle red running LVL_W +0.1 % / 4.5 % / −15.1 % /
+  +12.8 %, LVL_E −0.1 % / 4.6 %, HDT_N +2.9 % / 4.6 %, HDT_S +3.3 % / 4.7 %; car red running −4.3 % / 28 %; car
+  early start −2.7 % / 25 %. So the car shares and LVL motorcycle shares are unbiased, the HDT motorcycle red-running
+  share runs ~3 % high (SE 0.3 %; inside the 15 % tolerance), and the committed D1–D5 LVL_W value (+17.6 %) is a
+  rare draw beyond all 200 campaigns (Viktor decides whether to keep it; seeds are not re-rolled silently).
+- Motorcycle M2/M3 shares: early start −1 … +2 %; red running LVL_E +7 %, HDT_N −11 %, HDT_S +13 %.
+- The other targets pass at 15 % (`tests/test_proxy.py`); before Task F2-net their largest gaps were car
+  wrong-lane share +8 % and M7c slope −6 %, everything else within ±4 % (not re-listed after F2-net).
 
 Derived quantities (no target, reported for transparency):
 

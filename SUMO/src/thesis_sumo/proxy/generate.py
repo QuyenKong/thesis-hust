@@ -18,9 +18,13 @@ which the CLI normalises to mean 1 over D1-D5, `campaign_day_factors`):
   runners (count per cycle and vclass, NB) cross in red: right after the yellow ("late") or in mid-red in
   clusters. Early starters (NB) are the front of the queue and cross 4-10 s before green. The rest wait: motorcycles
   overshoot the stop line with a probability and wait at the front; the queue behind the line is packed by area
-  (position = cumulative footprint / roadway width). Discharge starts `first_crossing_delay` after green (plus the
+  (position = cumulative footprint / width of the signal-controlled lanes, `Approach.queue_width`). Discharge starts `first_crossing_delay` after green (plus the
   M7c box effect on the crossing road) with headways `h_sat[vclass] * ramp(position) * lognormal noise`;
   vehicles arriving in green cross at max(arrival, previous crossing + headway); after yellow use, they wait.
+- continuous right-turn lane (`continuous_right_lane: true`, PLAN 0): right-turners of that approach are not
+  signal controlled. They cross at `t_reach` (unimpeded), never queue and are never drawn as red runners or early
+  starters; the red-run / early-start counts per cycle use the approach's rate without them (the M2/M3 shares are
+  over the signal-controlled vehicles, as the metrics count them).
 - lateral position: lane from the movement and `lane_movements` (turning vehicles in a non-permitting lane with
   `wrong_lane_share`; illegal lefts from the leftmost lane), uniform within the lane band (motorcycles) or normal
   around the lane centre (cars); kept from the queue to the stop line.
@@ -139,6 +143,7 @@ class Approach:
     lane_movements: list[list[str]]
     movements: list[str]                 # turn_counts movement codes of this approach
     exit_arm: dict[str, str]             # movement -> approach id of the arm it leaves by
+    continuous_right: bool = False       # right turn not signal controlled (site continuous_right_lane)
     edges: np.ndarray = field(init=False)
 
     def __post_init__(self):
@@ -147,6 +152,13 @@ class Approach:
     @property
     def width(self) -> float:
         return float(self.edges[-1])
+
+    @property
+    def queue_width(self) -> float:
+        """Width the signal queue spreads over: without the continuous right lane(s) (marked [r] only), which
+        right-turners pass without queueing. `area_m2` stays length x roadway width, as on the sim side."""
+        skip = self.continuous_right
+        return float(sum(w for w, m in zip(self.widths, self.lane_movements) if not (skip and list(m) == ["r"])))
 
 
 def approaches_of(site: Site, edge_table: Path = EDGE_TABLE) -> dict[str, Approach]:
@@ -180,7 +192,8 @@ def approaches_of(site: Site, edge_table: Path = EDGE_TABLE) -> dict[str, Approa
         if {m for lane in lanes for m in lane} != legal:
             raise ValueError(f"approach {a['id']}: lane_movements {lanes} do not cover exactly its movements "
                              f"{sorted(legal)}")
-        out[a["id"]] = Approach(a["id"], [float(w) for w in widths], lanes, list(mv_exit), mv_exit)
+        out[a["id"]] = Approach(a["id"], [float(w) for w in widths], lanes, list(mv_exit), mv_exit,
+                                bool(site.require(f"{key}.continuous_right_lane")))
     return out
 
 
@@ -404,9 +417,14 @@ def serve(rng, ap: Approach, vehicles: list[Veh], cyc: Cycles, p: Params, window
     excl = p("M3_red_running.early_start_exclusion_s")
     lead = p("M2_early_start.early_start_lead_s")
     vm = p("M3_red_running.per_cycle_var_to_mean")
+    for v in vehicles:
+        if ap.continuous_right and v.movement == "r":
+            v.t_cross = v.t_reach  # continuous right turn: not signal controlled, never queues
+    vehicles = [v for v in vehicles if math.isnan(v.t_cross)]
     rates = {}
-    for (vc, _m), r in _legal_rates(ap, p, cyc).items():
-        rates[vc] = rates.get(vc, 0.0) + r
+    for (vc, m), r in _legal_rates(ap, p, cyc).items():
+        if not (ap.continuous_right and m == "r"):
+            rates[vc] = rates.get(vc, 0.0) + r
     area = {"moto": p("M5_queue.moto_area_m2"), "car": p("M5_queue.car_area_m2")}
     depth = p("M4_lateral.overshoot_depth_m")
     snaps, carry, i = [], [], 0
@@ -436,7 +454,7 @@ def serve(rng, ap: Approach, vehicles: list[Veh], cyc: Cycles, p: Params, window
         for v in front:
             rows.append((v, min(-rng.uniform(depth["low"], depth["high"]), -0.01)))  # never -0.0 after rounding
         for v in back:
-            rows.append((v, cum / ap.width))
+            rows.append((v, cum / ap.queue_width))
             cum += area[v.vclass]
         snaps.append(Snapshot(g, rows))
         t, carry, stop = math.nan, [], cyc.stop(j)

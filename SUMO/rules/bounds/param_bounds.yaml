@@ -10,14 +10,15 @@
 #   constrained_by  metrics M1-M8 (PLAN 5.2) through which the attribute can be matched to observations.
 #                   Methodology: an attribute that no metric constrains is not tuned: `fixed: true`, min = max =
 #                   default, so the validator accepts only its SUMO default.
-#   min, max, default  apply to every base vclass (passenger, motorcycle, custom1) unless `by_vclass`
+#   min, max, default  apply to every base vclass (passenger, motorcycle, custom1, custom2) unless `by_vclass`
 #                   overrides them for that vclass. `default` = the value the B0 vType has when a spec omits the
 #                   attribute (SUMO's vClass default; custom1 = moto_violator gets the motorcycle defaults that
-#                   rules/compiled/B0/vtypes.add.xml copies explicitly). A default may lie outside [min, max]
+#                   rules/compiled/B0/vtypes.add.xml copies explicitly; custom2 = car_violator has the passenger
+#                   defaults, so the generic row applies to it). A default may lie outside [min, max]
 #                   (e.g. "disabled" sentinels such as infinity); the validator never checks it.
 #   values          (instead of min/max) the allowed strings of a categorical attribute
 #   vclasses        (optional) the only base vclasses on which the attribute may be set, with `vclasses_reason`;
-#                   default: all three
+#                   default: all four
 #   source_url      sumo.dlr.de docs page proving the attribute exists in SUMO 1.27 and stating its default.
 #                   Checked against the 1.27.0 userdoc shipped in %SUMO_HOME%/doc/userdoc (same pages), and
 #                   tests/test_validator.py::test_bounds_load_in_sumo loads every row at min and max in SUMO

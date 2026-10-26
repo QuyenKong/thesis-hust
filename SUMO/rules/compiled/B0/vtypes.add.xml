@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- B0 = SUMO defaults (PLAN Phase 2.1). Vehicles reference the distribution ids car, moto, moto_violator;
-     compiled specs (rules/compiled/<spec_id>/) use the same three ids.
+     compiled specs (rules/compiled/<spec_id>/) use the same three ids. car_violator (custom2) is for the F2 rules
+     after Phase 3; no demand references it yet.
      All types: laneChangeModel SL2015 (sublane), every other parameter left at the SUMO default.
      moto_violator: vClass custom1 (the only class allowed on the banned LVL_W left turn) has passenger defaults,
      so the motorcycle defaults are copied explicitly from
@@ -9,7 +10,13 @@
      decel 10 m/s2, emergencyDecel 10 m/s2, maxSpeed 200 km/h (= 55.55555555555556 m/s), personCapacity 2 (but the
      SUMO 1.27.0 binary gives motorcycle personCapacity 1, so 1 is copied),
      emissionClass HBEFA4/MC_4S_gt250cc_preEuro, speedDev 0.1, guiShape motorcycle.
-     tests/test_demand.py::test_moto_violator_matches_motorcycle_defaults checks it against SUMO itself. -->
+     tests/test_demand.py::test_violator_matches_base_defaults checks it against SUMO itself.
+     car_violator: vClass custom2 (with custom1 the only classes allowed straight from the continuous right-turn
+     lane); the passenger defaults are copied explicitly from the same page (row passenger), as the SUMO 1.27.0
+     binary reports them: length 5 m, width 1.8 m, height 1.5 m, mass 1500 kg, minGap 2.5 m, accel 2.6 m/s2,
+     decel 4.5 m/s2, emergencyDecel 9 m/s2, maxSpeed 55.55555555555556 m/s, personCapacity 4,
+     emissionClass HBEFA4/PC_petrol_Euro-4, speedDev 0.1, guiShape passenger.
+     tests/test_demand.py::test_violator_matches_base_defaults checks it against SUMO itself. -->
 <additional>
     <vTypeDistribution id="car">
         <vType id="car_B0" vClass="passenger" laneChangeModel="SL2015" probability="1"/>
@@ -22,5 +29,11 @@
                guiShape="motorcycle" length="2.2" width="0.9" height="1.5" mass="200" minGap="2.5"
                accel="6" decel="10" emergencyDecel="10" maxSpeed="55.55555555555556" personCapacity="1"
                emissionClass="HBEFA4/MC_4S_gt250cc_preEuro" speedDev="0.1"/>
+    </vTypeDistribution>
+    <vTypeDistribution id="car_violator">
+        <vType id="car_violator_B0" vClass="custom2" laneChangeModel="SL2015" probability="1"
+               guiShape="passenger" length="5" width="1.8" height="1.5" mass="1500" minGap="2.5"
+               accel="2.6" decel="4.5" emergencyDecel="9" maxSpeed="55.55555555555556" personCapacity="4"
+               emissionClass="HBEFA4/PC_petrol_Euro-4" speedDev="0.1"/>
     </vTypeDistribution>
 </additional>

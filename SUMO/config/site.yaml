@@ -19,26 +19,47 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     edge: "711526326#1"        # arm from SW (To Huu side), heading NE = AM inbound (Task 2, scenario/net/edge_table.csv)
     lane_widths_m: null        # TODO_MEASURE, list per lane
     lane_movements: null       # TODO_MEASURE: per lane (index 0 = rightmost), permitted movements r/s/l/u from markings
+                               # (continuous_right_lane: lane 0 = [r])
     left_turn_banned: null     # TODO_MEASURE
     u_turn_banned: null        # TODO_MEASURE
+    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
+                                         # not signal controlled; modelled as existing lane 0 (no lane added)
+    right_lane_separator: bollards       # Viktor 2026-10-26 (field): bollards/hard separator, no straight from lane 0 (none | paint | bollards)
+    sidewalk_width_m: null               # TODO_MEASURE
+    hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
   - id: LVL_E                  # Le Van Luong, east approach
     edge: "37876499#0"         # arm from NE (Task 2)
     lane_widths_m: null        # TODO_MEASURE
     lane_movements: null       # TODO_MEASURE
     left_turn_banned: null     # TODO_MEASURE
     u_turn_banned: null        # TODO_MEASURE
+    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
+                                         # not signal controlled; modelled as existing lane 0 (no lane added)
+    right_lane_separator: bollards       # Viktor 2026-10-26 (field): bollards/hard separator, no straight from lane 0 (none | paint | bollards)
+    sidewalk_width_m: null               # TODO_MEASURE
+    hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
   - id: HDT_N                  # Hoang Dao Thuy, north approach
     edge: "953158817#2"        # arm from NW; includes unnamed OSM way 1071601648 (= HDT, Task 2)
     lane_widths_m: null        # TODO_MEASURE
     lane_movements: null       # TODO_MEASURE
     left_turn_banned: null     # TODO_MEASURE
     u_turn_banned: null        # TODO_MEASURE
+    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
+                                         # not signal controlled; modelled as existing lane 0 (no lane added)
+    right_lane_separator: bollards       # Viktor 2026-10-26 (field): bollards/hard separator, no straight from lane 0 (none | paint | bollards)
+    sidewalk_width_m: null               # TODO_MEASURE
+    hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
   - id: HDT_S                  # Hoang Dao Thuy, south approach
     edge: "1346358303"         # arm from SE (Task 2)
     lane_widths_m: null        # TODO_MEASURE
     lane_movements: null       # TODO_MEASURE
     left_turn_banned: null     # TODO_MEASURE
     u_turn_banned: null        # TODO_MEASURE
+    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
+                                         # not signal controlled; modelled as existing lane 0 (no lane added)
+    right_lane_separator: bollards       # Viktor 2026-10-26 (field): bollards/hard separator, no straight from lane 0 (none | paint | bollards)
+    sidewalk_width_m: null               # TODO_MEASURE
+    hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
 
 exits:                         # outbound edges of the target junction; their widths are also the box widths
   - id: LVL_W_out
@@ -64,3 +85,9 @@ illegal_left:
   vclass: custom1
   mode: null                   # TODO_DECIDE: native | box_edge (PLAN Phase 3: wait at SUMO's internal junction, or an
                                # explicit waiting edge with its own signal link); decide from the measured box counts
+
+violator_classes:              # vClasses of the violator vTypes; only they may use the violator-only connections
+  moto: custom1                # moto_violator: banned left turn, straight from the continuous right lane, sidewalk lane
+  car: custom2                 # car_violator: straight from the continuous right lane
+f2_measured_approaches: null   # TODO_MEASURE: 1-2 approaches used to measure F2 (camera sees 50-100 m of queue and the
+                               # sidewalk); the sidewalk lane (PLAN 1.4) is built only on these

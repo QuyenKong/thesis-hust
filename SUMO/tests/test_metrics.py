@@ -71,15 +71,15 @@ def _tables(vehicles=(), lateral=(), queue=(), box=(), counts=(), n_cycles: int 
     }
 
 
-def _site() -> Site:
+def _site(continuous: bool = False) -> Site:
     lanes = [["r", "s"], ["s"], ["s", "l", "u"]]
     return Site({"site_source": "LITERATURE_PROXY", "approaches": [
-        {"id": a, "lane_widths_m": [3.5, 3.5, 3.5], "lane_movements": lanes}
+        {"id": a, "lane_widths_m": [3.5, 3.5, 3.5], "lane_movements": lanes, "continuous_right_lane": continuous}
         for a in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")]}, PROXY_SITE)
 
 
-def _ctx(window=(0.0, 1000.0)) -> MetricContext:
-    return MetricContext(window=window, queue_range_m=80.0, site=_site())
+def _ctx(window=(0.0, 1000.0), continuous: bool = False) -> MetricContext:
+    return MetricContext(window=window, queue_range_m=80.0, site=_site(continuous))
 
 
 def V(i, a, vc, mv, t, lat=1.0, t_exit=np.nan, t_range=np.nan):
@@ -146,6 +146,35 @@ def test_m2_early_start_and_first_delay():
     # first crossing at/after each onset in the window, before that cycle's red onset, any approach:
     # HDT_N onsets 70 -> 80 (10), 190 -> 200 (10), 310 -> 320 (10), 430 -> 440 (10), 550 -> none before 598
     assert sorted(out["M2/first_delay"].values) == pytest.approx([10.0] * 4)
+
+
+@pytest.mark.parametrize("continuous", [True, False])
+def test_continuous_right_turns_not_violations(continuous):
+    """PLAN 0: with continuous_right_lane true a right turn on red is no violation. HDT_N (onsets 70, 190):
+    s in red at 20 (red runner), r in red at 25 and in the last 10 s of red at 65, r at 80 and s at 85 in green."""
+    veh = [V("s1", "HDT_N", "moto", "s", 20.0), V("r1", "HDT_N", "moto", "r", 25.0),
+           V("r2", "HDT_N", "moto", "r", 65.0), V("r3", "HDT_N", "moto", "r", 80.0),
+           V("s2", "HDT_N", "moto", "s", 85.0)]
+    tables, ctx = _tables(veh, n_cycles=2), _ctx(window=(0.0, 240.0), continuous=continuous)
+    m2, m3 = m2_early_start.compute(tables, ctx), m3_red_running.compute(tables, ctx)
+    if continuous:  # only s1, s2 are classifiable; first crossing after 70 is s2
+        assert m3["M3/share/moto"].values == pytest.approx(1 / 2)
+        assert m2["M2/early/moto"].values == 0.0
+        assert list(m2["M2/first_delay"].values) == pytest.approx([15.0])
+    else:  # r1 red runner, r2 early start, r3 first crossing
+        assert m3["M3/share/moto"].values == pytest.approx(2 / 5)
+        assert m2["M2/early/moto"].values == pytest.approx(1 / 5)
+        assert list(m2["M2/first_delay"].values) == pytest.approx([10.0])
+
+
+def test_continuous_right_lane_flag_required():
+    """No silent default: a site without the flag raises."""
+    site = _site()
+    for a in site["approaches"]:
+        del a["continuous_right_lane"]
+    with pytest.raises(KeyError, match="continuous_right_lane"):
+        m3_red_running.compute(_tables([V("s1", "HDT_N", "moto", "s", 20.0)], n_cycles=2),
+                               MetricContext(window=(0.0, 240.0), queue_range_m=80.0, site=site))
 
 
 # ------------------------------------------------------------------ M4 / M5 / M6 / M8

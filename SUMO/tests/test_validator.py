@@ -144,7 +144,7 @@ def test_traci_rule_params():
         assert {"passenger", "motorcycle"} <= set(RULE_VCLASSES[rule]), rule
     assert RULE_VCLASSES["slow_lane_center"] == ("motorcycle",)
     assert "custom1" not in RULE_VCLASSES["wrong_lane_dodge"]
-    assert set(DISTRIBUTION_OF_VCLASS.values()) == {"car", "moto", "moto_violator"}
+    assert set(DISTRIBUTION_OF_VCLASS.values()) == {"car", "moto", "moto_violator", "car_violator"}
 
 
 def test_bounds_load_in_sumo(tmp_path):

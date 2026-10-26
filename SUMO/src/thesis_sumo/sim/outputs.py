@@ -83,7 +83,7 @@ VTYPES_JSON = "vtypes.json"
 HALT_SPEED_MPS = 5 / 3.6  # E2 detector default speedThreshold (sumo.dlr.de/docs/Simulation/Output/Lanearea_Detectors_(E2).html)
 JAM_GAP_M = 10.0          # E2 detector default jamThreshold, same page
 TIME_DECIMALS = 2         # fcd / tlsStates times are written with 2 decimals
-VCLASS_OF_SUMO = {"passenger": "car", "motorcycle": "moto", "custom1": "moto"}
+VCLASS_OF_SUMO = {"passenger": "car", "motorcycle": "moto", "custom1": "moto", "custom2": "car"}
 MAX_EXIT_BEARING_DIFF_DEG = 45.0  # an outbound edge belongs to the arm whose inbound edge has the nearest bearing
 
 

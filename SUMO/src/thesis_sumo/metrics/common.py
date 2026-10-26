@@ -156,6 +156,17 @@ def red_onset_after(tables: dict, approach: str, t: float) -> float:
     return float(e["t"].min()) if len(e) else np.inf
 
 
+def uncontrolled_tracks(tables: dict, ctx: MetricContext) -> set:
+    """track_ids of the right turns (movement `r`) of approaches with `continuous_right_lane: true` (site file, via
+    `ctx.require_site()`): that turn is not signal controlled (PLAN 0, "right turn on red is not a violation"), so
+    M1-M4 leave these vehicles out (no red running / early start, no queue, no discharge), on both sides."""
+    site = ctx.require_site()
+    cont = {site.require(f"approaches.{i}.id") for i in range(len(site.require("approaches")))
+            if site.require(f"approaches.{i}.continuous_right_lane")}
+    tr = tables["traversals"]
+    return set(tr.loc[tr["approach"].isin(cont) & (tr["movement"] == "r"), "track_id"])
+
+
 def crossings(tables: dict) -> pd.DataFrame:
     """stopline_crossings with the vehicle's movement (from traversals, same track_id)."""
     cr = tables["stopline_crossings"]

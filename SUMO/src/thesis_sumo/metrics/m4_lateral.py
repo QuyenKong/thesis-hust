@@ -8,6 +8,9 @@ which crossed in G). A motorcycle that crossed in red and halts past the line is
 stop line has always passed the entry loop, so dropping every earlier crossing would make overshoot impossible
 in simulation (such a vehicle also counts as early start / red runner in M2/M3).
 
+Right turns of `continuous_right_lane` approaches (`common.uncontrolled_tracks`) are left out: they do not queue
+for the signal.
+
 - M4/lat_moto: lat_m (m from the right road edge); M4/overshoot_share: share with long_m_from_stopline < 0;
   M4/overshoot_depth: -long_m_from_stopline of the overshooters.
 """
@@ -16,11 +19,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from thesis_sumo.metrics.common import MetricContext, approaches, dist, onsets, scalar, share
+from thesis_sumo.metrics.common import MetricContext, approaches, dist, onsets, scalar, share, uncontrolled_tracks
 
 
 def queued_motos(tables: dict, ctx: MetricContext):
     lat = tables["lateral_snapshots"]
+    lat = lat[~lat["track_id"].isin(uncontrolled_tracks(tables, ctx))]
     cr = tables["stopline_crossings"].set_index("track_id")
     parts = []
     for app in approaches(tables):

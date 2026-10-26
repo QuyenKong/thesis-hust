@@ -8,7 +8,7 @@
     "sample_idx": 0,
     "reference": null
   },
-  "description": "B0 = SUMO defaults (PLAN Phase 2.1) written as a spec: one archetype per vTypeDistribution with no params and no TraCI rules, so every attribute keeps its SUMO vClass default (custom1 = moto_violator gets the motorcycle defaults, as in the hand-written rules/compiled/B0/vtypes.add.xml). Compiling it gives the same vTypes as the hand-written file (tests/test_compiler.py::test_B0_spec_equivalent_to_handwritten); the hand-written file stays the one the runner uses.",
+  "description": "B0 = SUMO defaults (PLAN Phase 2.1) written as a spec: one archetype per vTypeDistribution with no params and no TraCI rules, so every attribute keeps its SUMO vClass default (custom1 = moto_violator gets the motorcycle defaults and custom2 = car_violator the passenger defaults, as in the hand-written rules/compiled/B0/vtypes.add.xml). Compiling it gives the same vTypes as the hand-written file (tests/test_compiler.py::test_B0_spec_equivalent_to_handwritten); the hand-written file stays the one the runner uses.",
   "driver_archetypes": [
     {
       "id": "car_B0",
@@ -30,6 +30,13 @@
       "share": 1.0,
       "params": {},
       "rationale": "SUMO motorcycle defaults on vClass custom1 (the only class allowed on the banned LVL_W left turn)."
+    },
+    {
+      "id": "car_violator_B0",
+      "base_vclass": "custom2",
+      "share": 1.0,
+      "params": {},
+      "rationale": "SUMO passenger defaults on vClass custom2 (with custom1 the only classes allowed straight from the continuous right-turn lane)."
     }
   ],
   "traci_rules": []

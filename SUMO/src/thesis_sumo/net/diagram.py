@@ -1,7 +1,7 @@
 """Junction diagram (PLAN Phase 1.5): lanes drawn from the net, edges labelled with id, side and approach.
 
-Links that allow only the illegal-left vClass are drawn in red, so the custom1-only left turn can be
-checked against the field at a glance.
+Links that allow only violator vClasses (custom1-only left turn, custom1/custom2-only straight from the continuous
+right-turn lane) are drawn in red, so they can be checked against the field at a glance.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def _point_at_distance(shape, center, dist):
 
 
 def draw_diagram(net_path: Path, out: Path, approach_ids: dict[str, str] | None = None,
-                 restricted_vclass: str = "custom1", title: str = "") -> Path:
+                 restricted_vclasses: tuple[str, ...] = ("custom1",), title: str = "") -> Path:
     """Write an SVG of `net_path`; `approach_ids` maps edge id -> logical approach id for the labels."""
     net = sumolib.net.readNet(str(net_path), withInternal=True, withPrograms=True)
     node = target_node(target_tls(net))
@@ -44,9 +44,11 @@ def draw_diagram(net_path: Path, out: Path, approach_ids: dict[str, str] | None 
         for lane in edge.getLanes():
             xs, ys = zip(*lane.getShape())
             if edge.isSpecial():
-                only = lane.getPermissions() == {restricted_vclass}
+                perms = lane.getPermissions()
+                only = bool(perms) and perms <= set(restricted_vclasses)
                 ax.plot(xs, ys, color="red" if only else "0.6", lw=1.6 if only else 0.5, zorder=3 if only else 1,
-                        label=f"link allowing only {restricted_vclass}" if only and not restricted_drawn else None)
+                        label=f"link allowing only {'/'.join(restricted_vclasses)}" if only and not restricted_drawn
+                        else None)
                 restricted_drawn |= only
             else:
                 ax.plot(xs, ys, color="0.25", lw=lane.getWidth() * 0.8, solid_capstyle="butt", alpha=0.35, zorder=2)

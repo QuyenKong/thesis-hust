@@ -9,10 +9,24 @@
   deleted and re-added with `allow="<illegal_left.vclass>"` (connection-level permissions, PlainXML docs:
   "set custom permissions independent of from-lane and to-lane permissions"). Same for
   `u_turn_banned: true` with the turnaround (`dir` t).
+  `continuous_right_lane: true` (PLAN 0: every approach has a continuous right-turn lane, the outermost one;
+  modelled as the existing lane 0, no lane added): every straight connection from lane 0 is deleted and
+  re-added: with `right_lane_separator` `none` or `paint` with `allow="<violator_classes.moto>
+  <violator_classes.car>"` (custom1 custom2: PLAN behaviour 6, violators going straight from the right-turn lane);
+  with `bollards` (Viktor, field visit: a physical separator) with `disallow="all"`, i.e. nobody goes straight
+  from lane 0. The connection is kept (not deleted) so no TLS link index moves (checked: its internal lane then
+  has no permissions). The right turn from lane 0 stays open to everyone.
 - `signal.tll.xml`: static program from `signal.phases`. Every link is listed with an explicit
   `linkIndex`, so the delete/re-add above cannot shuffle the state string. A movement in
   `green_movements` is `G` for straight/right and `g` (yield) for left/turnaround; `yellow_movements`
-  are `y`; everything else is `r`.
+  are `y`; everything else is `r`. The right-turn links of `continuous_right_lane` approaches are not signal
+  controlled: `g` (green, yield to foes) in every phase, whatever the phase lists say (a right turn on red is
+  no violation, PLAN 0).
+- Sidewalk lane (PLAN 1.4, `sidewalk.edg.xml` / `sidewalk.con.xml`) on the approaches of
+  `f2_measured_approaches` only: null or empty builds none; a listed approach needs `sidewalk_width_m`
+  (MissingFieldDataError) and then raises NotImplementedError: an extra right-edge lane shifts every lane
+  index of the approach (TLS links, lane_widths_m / lane_movements, stop-line loops, lateral positions) and
+  where it starts and merges is not in PLAN; Phase 3B tests it in its own scenario first.
 - `illegal_left.mode` (PLAN Phase 3 decision, `native | box_edge`): `native` = the illegal lefts wait at the
   internal junction netconvert builds on their link (no extra patch). `box_edge` (an explicit waiting edge
   with its own signal link) is not implemented: Phase 3 measured enough native capacity
@@ -44,8 +58,10 @@ from thesis_sumo.net.build_net import (
 SITE_NET_NAMES = {"MEASURED": "site.net.xml", "LITERATURE_PROXY": "site.proxy.net.xml"}
 MOVEMENTS = ("r", "s", "l", "t")
 ILLEGAL_LEFT_MODES = ("native", "box_edge")
+RIGHT_LANE_SEPARATORS = ("none", "paint", "bollards")  # PLAN 0 site template
 DIR_TO_MOVEMENT = {"s": "s", "r": "r", "R": "r", "l": "l", "L": "l", "t": "t"}  # SUMO connection dir codes
 PRIORITY_MOVEMENTS = ("s", "r")  # green = G; other movements yield (g)
+UNCONTROLLED_STATE = "g"  # continuous right turn: green in every phase, yields to foes (PLAN 1.4)
 
 
 class ProxySiteWarning(UserWarning):
@@ -75,7 +91,13 @@ def site_values(site: Site) -> dict:
             "lane_widths_m": site.require(f"approaches.{i}.lane_widths_m"),
             "left_turn_banned": site.require(f"approaches.{i}.left_turn_banned"),
             "u_turn_banned": site.require(f"approaches.{i}.u_turn_banned"),
+            "continuous_right_lane": site.require(f"approaches.{i}.continuous_right_lane"),
         })
+        if approaches[-1]["continuous_right_lane"]:
+            sep = approaches[-1]["right_lane_separator"] = site.require(f"approaches.{i}.right_lane_separator")
+            if sep not in RIGHT_LANE_SEPARATORS:
+                raise ValueError(f"{site.path}: approaches.{i}.right_lane_separator must be one of "
+                                 f"{RIGHT_LANE_SEPARATORS}, got {sep!r}")
     exits = [{"id": site.require(f"exits.{i}.id"), "edge": site.require(f"exits.{i}.edge"),
               "lane_widths_m": site.require(f"exits.{i}.lane_widths_m")} for i in range(len(site.require("exits")))]
     vals = {
@@ -87,7 +109,22 @@ def site_values(site: Site) -> dict:
         "illegal_left": site.require("illegal_left.approaches"),
         "vclass": site.require("illegal_left.vclass"),
         "illegal_left_mode": site.require("illegal_left.mode"),
+        "violators": (site.require("violator_classes.moto"), site.require("violator_classes.car")),
     }
+    if vals["vclass"] != vals["violators"][0]:
+        raise ValueError(f"{site.path}: illegal_left.vclass {vals['vclass']!r} must be violator_classes.moto "
+                         f"{vals['violators'][0]!r}")
+    sidewalk = site.get("f2_measured_approaches") or []  # null = none chosen yet: no sidewalk lane
+    for app in sidewalk:
+        ids = [a["id"] for a in approaches]
+        if app not in ids:
+            raise ValueError(f"{site.path}: f2_measured_approaches {app!r} is not an approach id {ids}")
+        site.require(f"approaches.{ids.index(app)}.sidewalk_width_m")
+    if sidewalk:
+        raise NotImplementedError(
+            f"{site.path}: sidewalk lane on {sidewalk} (PLAN 1.4) is not implemented: an extra right-edge lane shifts "
+            f"every lane index of the approach (TLS link indices, lane_widths_m / lane_movements, stop-line loops, "
+            f"lateral positions), and its start and merge point are not in PLAN; Phase 3B tests it in its own scenario")
     if vals["signal_type"] != "static":
         raise ValueError(f"{site.path}: signal.type must be 'static' (PLAN 1.1), got {vals['signal_type']!r}")
     if vals["illegal_left_mode"] not in ILLEGAL_LEFT_MODES:
@@ -111,8 +148,10 @@ def _parse_movement(mv: str) -> tuple[str, str]:
     return app, code
 
 
-def phase_states(links: list[tuple[str, str]], phases: list[dict], cycle_s: float) -> list[str]:
-    """State string per phase; `links[i]` = (approach_id, movement) of tl link index i."""
+def phase_states(links: list[tuple[str, str]], phases: list[dict], cycle_s: float,
+                 uncontrolled: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
+    """State string per phase; `links[i]` = (approach_id, movement) of tl link index i. Links in `uncontrolled`
+    (continuous right turns) are `g` in every phase."""
     total = sum(p["duration_s"] for p in phases)
     if not math.isclose(total, cycle_s):
         raise ValueError(f"signal phase durations sum to {total} s, signal.cycle_s is {cycle_s} s")
@@ -128,7 +167,8 @@ def phase_states(links: list[tuple[str, str]], phases: list[dict], cycle_s: floa
         if both:
             raise ValueError(f"phase {p['name']!r}: {sorted(both)} listed as both green and yellow")
         states.append("".join(
-            ("G" if code in PRIORITY_MOVEMENTS else "g") if (app, code) in green
+            UNCONTROLLED_STATE if (app, code) in uncontrolled
+            else ("G" if code in PRIORITY_MOVEMENTS else "g") if (app, code) in green
             else "y" if (app, code) in yellow else "r"
             for app, code in links))
     return states
@@ -163,19 +203,30 @@ def _lane_patch(net, vals: dict) -> etree._Element:
 def _turn_patch(net, vals: dict) -> etree._Element:
     root = etree.Element("connections")
     for a in vals["approaches"]:
+        conns = sorted((c for cs in net.getEdge(a["edge"]).getOutgoing().values() for c in cs),
+                       key=lambda c: (c.getFromLane().getIndex(), c.getTo().getID()))
         banned = {"l"} if a["left_turn_banned"] else set()
         banned |= {"t"} if a["u_turn_banned"] else set()
-        if not banned:
-            continue
-        root.append(etree.Comment(f" {a['id']}: banned {sorted(banned)}; re-added for {vals['vclass']} only "))
-        conns = [c for cs in net.getEdge(a["edge"]).getOutgoing().values() for c in cs]
-        for c in sorted(conns, key=lambda c: (c.getFromLane().getIndex(), c.getTo().getID())):
-            if movement_of(c.getDirection()) in banned:
-                key = dict(**{"from": a["edge"]}, to=c.getTo().getID(),
-                           fromLane=str(c.getFromLane().getIndex()), toLane=str(c.getToLane().getIndex()))
-                etree.SubElement(root, "delete", **key)
-                etree.SubElement(root, "connection", **key, allow=vals["vclass"])
+        if banned:
+            root.append(etree.Comment(f" {a['id']}: banned {sorted(banned)}; re-added for {vals['vclass']} only "))
+            _readd(root, a["edge"], [c for c in conns if movement_of(c.getDirection()) in banned], allow=vals["vclass"])
+        if a["continuous_right_lane"]:
+            closed = a["right_lane_separator"] == "bollards"
+            perm = {"disallow": "all"} if closed else {"allow": " ".join(vals["violators"])}
+            root.append(etree.Comment(f" {a['id']}: lane 0 = continuous right-turn lane, separator "
+                                      f"{a['right_lane_separator']}; straight re-added with {perm} "))
+            _readd(root, a["edge"], [c for c in conns if c.getFromLane().getIndex() == 0
+                                     and movement_of(c.getDirection()) == "s"], **perm)
     return root
+
+
+def _readd(root: etree._Element, edge: str, conns: list, **perm: str) -> None:
+    """Delete `conns` and add them back with connection-level permissions `perm` (allow= or disallow=)."""
+    for c in conns:
+        key = dict(**{"from": edge}, to=c.getTo().getID(),
+                   fromLane=str(c.getFromLane().getIndex()), toLane=str(c.getToLane().getIndex()))
+        etree.SubElement(root, "delete", **key)
+        etree.SubElement(root, "connection", **key, **perm)
 
 
 def _signal_patch(tls_id: str, links: list, vals: dict, states: list[str]) -> etree._Element:
@@ -226,8 +277,9 @@ def build_site_net(site: Site, base: Path, out: Path) -> Path:
         raise ValueError(f"{site.path}: exit edges {sorted(exit_ids)} must be exactly the outbound "
                          f"edges of the target junction {sorted(outbound)}")
     links = _links(net, approach_of)
+    continuous = frozenset((a["id"], "r") for a in vals["approaches"] if a["continuous_right_lane"])
     states = phase_states([(approach_of[c.getFrom().getID()], movement_of(c.getDirection())) for c in links],
-                          vals["phases"], vals["cycle_s"])
+                          vals["phases"], vals["cycle_s"], continuous)
 
     patch_dir = out.parent / "patches" / out.name.removesuffix(".net.xml")
     files = {"lanes.edg.xml": _lane_patch(net, vals), "turns.con.xml": _turn_patch(net, vals),

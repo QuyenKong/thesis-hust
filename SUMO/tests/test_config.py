@@ -8,6 +8,7 @@ import yaml
 from thesis_sumo.config import (
     EVIDENCE,
     EXPERIMENT_EVIDENCE,
+    FIELD_OBSERVATION_EVIDENCE,
     REPO_ROOT,
     MissingFieldDataError,
     allowed_evidence,
@@ -139,6 +140,44 @@ def test_illegal_left_mode_is_an_experiment_choice():
     assert proxy["mode"] in ILLEGAL_LEFT_MODES
     assert proxy["mode_evidence"] == EXPERIMENT_EVIDENCE
     assert "experiments/phase3" in proxy["mode_source"]
+
+
+def test_field_observation_evidence_only_on_continuous_right_lane():
+    """`field_observation` (Viktor saw it on site, not measured) is accepted only on continuous_right_lane and
+    right_lane_separator."""
+    assert FIELD_OBSERVATION_EVIDENCE not in EVIDENCE
+    assert FIELD_OBSERVATION_EVIDENCE in allowed_evidence("approaches.2.continuous_right_lane")
+    assert FIELD_OBSERVATION_EVIDENCE in allowed_evidence("approaches.2.right_lane_separator")
+    assert FIELD_OBSERVATION_EVIDENCE not in allowed_evidence("approaches.2.sidewalk_width_m")
+    assert FIELD_OBSERVATION_EVIDENCE not in allowed_evidence("illegal_left.mode")
+    measured = {"approaches": [{"sidewalk_width_m": None, "continuous_right_lane": None}]}
+    proxy = {"approaches": [{"sidewalk_width_m": 2.0, "sidewalk_width_m_source": "x",
+                             "sidewalk_width_m_evidence": FIELD_OBSERVATION_EVIDENCE,
+                             "continuous_right_lane": True, "continuous_right_lane_source": "x",
+                             "continuous_right_lane_evidence": FIELD_OBSERVATION_EVIDENCE}]}
+    assert _filled_without_citation(measured, proxy) == ["approaches.0.sidewalk_width_m"]
+
+
+def test_continuous_right_lane_in_both_site_files():
+    """PLAN 0: every approach has a continuous right-turn lane (field-confirmed in site.yaml, field_observation in
+    the proxy); in the proxy its lane 0 marks the right turn only. The F2 geometry stays TODO_MEASURE."""
+    measured, proxy = load_site(SITE), load_site(PROXY)
+    for m, p in zip(measured["approaches"], proxy["approaches"]):
+        assert m["continuous_right_lane"] is True and p["continuous_right_lane"] is True
+        assert p["continuous_right_lane_evidence"] == FIELD_OBSERVATION_EVIDENCE
+        assert p["continuous_right_lane_source"].strip()
+        assert p["lane_movements"][0] == ["r"] and all("s" in lane for lane in p["lane_movements"][1:])
+        assert m["right_lane_separator"] == p["right_lane_separator"] == "bollards"  # Viktor, 2026-10-26
+        assert p["right_lane_separator_evidence"] == FIELD_OBSERVATION_EVIDENCE
+        for key in ("sidewalk_width_m", "hard_median_length_m"):
+            assert m[key] is None, key
+    for f in (measured, proxy):
+        assert f["violator_classes"] == {"moto": "custom1", "car": "custom2"}
+        assert f["violator_classes"]["moto"] == f["illegal_left"]["vclass"]
+    assert measured["f2_measured_approaches"] is None
+    text = SITE.read_text(encoding="utf-8")
+    for key in ("sidewalk_width_m", "hard_median_length_m", "f2_measured_approaches"):
+        assert all("TODO_MEASURE" in line for line in text.splitlines() if line.strip().startswith(f"{key}:")), key
 
 
 def test_proxy_signal_phases_sum_to_cycle():

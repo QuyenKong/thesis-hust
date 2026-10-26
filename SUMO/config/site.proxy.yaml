@@ -6,6 +6,8 @@
 #                    from a source but transferred across site, denominator or country, with <key>_transfer_note)
 #                    | experiment (a modelling choice, TODO_DECIDE in site.yaml, taken by an experiment of this repo;
 #                    allowed only on thesis_sumo.config.EXPERIMENT_EVIDENCE_KEYS)
+#                    | field_observation (confirmed by Viktor on site but not measured; allowed only on
+#                    thesis_sumo.config.FIELD_OBSERVATION_EVIDENCE_KEYS)
 # Any result built from this file must be reported as site_source: LITERATURE_PROXY.
 # Replace with real measurements by editing config/site.yaml, never this file.
 
@@ -24,6 +26,8 @@ intersection:
 # lane_widths_m: one entry per lane, list index = SUMO lane index (0 = rightmost).
 # lane_movements: per lane (same index), the movements its markings permit (turn_counts codes r/s/l/u;
 # a banned left is in no lane). Used by M8 (wrong-lane share, ruling R9).
+# continuous_right_lane: lane 0 is the continuous right-turn lane: its right turn is green (yield) in every phase and
+# its straight connection exists only for the violator classes (thesis_sumo.net.apply_patches).
 # Lane count 3 per approach from OSM (lanes=3 on all four approach ways); Le Van Luong's leftmost
 # lane is the BRT lane (OSM psv:lanes=designated|yes|yes) [S3][S4].
 approaches:
@@ -32,8 +36,8 @@ approaches:
     lane_widths_m: [3.5, 3.5, 3.5]
     lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m; BRT lane >= 3.50 m); lane count [S3] OSM, [S4] VietnamFinance 2026"
     lane_widths_m_evidence: literature
-    lane_movements: [[r, s], [s], [s, u]]
-    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements: [[r], [s], [s, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
     left_turn_banned: true
     left_turn_banned_source: "assumed: no source found on turn bans at LVL x HDT [S3][S9]; Hanoi bans left turns at nearby arterial junctions [S9][S10]; inbound AM-peak LVL approach chosen as the focus approach"
@@ -41,13 +45,21 @@ approaches:
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
+    continuous_right_lane: true
+    continuous_right_lane_source: "Viktor, field visit (PLAN 0 'Ha tang da xac nhan'): every approach has a continuous right-turn lane, the outermost right lane, not signal controlled. Modelling assumption (Task F2-net, thesis_sumo.net.apply_patches; Viktor may change it): it is the existing OSM lane 0, no lane is added"
+    continuous_right_lane_evidence: field_observation
+    right_lane_separator: bollards
+    right_lane_separator_source: "Viktor, 2026-10-26 (answer to the F2-net question): the continuous right-turn lane is separated from the through lanes by bollards / a hard separator, so nobody goes straight from it (none | paint | bollards)"
+    right_lane_separator_evidence: field_observation
+    sidewalk_width_m: null         # no source: kept null (the sidewalk lane is built only on f2_measured_approaches)
+    hard_median_length_m: null     # no source: kept null (wrong-way driving, PLAN behaviour 8, waits for Phase 3C)
   - id: LVL_E
     edge: "37876499#0"         # arm from NE (Task 2)
     lane_widths_m: [3.5, 3.5, 3.5]
     lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m; BRT lane >= 3.50 m); lane count [S3] OSM, [S4] VietnamFinance 2026"
     lane_widths_m_evidence: literature
-    lane_movements: [[r, s], [s], [s, l, u]]
-    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements: [[r], [s], [s, l, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
     left_turn_banned: false
     left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
@@ -55,13 +67,21 @@ approaches:
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
+    continuous_right_lane: true
+    continuous_right_lane_source: "Viktor, field visit (PLAN 0 'Ha tang da xac nhan'): every approach has a continuous right-turn lane, the outermost right lane, not signal controlled. Modelling assumption (Task F2-net, thesis_sumo.net.apply_patches; Viktor may change it): it is the existing OSM lane 0, no lane is added"
+    continuous_right_lane_evidence: field_observation
+    right_lane_separator: bollards
+    right_lane_separator_source: "Viktor, 2026-10-26 (answer to the F2-net question): the continuous right-turn lane is separated from the through lanes by bollards / a hard separator, so nobody goes straight from it (none | paint | bollards)"
+    right_lane_separator_evidence: field_observation
+    sidewalk_width_m: null         # no source: kept null (the sidewalk lane is built only on f2_measured_approaches)
+    hard_median_length_m: null     # no source: kept null (wrong-way driving, PLAN behaviour 8, waits for Phase 3C)
   - id: HDT_N
     edge: "953158817#2"        # arm from NW; includes unnamed OSM way 1071601648 (= HDT, Task 2)
     lane_widths_m: [3.5, 3.5, 3.5]
     lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
     lane_widths_m_evidence: literature
-    lane_movements: [[r, s], [s], [s, l, u]]
-    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements: [[r], [s], [s, l, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
     left_turn_banned: false
     left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
@@ -69,13 +89,21 @@ approaches:
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
+    continuous_right_lane: true
+    continuous_right_lane_source: "Viktor, field visit (PLAN 0 'Ha tang da xac nhan'): every approach has a continuous right-turn lane, the outermost right lane, not signal controlled. Modelling assumption (Task F2-net, thesis_sumo.net.apply_patches; Viktor may change it): it is the existing OSM lane 0, no lane is added"
+    continuous_right_lane_evidence: field_observation
+    right_lane_separator: bollards
+    right_lane_separator_source: "Viktor, 2026-10-26 (answer to the F2-net question): the continuous right-turn lane is separated from the through lanes by bollards / a hard separator, so nobody goes straight from it (none | paint | bollards)"
+    right_lane_separator_evidence: field_observation
+    sidewalk_width_m: null         # no source: kept null (the sidewalk lane is built only on f2_measured_approaches)
+    hard_median_length_m: null     # no source: kept null (wrong-way driving, PLAN behaviour 8, waits for Phase 3C)
   - id: HDT_S
     edge: "1346358303"         # arm from SE (Task 2)
     lane_widths_m: [3.5, 3.5, 3.5]
     lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
     lane_widths_m_evidence: literature
-    lane_movements: [[r, s], [s], [s, l, u]]
-    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (right turn from lane 0, left and U-turn from lane 2, straight from all)"
+    lane_movements: [[r], [s], [s, l, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
     left_turn_banned: false
     left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
@@ -83,6 +111,14 @@ approaches:
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
+    continuous_right_lane: true
+    continuous_right_lane_source: "Viktor, field visit (PLAN 0 'Ha tang da xac nhan'): every approach has a continuous right-turn lane, the outermost right lane, not signal controlled. Modelling assumption (Task F2-net, thesis_sumo.net.apply_patches; Viktor may change it): it is the existing OSM lane 0, no lane is added"
+    continuous_right_lane_evidence: field_observation
+    right_lane_separator: bollards
+    right_lane_separator_source: "Viktor, 2026-10-26 (answer to the F2-net question): the continuous right-turn lane is separated from the through lanes by bollards / a hard separator, so nobody goes straight from it (none | paint | bollards)"
+    right_lane_separator_evidence: field_observation
+    sidewalk_width_m: null         # no source: kept null (the sidewalk lane is built only on f2_measured_approaches)
+    hard_median_length_m: null     # no source: kept null (wrong-way driving, PLAN behaviour 8, waits for Phase 3C)
 
 # exits: the four outbound edges of the target junction, id = <id of the approach on the same arm>_out.
 # lane_widths_m as for approaches (index 0 = rightmost). netconvert gives every internal lane of a link the
@@ -112,6 +148,8 @@ exits:
 # Phases: green_movements / yellow_movements are "<approach_id>:<dir>", dir = SUMO connection dir
 # (r right, s straight, l left, t turnaround). Movements not listed are red. Durations sum to cycle_s.
 # LVL_W:l stays in the LVL green phase: after the ban it is the custom1-only (illegal) link (PLAN 1.4).
+# The `:r` entries of continuous_right_lane approaches are not used: that link is `g` (green, yield) in every
+# phase (PLAN 1.4); they are kept so that continuous_right_lane: false gives the signal-controlled right turn back.
 signal:
   type: static
   cycle_s: 120
@@ -154,3 +192,8 @@ illegal_left:
   mode: native
   mode_source: "experiments/phase3/box_capacity.py (results_native.csv), ../docs/research/phase3_box_capacity.md: native SUMO box capacity 8 halting moto_violators with B0 vTypes (5 seeds x 900 s) >= M7 target mean 6 (data/proxy/targets.yaml); target p90 10 reached with custom1 minGap 1.8 m (measured 10) and exceeded at 1.0 m (measured 12)"
   mode_evidence: experiment
+
+violator_classes:              # vClasses of the violator vTypes (PLAN 0; not field data, same as config/site.yaml)
+  moto: custom1
+  car: custom2
+f2_measured_approaches: null   # not chosen yet: no sidewalk lane in the proxy net (Phase 3B tests it separately)

@@ -7,7 +7,9 @@
   parameters of a rule are required in a spec (no defaults: the LLM / Optuna fills every one).
 - `RULE_VCLASSES`: which archetype base vclasses a rule may be applied to.
 - `DISTRIBUTION_OF_VCLASS`: archetype base vclass -> vTypeDistribution id referenced by the demand
-  (`thesis_sumo.demand.build_demand.VEHICLE_TYPES`).
+  (`thesis_sumo.demand.build_demand.VEHICLE_TYPES`). `OPTIONAL_VCLASSES`: base vclasses whose distribution no
+  demand references yet (custom2 = car_violator, Task F2-net): a spec may leave them out, and then the compiler
+  writes no distribution for them.
 """
 
 from __future__ import annotations
@@ -24,9 +26,12 @@ from thesis_sumo.config import REPO_ROOT
 BOUNDS_PATH = REPO_ROOT / "rules" / "bounds" / "param_bounds.yaml"
 SCHEMA_PATH = REPO_ROOT / "rules" / "schema" / "rule_spec.schema.json"
 
-VCLASSES = ("passenger", "motorcycle", "custom1")
+VCLASSES = ("passenger", "motorcycle", "custom1", "custom2")
 # archetype base vclass -> vTypeDistribution id (demand references these ids; PLAN 4.4)
-DISTRIBUTION_OF_VCLASS = {"passenger": "car", "motorcycle": "moto", "custom1": "moto_violator"}
+DISTRIBUTION_OF_VCLASS = {"passenger": "car", "motorcycle": "moto", "custom1": "moto_violator",
+                          "custom2": "car_violator"}
+# car_violator (PLAN 2.1) is used only by the F2 rules that come after Phase 3; no demand references it yet
+OPTIONAL_VCLASSES = ("custom2",)
 BEHAVIOR_GROUPS = ("patience", "swarm_pressure", "early_start", "encroachment", "f_risk", "S_cheat", "I_slow",
                    "illegal_left_box")
 MODELS = ("vType", "carFollow", "LC", "junction")

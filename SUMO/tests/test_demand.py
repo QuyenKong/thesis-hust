@@ -168,15 +168,19 @@ def test_demand_deterministic(tmp_path, candidates):
 def test_b0_distribution_ids():
     root = etree.parse(str(B0_VTYPES)).getroot()
     dists = {d.get("id"): d.findall("vType") for d in root.iter("vTypeDistribution")}
-    assert set(dists) == set(VEHICLE_TYPES)
+    assert set(dists) == set(VEHICLE_TYPES) | {"car_violator"}  # car_violator: no demand references it yet (F2-net)
     vclass = {k: [t.get("vClass") for t in v] for k, v in dists.items()}
-    assert vclass == {"car": ["passenger"], "moto": ["motorcycle"], "moto_violator": ["custom1"]}
+    assert vclass == {"car": ["passenger"], "moto": ["motorcycle"], "moto_violator": ["custom1"],
+                      "car_violator": ["custom2"]}
     for types in dists.values():
         assert all(t.get("laneChangeModel") == "SL2015" for t in types)
 
 
-def test_moto_violator_matches_motorcycle_defaults():
-    """Loaded in SUMO, moto_violator (custom1) equals the motorcycle defaults in every vType getter."""
+@pytest.mark.parametrize("base, violator, vclass", [("moto_B0", "moto_violator_B0", "custom1"),
+                                                     ("car_B0", "car_violator_B0", "custom2")])
+def test_violator_matches_base_defaults(base, violator, vclass):
+    """Loaded in SUMO, moto_violator (custom1) equals the motorcycle defaults and car_violator (custom2) the
+    passenger defaults in every vType getter."""
     import libsumo
 
     libsumo.start([sumolib.checkBinary("sumo"), "-n", str(NET), "-a", str(B0_VTYPES), "--end", "1",
@@ -187,10 +191,10 @@ def test_moto_violator_matches_motorcycle_defaults():
         getters = [g for g in dir(vt) if g.startswith("get") and g not in skip
                    and "Subscription" not in g and "Parameter" not in g]
         assert len(getters) > 20
-        diffs = {g: (getattr(vt, g)("moto_B0"), getattr(vt, g)("moto_violator_B0")) for g in getters
-                 if getattr(vt, g)("moto_B0") != getattr(vt, g)("moto_violator_B0")}
+        diffs = {g: (getattr(vt, g)(base), getattr(vt, g)(violator)) for g in getters
+                 if getattr(vt, g)(base) != getattr(vt, g)(violator)}
         assert diffs == {}
-        assert vt.getVehicleClass("moto_violator_B0") == "custom1"
+        assert vt.getVehicleClass(violator) == vclass
     finally:
         libsumo.close()
 

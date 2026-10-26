@@ -11,7 +11,8 @@ from lxml import etree
 
 from thesis_sumo.config import REPO_ROOT, MissingFieldDataError, load_experiment, load_site
 from thesis_sumo.rules import compiler
-from thesis_sumo.rules.compiler import CUSTOM1_MOTORCYCLE_DEFAULTS, InvalidSpecError, compile_spec, fmt_value
+from thesis_sumo.rules.compiler import (CUSTOM1_MOTORCYCLE_DEFAULTS, CUSTOM2_PASSENGER_DEFAULTS, InvalidSpecError,
+                                        compile_spec, fmt_value)
 from thesis_sumo.rules.schema import DISTRIBUTION_OF_VCLASS, load_bounds, load_excluded
 
 SPECS = REPO_ROOT / "rules" / "specs"
@@ -273,6 +274,29 @@ def test_B0_spec_equivalent_to_handwritten(tmp_path, site):
     rules/compiled/B0/vtypes.add.xml (which is kept; only comments and the schema declaration differ)."""
     out = compile_spec(_load(B0), tmp_path, site=site)
     assert _vtypes(out.vtypes) == _vtypes(B0_HANDWRITTEN)
+    assert list(_vtypes(out.vtypes)) == ["car", "moto", "moto_violator", "car_violator"]
+
+
+def test_custom2_defaults_match_handwritten_B0():
+    """The passenger defaults the compiler gives custom2 are exactly those of the hand-written B0 car_violator
+    (which tests/test_demand.py checks against SUMO's passenger vClass), in the custom1 attribute order."""
+    (cv,) = _vtypes(B0_HANDWRITTEN)["car_violator"]
+    base = {k: v for k, v in cv.items() if k not in ("id", "vClass", "laneChangeModel", "probability")}
+    assert {k: fmt_value(v) for k, v in CUSTOM2_PASSENGER_DEFAULTS.items()} == base
+    assert list(CUSTOM2_PASSENGER_DEFAULTS) == list(base) == list(CUSTOM1_MOTORCYCLE_DEFAULTS)
+
+
+def test_car_violator_optional(tmp_path, site, b1):
+    """No custom2 archetype (B1): valid, and no car_violator distribution (nothing references it yet); with one,
+    car_violator comes after moto_violator and spec params override the passenger defaults."""
+    assert not any(a["base_vclass"] == "custom2" for a in b1["driver_archetypes"])
+    spec = copy.deepcopy(b1)
+    spec["driver_archetypes"].append({"id": "car_vio", "base_vclass": "custom2", "share": 1.0,
+                                      "params": {"minGap": 1.5}})
+    dists = _vtypes(compile_spec(spec, tmp_path, site=site).vtypes)
+    assert list(dists) == ["car", "moto", "moto_violator", "car_violator"]
+    (cv,) = dists["car_violator"]
+    assert cv["vClass"] == "custom2" and cv["minGap"] == "1.5" and cv["length"] == "5"
 
 
 # ---------------------------------------------------------------- CLI

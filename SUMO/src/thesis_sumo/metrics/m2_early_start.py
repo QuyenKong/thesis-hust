@@ -3,7 +3,9 @@
 Classification shared with M3 (docs/research/proxy_targets.md §2): a stop-line crossing in state `r` that lies at
 most N = 10 s before the next green onset of its approach is an early start; any other crossing in `r` is red
 running. Only crossings before the approach's last green onset in the record (and before the window end) can be
-classified; `illegal_l` vehicles are left out (as in the generator's share definition).
+classified; `illegal_l` vehicles are left out (as in the generator's share definition), and so are the right turns
+of `continuous_right_lane` approaches (`common.uncontrolled_tracks`: not signal controlled, PLAN 0), in numerator
+and denominator, also for the first-crossing delay.
 
 - M2/early/<vclass>: early starts / classifiable crossings of that class in the window, pooled over approaches
   (targets.yaml: share of the approach's class total; scalar).
@@ -19,6 +21,7 @@ import pandas as pd
 from thesis_sumo.metrics.common import (
     MetricContext,
     approaches,
+    uncontrolled_tracks,
     crossings,
     dist,
     onsets,
@@ -35,6 +38,7 @@ def classified(tables: dict, ctx: MetricContext) -> pd.DataFrame:
     """Classifiable crossings in the window (no illegal_l): approach, vclass, t, cycle_id, kind
     ("early" | "red" | "go")."""
     cr = crossings(tables)
+    cr = cr[~cr["track_id"].isin(uncontrolled_tracks(tables, ctx))]
     parts = []
     for app in approaches(tables):
         on = onsets(tables, app, ctx)
@@ -56,6 +60,7 @@ def first_delays(tables: dict, ctx: MetricContext, apps=None) -> list[tuple[str,
     """(approach, onset, delay to the first crossing at or after it, before the next red onset) per onset in the
     window; onsets without such a crossing are skipped."""
     cr = tables["stopline_crossings"]
+    cr = cr[~cr["track_id"].isin(uncontrolled_tracks(tables, ctx))]
     out = []
     for app in apps if apps is not None else approaches(tables):
         t = np.sort(cr.loc[cr["approach"] == app, "t"].to_numpy(dtype=float))

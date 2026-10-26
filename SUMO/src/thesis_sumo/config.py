@@ -8,6 +8,7 @@ A required value that is still `null` raises `MissingFieldDataError`; there is n
 
 from __future__ import annotations
 
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +22,17 @@ EVIDENCE = ("literature", "literature_transferred", "assumed")
 # a modelling choice (TODO_DECIDE in site.yaml) settled by an experiment of this repo; allowed only on these keys
 EXPERIMENT_EVIDENCE = "experiment"
 EXPERIMENT_EVIDENCE_KEYS = ("illegal_left.mode",)  # PLAN Phase 3 decision (experiments/phase3)
+# a fact Viktor confirmed in the field (PLAN 0 "Hạ tầng đã xác nhận") but has not measured; only on these keys
+# (fnmatch patterns, `*` = a list index)
+FIELD_OBSERVATION_EVIDENCE = "field_observation"
+FIELD_OBSERVATION_EVIDENCE_KEYS = ("approaches.*.continuous_right_lane", "approaches.*.right_lane_separator")
 
 
 def allowed_evidence(dotted_key: str) -> tuple[str, ...]:
     """Evidence labels a proxy site value at `dotted_key` may carry."""
-    return EVIDENCE + ((EXPERIMENT_EVIDENCE,) if dotted_key in EXPERIMENT_EVIDENCE_KEYS else ())
+    return (EVIDENCE + ((EXPERIMENT_EVIDENCE,) if dotted_key in EXPERIMENT_EVIDENCE_KEYS else ())
+            + ((FIELD_OBSERVATION_EVIDENCE,) if any(fnmatchcase(dotted_key, k)
+                                                    for k in FIELD_OBSERVATION_EVIDENCE_KEYS) else ()))
 
 
 class MissingFieldDataError(ValueError):

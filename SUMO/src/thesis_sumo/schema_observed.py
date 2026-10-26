@@ -10,7 +10,7 @@ Conventions every producer of `data/observed/<day>/` and of `observed_schema/` f
   its straight movement (`thesis_sumo.sim.outputs.signal_events` checks that all straight links agree).
 - Signal states are `G` (green, incl. SUMO's yielding `g`), `y` (yellow) and `r` (everything else that
   stops traffic: red, red-yellow) -- `normalise_state`.
-- `vclass` is `car` or `moto` (`moto_violator` vehicles are motorcycles: `moto`).
+- `vclass` is `car` or `moto` (`moto_violator` vehicles are motorcycles: `moto`; `car_violator` ones are `car`).
 - Cycles, per approach: a **green onset** is a change of the approach's state to `G` from a non-`G`
   state; the first state of a record is never an onset (it only tells the state at the start of the
   window). Cycle `k` (0-based) is `[onset_k, onset_{k+1})`; times before the first onset are cycle `-1`
