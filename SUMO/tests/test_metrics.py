@@ -243,6 +243,29 @@ def test_m7_box_count():
     assert out["M7c/slope"].kind == "scalar"
 
 
+def test_m7_day_past_window_same_as_truncated():
+    """An observed day that goes on past w1 gives the same M7a as the same day cut at w1 (entrants after the last
+    in-window onset must not be filed under that onset's cycle)."""
+    t = read_tables(OBSERVED / "PROXY_D2")
+    ctx = MetricContext.from_config(site=load_site(PROXY_SITE))
+    w1 = ctx.window[1]
+    cut = dict(t)
+    cut["signal_events"] = t["signal_events"][t["signal_events"]["t"] < w1]
+    cut["traversals"] = t["traversals"][t["traversals"]["t_stopline"] < w1]
+    full, short = m7_illegal_left.compute(t, ctx), m7_illegal_left.compute(cut, ctx)
+    assert np.max(full["M7a/release_time"].values) < 300
+    assert sorted(full["M7a/release_time"].values) == pytest.approx(sorted(short["M7a/release_time"].values))
+
+
+def test_empty_never_beats_wrong():
+    """R35: no events on the sim side is never cheaper than events that are far off."""
+    obs = MetricValue(kind="dist", values=np.array([5.0, 5.5, 6.0, 7.0]), label="x", unit="s")
+    far = MetricValue(kind="dist", values=np.array([60.0, 70.0]), label="x", unit="s")
+    empty = MetricValue(kind="dist", values=np.array([]), label="x", unit="s")
+    assert distance.metric_distance(far, obs) <= distance.metric_distance(empty, obs) == distance.D_EMPTY
+    assert distance.metric_distance(_sv(0.05), _sv(0.0087)) <= distance.D_EMPTY
+
+
 def test_m7_no_box_events():
     out = m7_illegal_left.compute(_tables([V("a", "LVL_E", "moto", "s", 150.0)]), _ctx())
     assert out["M7a/n_waiting"].n == 0 and out["M7b/clear_lag"].n == 0

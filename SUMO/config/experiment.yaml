@@ -26,6 +26,7 @@ observation:
   # positions and range entries are observed (queue_snapshots, lateral_snapshots, traversals). Replace with the
   # camera's measured upstream coverage once the video exists. Queues reaching it are censored (capped).
   queue_range_m: 80
+  metric_window_s: [300, 1800]   # R31: metrics M1-M8 on [300, 1800) s on both sides (300 s warm-up)
 
 backend: libsumo               # libsumo (fast, batch runs) | traci (needed for sumo-gui debugging)
 
@@ -39,7 +40,9 @@ data_split:
   validation_days: [PROXY_D4, PROXY_D5]   # LLM/Optuna never see these
 
 score:
-  weights: null                # TODO_DECIDE: {M1: w, ..., M8: w}
+  # Task 10 plan: equal weight per metric group (controller's call, open to Viktor); renormalised over the groups
+  # that have scored keys, split equally over sub-metrics (M7a/b/c) and keys (metrics.distance.split_weights)
+  weights: {M1: 1, M2: 1, M3: 1, M4: 1, M5: 1, M6: 1, M7: 1, M8: 1}
   geh_gate:
     threshold: 5
     min_share: 0.85

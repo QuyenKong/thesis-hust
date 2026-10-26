@@ -42,7 +42,7 @@ Cập nhật sau mỗi lượt; cập nhật lần này sau Task 9. Tất cả l
 | 7 | Param bounds, rule schema, validator (Phase 4.1–4.3) | ✅ | `b9b77cb`, `586349a` (`e0c1faf..586349a`) |
 | 8 | Compiler (Phase 4.4) | ✅ | `ad1f8bb` (`90b302c..ad1f8bb`) |
 | 9 | TraCI runtime controller và rules (Phase 4.5) | ✅ (operator đang tính lại hai ngưỡng va chạm, R28) | `ac325b4`, `4023408` (`ad1f8bb..4023408`) |
-| 10 | Metrics M1–M8, G0 và distance (Phase 5) | 🔄 | dispatch từ `4023408` |
+| 10 | Metrics M1–M8, G0 và distance (Phase 5) | ✅ (Linux) | xem nhật ký 2026-10-26 |
 | 11 | Experiment harness (evaluation chung + budget counter) | ⏳ | |
 | 12 | LLM client, prompts v001, feedback | ⏳ | |
 | 13 | LLM loop — 3 vòng | ⏳ | |
@@ -88,6 +88,9 @@ Nguồn: `.superpowers/sdd/2026-10-25-proxy-benchmark-loop/progress.md`, mục "
 - **R32 (Điều phối):** giữ `max_noncollision_teleports: 0`; xếp hạng dự phòng của R23 đổi thành số teleport jam/yield trung bình mỗi giờ rồi S (GEH không còn phân biệt); feedback LLM có số teleport và vị trí. Nếu sai: P_best = "ít gridlock nhất", báo cáo phải nói rõ.
 - **R33 (Điều phối):** giữ time-to-teleport mặc định 300 s ở mọi nơi; một run chẩn đoán B0 D1 với `-1` để phân biệt deadlock với kẹt chậm; không bao giờ dùng `--ignore-junction-blocker`. Nếu sai: nhỏ.
 - **R34 (Điều phối):** giữ cận `minGap` [0,5; 2,5] m; chú thích trong `param_bounds.yaml` chỉ trích nguồn standstill gap có nguồn (Saval Bảng 11, 1,9 m) hoặc ghi "assumed"; lý do "sức chứa" bị bỏ vì thu hẹp theo output SUMO là tuning. Nếu sai: vài mẫu LLM bị phí.
+
+- **R35 (Điều phối, Task 10, chờ Viktor xác nhận):** mọi khoảng cách theo ngày trong `distance.metric_distance` bị chặn trên ở `D_EMPTY` = 2,0 (một phía không có sự kiện / scalar không xác định cũng bằng `D_EMPTY`), để LLM/Optuna không giảm được điểm bằng cách triệt tiêu một hành vi đến mức không còn sự kiện nào. Chưa xử lý: với tỉ lệ nhỏ (M2/early/car ≈ 0,0087, M3/share/car), sim = 0 tốn 1,0 còn sim > 2× quan sát tốn 2,0, nên ép về 0 vẫn rẻ hơn; hai khóa này chiếm ~4 % và ~3 % trọng số và `d_day_day` ≈ 1,5 (chủ yếu là nhiễu). Phương án làm mượt sai số tỉ lệ (vd chia cho max(obs, độ phân tán giữa các ngày)) là quyết định của Viktor. Nếu sai: đổi một hàm, chạy lại điểm.
+- **R36 (Điều phối, Task 10):** `score.weights` chia đều theo nhóm M1–M8 (plan Task 10 "equal across M1–M8, log as my call"); trong nhóm chia đều cho chỉ số con (M7a/b/c) rồi cho các khóa; chỉ khóa được chấm mới có trọng số; tổng được chuẩn hóa lại theo các nhóm có mặt (để thêm M9–M11 sau). `observation.metric_window_s: [300, 1800]` theo R31. Nếu sai: sửa `experiment.yaml`.
 
 **R10 giải thích cho Viktor (đổi quy tắc "va chạm là loại"):** Plan ban đầu nói bất kỳ run nào có va chạm đều bị loại. Nhưng ngay cả B0 (cấu hình gốc, chưa có luật LLM) cũng va chạm khoảng vài lần mỗi giờ mô phỏng (xe máy sublane, hai xe cùng làn rẽ), nên nếu giữ quy tắc đó thì gần như mọi run đều bị loại và không so sánh được gì. Quy tắc mới: manifest vẫn ghi `valid_strict` (0 teleport, 0 va chạm) và thêm số liệu chi tiết (teleport không do va chạm, va chạm theo loại, va chạm có xe bị TraCI can thiệp). Một run vẫn được tính (ELIGIBLE) khi: không có teleport ngoài va chạm; không còn xe kẹt chưa chèn được cuối run; qua cổng GEH; số va chạm ≤ max(2, p90 của B0 trên các seed dev, quy về 3600 s); và tối đa 1 va chạm liên quan xe bị TraCI can thiệp. Spec chỉ được chọn làm best nếu tỉ lệ va chạm trung bình theo seed ≤ trung bình B0 + 1 va chạm/giờ. Run bị loại vẫn tính vào budget. Báo cáo cuối công bố cả số strict lẫn số eligible, nên không giấu va chạm nào.
 
@@ -538,6 +541,24 @@ Commits `ac325b4`, `4023408` (`ad1f8bb..4023408`) · Review: lần 1 "Needs fixe
 ### Ghi chú tiến độ — tạm dừng lần 3
 
 Phiên làm việc dừng lần thứ ba vì chạm usage limit, sau đó đã resume và chạy tiếp.
+
+### 2026-10-26 — Chuyển sang Linux
+
+Repo gộp thành một git ở `Thesis/` (`SUMO/.git` đã xóa, hash commit cũ không tra được). Máy Linux: `SUMO/scripts/setup_env.py` (eclipse-sumo 1.27.0 trong `.venv`, `sumo_tools.pth` đặt `SUMO_HOME`), git-lfs cài vào `~/.local/bin`. Ledger cũ ở Windows (bị gitignore); ledger mới `SUMO/.superpowers/sdd/2026-10-26-linux-continuation/progress.md` (nay được track). Chưa có Ollama: vòng LLM tạm dùng agent Claude Sonnet, spec ghi `provenance.model` "claude-sonnet (stand-in)", không phải kết quả của LLM local. Commit `0380530`.
+
+**Lệch giữa `PLAN.md` mới và ledger/spec cũ (theo PLAN):** thêm lớp `custom2` (ô tô vi phạm); hành vi F2 (làn rẽ phải liên tục, vỉa hè, ngược chiều) với M9–M11 và các bảng `queue_timeseries`, `space_seeking_events`, `right_turn_delay`; gộp luật thành `queue_space_seeking` (thay `wrong_lane_dodge`); Phase 3 tách 3A–3D; baseline B0/B1/B2/P1/P2/H với E1/E2 (thay B0/B1/B2/P); thêm `policy/evaluate.py`. `CLAUDE.md` vẫn ghi "wrong-way driving" ngoài phạm vi, trái với PLAN (8. đi ngược chiều, tùy Phase 3).
+
+### 2026-10-26 — Task 10: Metrics M1–M8, G0 và distance (PLAN Phase 5)
+
+Review: lần 1 "changes requested" (Critical: `cycle_of` dùng mốc xanh đã cắt theo cửa sổ nên mọi xe rẽ trái trái luật sau mốc cuối bị gán vào chu kỳ đó, release time M7a tới 1807 s trên PROXY_D2, IQR quan sát ~1050 s, M7a gần như mù; Important: tối ưu có thể giảm điểm bằng cách không sinh sự kiện), fix round 1 xử lý cả hai, re-review approved với điều kiện ghi R35/R36 · ✅
+
+**Đã làm:** `metrics/distance.py` (W1/IQR với dự phòng sd → |mean| → 1; sai số tương đối; `D_EMPTY` 2,0; `pair_stats`, `ratio` với `R_FLOOR` 0,05; `split_weights` phân cấp; `compare` → `DistanceReport` có `S`, `S_sourced`, `S_assumed`, `to_row`, `summary_lines` không chứa tên ngày; `compute_all`). `common.cycle_of` dùng mọi mốc xanh. `experiment.yaml`: `observation.metric_window_s`, `score.weights` (R36). Test mới `test_m7_day_past_window_same_as_truncated`, `test_empty_never_beats_wrong`.
+
+**Lệnh tái tạo:** `cd SUMO && .venv/bin/python -m pytest -q tests/test_metrics.py` (23 passed); toàn bộ `.venv/bin/python -m pytest -q` (244 passed, 1 xfailed).
+
+**Tiêu chí:** đạt — mọi metric chạy trên bảng dựng tay có đáp án và trên ngày proxy, khoảng cách luôn hữu hạn. Chưa làm: chạy metric trên output B0 (sau khi R28 Linux xong).
+
+**Vướng mắc:** R35 phần tỉ lệ nhỏ (xem rulings) chờ Viktor.
 
 ### Bước tiếp theo
 

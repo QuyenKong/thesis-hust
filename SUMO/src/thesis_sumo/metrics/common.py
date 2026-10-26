@@ -173,4 +173,6 @@ def opposing(approach: str, all_approaches) -> str:
 
 
 def cycle_of(tables: dict, approach: str, t, ctx: MetricContext) -> np.ndarray:
-    return cycle_id_at(onsets(tables, approach, ctx), t)
+    # all onsets, not the window-trimmed ones: an observed day goes on past w1, and with trimmed onsets every
+    # event after the last in-window onset would land in that onset's cycle (M7a release times up to 1800 s)
+    return cycle_id_at(green_onsets(tables["signal_events"], approach), t)
