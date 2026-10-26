@@ -1,49 +1,103 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
-Chương này có độ dài từ 9 đến 11 trang.
-
-Với phương pháp phân tích thiết kế hướng đối tượng, sinh viên sử dụng biểu đồ use case theo hướng dẫn của template này. Với các phương pháp khác, sinh viên trao đổi với giáo viên hướng dẫn để đổi tên và sắp xếp lại đề mục cho phù hợp. Ví dụ, thay vì sử dụng biểu đồ use case, sinh viên đi theo hướng tiếp cận Agile có thể dùng User Story.
-
-
-\textbf{Lưu ý}: Mỗi chương nên có thêm 1 đoạn mở đầu chương và kết thúc chương, mở đầu giới thiệu những nội dung sẽ trình bày trong chương, kết thúc tổng kết lại các nội dung đã trình bày
 
 \section{Khảo sát hiện trạng}
 \label{section:2.1}
-Thông thường, khảo sát chi tiết về hiện trạng và yêu cầu của phần mềm sẽ được lấy từ ba nguồn chính, đó là (i) người dùng/khách hàng, (ii) các hệ thống đã có, (iii) và các ứng dụng tương tự.
-Sinh viên cần tiến hành phân tích, so sánh, đánh giá chi tiết ưu nhược điểm của các sản phẩm/nghiên cứu hiện có. Sinh viên có thể lập bảng so sánh nếu cần thiết. Kết hợp với khảo sát người dùng/khách hàng (nếu có), sinh viên nêu và mô tả sơ lược các tính năng phần mềm quan trọng cần phát triển.
+
+Mục này khảo sát năm nhóm công trình liên quan đến đồ án: mô phỏng vi mô với SUMO và mô hình làn con; mô hình hóa giao thông hỗn hợp và hành vi không tuân thủ; các nghiên cứu thực nghiệm về hành vi xe máy tại Việt Nam và Đông Nam Á; các phương pháp hiệu chỉnh tự động; và việc dùng mô hình ngôn ngữ lớn để sinh luật mô phỏng. Cuối mục tổng hợp các hạn chế dẫn tới bài toán của đồ án.
+
+\subsection{Mô phỏng vi mô với SUMO và mô hình làn con}
+\label{subsection:2.1.1}
+
+SUMO (Simulation of Urban MObility) là bộ công cụ mô phỏng giao thông vi mô mã nguồn mở, trong đó mỗi phương tiện được mô phỏng riêng lẻ trên một mạng lưới đường chi tiết đến từng làn và từng kết nối trong nút giao~\cite{lopez2018sumo}. Bộ công cụ gồm trình mô phỏng, công cụ \texttt{netconvert} chuyển đổi mạng lưới từ các nguồn như OpenStreetMap, và giao diện điều khiển TraCI cho phép một chương trình bên ngoài đọc trạng thái và can thiệp vào phương tiện, đèn tín hiệu trong khi mô phỏng đang chạy~\cite{lopez2018sumo}. Bên cạnh TraCI giao tiếp qua socket, SUMO cung cấp thư viện \texttt{libsumo} có cùng giao diện lập trình nhưng chạy trong cùng tiến trình, phù hợp với các thí nghiệm cần nhiều lần chạy.
+
+Hành vi của phương tiện trong SUMO được xác định bởi các thuộc tính của kiểu phương tiện (vType), gồm tham số của mô hình bám xe (mặc định là mô hình Krauss), mô hình chuyển làn và mô hình ứng xử tại nút giao. Theo mặc định, phương tiện đi theo làn, dừng trước vạch khi đèn đỏ và nhường đường theo quyền ưu tiên của kết nối. Để biểu diễn các phương tiện hẹp như xe máy, SUMO có mô hình làn con (sublane), trong đó mỗi làn được chia thành các dải hẹp và phương tiện có vị trí ngang liên tục; mô hình chuyển làn SL2015 đi kèm cho phép điều chỉnh khoảng cách ngang tối thiểu, tốc độ di chuyển ngang và mức độ chen lấn \textbf{[TODO: trích dẫn tài liệu gốc của mô hình làn con và mô hình SL2015]}. Mô hình làn con giải quyết được phần không gian của dòng xe hỗn hợp (nhiều xe máy cùng chiếm một làn, xe máy len lên đầu hàng chờ), nhưng không tự sinh ra các hành vi vi phạm như vượt đèn đỏ có xác suất hay xuất phát sớm. Các thuộc tính liên quan tới đèn đỏ (như thời gian chấp nhận đi tiếp sau khi đèn chuyển đỏ) có giá trị mặc định là không bao giờ vượt đèn, và chỉ áp dụng như nhau cho mọi xe cùng kiểu, nên không biểu diễn được các hành vi phụ thuộc vào ngữ cảnh như vượt đèn theo đoàn.
+
+\subsection{Mô hình hóa giao thông hỗn hợp và hành vi không tuân thủ}
+\label{subsection:2.1.2}
+
+Saval và cộng sự~\cite{saval2023mixed} xây dựng một mô hình dựa trên tác tử trên nền tảng GAMA để mô phỏng giao thông hỗn hợp và không tuân thủ quy tắc, với trường hợp áp dụng là giao thông ô tô -- xe máy ở Hà Nội. Mô hình dùng mô hình bám xe IDM và mô hình chuyển làn MOBIL; các tham số tài xế cho ô tô và xe máy được hiệu chỉnh bằng giải thuật di truyền dựa trên video quay tại phố Tây Sơn (Bảng 11 của bài báo). Mô hình biểu diễn trực tiếp một số hành vi không tuân thủ: ô tô luôn dừng khi đèn đỏ, còn xe máy ở hàng đầu chỉ dừng với xác suất 0,5; mỗi ``làn'' xe máy được quy ước rộng 0,8~m, gồm 0,7~m bề rộng xe và 0,1~m khoảng cách an toàn~\cite{saval2023mixed}. Công trình này cho thấy hành vi không tuân thủ có thể được đưa vào mô phỏng bằng các luật xác suất đơn giản. Tuy nhiên, cấu trúc luật do người lập mô hình xác định, còn tham số được hiệu chỉnh cho một đoạn phố cụ thể; mô hình không xét xuất phát sớm, hiệu ứng bầy đàn, hay rẽ trái trái phép kiểu dừng chờ giữa nút, và chạy trên GAMA thay vì một trình mô phỏng giao thông chuyên dụng như SUMO. Đồ án dùng các giá trị tham số của Saval và cộng sự làm cơ sở cho phương án đối sánh thủ công B1 (Mục~\ref{section:3.8}).
+
+\subsection{Nghiên cứu thực nghiệm về hành vi xe máy}
+\label{subsection:2.1.3}
+
+Các nghiên cứu thực nghiệm cung cấp số liệu định lượng về hành vi xe máy tại nút có đèn, được đồ án dùng để xây dựng dữ liệu mục tiêu đại diện (Mục~\ref{section:3.6}). Không nghiên cứu nào trong số này đo đạc tại chính nút Lê Văn Lương -- Hoàng Đạo Thúy.
+
+\textbf{Vi phạm tín hiệu tại Hà Nội.} Mai và cộng sự~\cite{mai2019signal} phân tích video quay ngày 24/10/2018 trong hai khung giờ 7--8~h và 17--18~h tại hai nút giao ở Hà Nội: Láng Hạ -- Láng, nằm trên cùng trục Láng Hạ -- Lê Văn Lương với đường chính ba làn, và Vũ Phạm Hàm -- Nguyễn Khang. Xe máy chiếm 86,5\% và 79,7\% số phương tiện tại hai nút. Tỷ lệ xe máy vượt đèn đỏ là 11,06\% và 9,64\%, tỷ lệ xe máy xuất phát sớm (bắt đầu đi từ khoảng 5~s trở lên trước đèn xanh) là 15,82\% và 13,55\%; các tỷ lệ tương ứng của ô tô lần lượt là 0,50\%, 0,96\% và 0,68\%, 1,61\%. Đối với luồng phụ tại Láng Hạ -- Láng, tỷ lệ xe máy vượt đỏ lên tới 36,25\%. Nghiên cứu ghi nhận ô tô vượt đỏ ngay sau khi hết đèn vàng, còn xe máy vượt cả ở giữa pha đỏ; số lần vi phạm phân bố gần như đều giữa các chu kỳ. Đặc biệt, một lượng lớn xe máy của luồng phụ đi vào giữa nút và chờ để đi tiếp khi pha đèn thay đổi, và ô tô đôi khi cũng làm như vậy~\cite{mai2019signal}. Đây là mô tả định tính của hành vi rẽ trái dừng chờ giữa nút; nghiên cứu không đưa ra số đếm xe chờ trong nút.
+
+\textbf{Lưu lượng bão hòa và khoảng thời gian giữa các xe.} Vu và Nguyen~\cite{vu2015saturation} khảo sát lưu lượng bão hòa của dòng xe hỗn hợp tại các nút có đèn ở Thành phố Hồ Chí Minh và xây dựng mô hình hồi quy có xét bề rộng nhánh vào, thành phần phương tiện, xe bốn bánh rẽ phải và thời lượng đèn xanh. Theo mô hình này, mỗi 1\% ô tô trong dòng làm giảm lưu lượng bão hòa khoảng 0,4\%, và lưu lượng đạt đỉnh trong khoảng 6--12~s đầu pha xanh. Chu Cong Minh và cộng sự~\cite{chu2005speed} phân tích video tại bốn vị trí ở Hà Nội (làn riêng xe máy, dòng hỗn hợp và đường không phân cách) và báo cáo kích thước xe máy 1,87~m~$\times$~0,64~m, tốc độ xe máy $27{,}3 \pm 5{,}2$~km/h trên đoạn giữa tuyến, $21{,}3 \pm 5{,}1$~km/h trong dòng hỗn hợp, khoảng thời gian giữa các xe (headway) $1{,}16 \pm 0{,}65$~s và khoảng cách ngang giữa hai xe máy đi song song 1,10~m trong dòng hỗn hợp. Tổng quan của Torquato và cộng sự~\cite{torquato2020motorcycles} dẫn lại các kết quả đo tại Hà Nội: hệ số quy đổi xe máy khoảng 0,24, headway bão hòa 2,11~s cộng thêm 0,51~s cho mỗi xe máy xen giữa hai ô tô, và thời gian tổn thất khởi động tăng từ 3,3~s (không có xe máy phía trước) lên 5,7~s (hai hàng xe máy phía trước). Nguyen và cộng sự~\cite{nguyen2022motorcycles} ghi nhận tốc độ trung bình 20,49~km/h của xe máy trong điều kiện vận hành thực tế tại đô thị Hà Nội.
+
+\textbf{Vị trí dừng, vượt đèn đỏ và xung đột.} Tại Malaysia, một nghiên cứu về vị trí dừng của người đi xe máy tại nút bốn nhánh có đèn cho thấy hơn 63\% trong số 4133 xe máy dừng vượt quá vạch dừng \textbf{[TODO: trích dẫn Syed Tajul Arif \& Harun (2023), Construction 3(2), 163--171 -- chưa xác minh đầy đủ tên tác giả]}. Phuengprachuab và cộng sự~\cite{phuengprachuab2023opportunistic} quan sát 2681 người đi xe máy tại tám nút có đèn ở Nakhon Ratchasima (Thái Lan) và cho thấy 61\% số người vượt đèn đỏ là vi phạm ``cơ hội'', tức lợi dụng lúc có ô tô vượt đèn đỏ để xuất phát sớm và đi vào nút trước khi đèn chuyển xanh; việc dừng xe vượt quá vạch dừng nằm trong số các yếu tố làm tăng hành vi này. Một nghiên cứu về người đi xe đạp điện giao hàng tại Thượng Hải dùng phân tích sống sót ghi nhận nguy cơ vượt đèn đỏ tăng 33\% khi có người khác đang vi phạm \textbf{[TODO: trích dẫn nghiên cứu ``Red-light running behavior of delivery-service e-cyclists based on survival analysis'' -- chưa xác minh tác giả]}; kết quả này liên quan đến xe đạp điện chứ không phải xe máy, nên chỉ được dùng như bằng chứng gián tiếp cho hiệu ứng bầy đàn. Về xung đột, Hsu và cộng sự~\cite{hsu2024v2x} đo thời gian sau xâm phạm (PET) tại các nút giao ở Đài Loan và báo cáo PET trung bình 2,15~s đối với xung đột rẽ trái cắt ngang trước khi lắp hệ thống cảnh báo. Về kỷ luật làn, một nghiên cứu tại Đà Nẵng ghi nhận tỷ lệ bật xi-nhan khi rẽ là 40,13\% ở người đi xe máy và 68,27\% ở người lái ô tô tại 24 vị trí \textbf{[TODO: trích dẫn nghiên cứu ``Turn signal use among car drivers and motorcyclists at intersections: a case study of Da Nang, Vietnam'' -- chưa xác minh tác giả]}.
+
+Các nghiên cứu trên cung cấp số liệu rời rạc, được đo ở những địa điểm, thời điểm và định nghĩa khác nhau. Nhiều đại lượng cần cho hiệu chỉnh mô phỏng nút nghiên cứu, như số xe chờ giữa nút, tỷ lệ đi sai làn, mật độ hàng chờ xe máy hay PET tại nút giao Việt Nam, chưa tìm thấy số liệu công bố. Vì vậy, khi xây dựng dữ liệu đại diện, phần lớn giá trị mục tiêu được gắn nhãn là chuyển giao từ bối cảnh khác hoặc giả định.
+
+\subsection{Hiệu chỉnh tự động và tối ưu siêu tham số}
+\label{subsection:2.1.4}
+
+Hiệu chỉnh mô phỏng vi mô thường được phát biểu như một bài toán tối ưu: tìm bộ tham số sao cho các chỉ số tính trên đầu ra mô phỏng gần nhất với các chỉ số quan sát. Do mỗi lần đánh giá hàm mục tiêu đòi hỏi chạy mô phỏng với nhiều seed và hàm mục tiêu không có đạo hàm, các phương pháp tối ưu hộp đen được sử dụng phổ biến; ví dụ, Saval và cộng sự dùng giải thuật di truyền để hiệu chỉnh tham số tài xế~\cite{saval2023mixed}. Đối với kiểm tra lưu lượng, thống kê GEH thường được dùng làm tiêu chí chấp nhận \textbf{[TODO: trích dẫn nguồn gốc thống kê GEH và ngưỡng 5]}.
+
+Optuna~\cite{akiba2019optuna} là một khung tối ưu siêu tham số mã nguồn mở, cho phép định nghĩa không gian tìm kiếm ngay trong mã của hàm mục tiêu (define-by-run), hỗ trợ các thuật toán lấy mẫu và cơ chế cắt tỉa các lần thử kém hiệu quả. Nhờ đó, Optuna có thể dùng để tìm giá trị số cho các tham số vType và tham số của luật TraCI trong một không gian cố định. Hạn chế chung của nhóm phương pháp này là cấu trúc của mô hình (luật nào được dùng, áp dụng cho nhóm tài xế nào) phải được người lập mô hình xác định trước; bộ tối ưu chỉ tìm giá trị trong cấu trúc đó và không đưa ra lý giải cho kết quả. Trong đồ án, Optuna được dự kiến dùng làm phương án đối sánh B2 với cùng không gian tham số và cùng ngân sách số lần chạy SUMO với vòng lặp LLM (Mục~\ref{section:3.8}).
+
+\subsection{Mô hình ngôn ngữ lớn cho mô phỏng và hiệu chỉnh}
+\label{subsection:2.1.5}
+
+Mô hình ngôn ngữ lớn có khả năng sinh văn bản có cấu trúc theo một lược đồ cho trước và tiếp nhận phản hồi bằng ngôn ngữ tự nhiên lẫn số liệu. Về nguyên tắc, khả năng này cho phép LLM đóng vai trò người lập mô hình: đề xuất cấu trúc luật hành vi, chọn giá trị tham số kèm lý giải, và điều chỉnh đề xuất dựa trên sai lệch giữa mô phỏng và quan sát. Tài liệu nghiên cứu hiện có của đồ án chưa bao gồm công trình nào về việc dùng LLM để sinh hoặc hiệu chỉnh luật hành vi cho mô phỏng giao thông vi mô \textbf{[TODO: bổ sung tài liệu về LLM cho mô phỏng/hiệu chỉnh]}. Do đó, đồ án chưa đưa ra nhận định về hiện trạng của hướng nghiên cứu này, và việc đánh giá đóng góp của đồ án so với các công trình liên quan sẽ được hoàn thiện sau khi bổ sung khảo sát.
+
+\subsection{Hạn chế của các nghiên cứu hiện có}
+\label{subsection:2.1.6}
+
+Từ khảo sát trên có thể rút ra các hạn chế sau. Thứ nhất, các mô hình mặc định của SUMO, kể cả khi dùng mô hình làn con, không biểu diễn được các hành vi không tuân thủ phụ thuộc ngữ cảnh như vượt đèn theo đoàn, xuất phát sớm hay dừng chờ có chủ đích giữa nút. Thứ hai, mô hình giao thông hỗn hợp cho Hà Nội đã công bố~\cite{saval2023mixed} có cấu trúc luật do người lập mô hình xác định và tham số hiệu chỉnh cho một đoạn phố cụ thể, chạy trên một nền tảng khác SUMO và không xét kịch bản rẽ trái dừng chờ giữa nút. Thứ ba, số liệu thực nghiệm về hành vi xe máy rời rạc, đo ở các địa điểm khác nhau và thiếu nhiều đại lượng cần cho hiệu chỉnh. Thứ tư, các phương pháp hiệu chỉnh tự động chỉ tìm giá trị số trong một cấu trúc mô hình cố định. Những hạn chế này đặt ra nhu cầu về một quy trình có thể đề xuất và tinh chỉnh cả cấu trúc lẫn tham số của luật hành vi cho SUMO, trong đó mọi đề xuất được kiểm tra hợp lệ và thực thi một cách tái lập được, và có thể so sánh công bằng với các phương án hiệu chỉnh thủ công và tối ưu tự động.
 
 \section{Tổng quan chức năng}
 \label{section:2.2}
-Phần \ref{section:2.2} này có nhiệm vụ tóm tắt các chức năng của phần mềm. Trong phần này, sinh viên lưu ý chỉ mô tả chức năng mức cao (tổng quan) mà không đặc tả chi tiết cho từng chức năng. Đặc tả chi tiết được trình bày trong phần \ref{section:2.3}.
+
+Hệ thống được xây dựng là một quy trình hiệu chỉnh hành vi tài xế cho mô phỏng SUMO của nút giao nghiên cứu. Ở mức tổng quát, hệ thống thực hiện các chức năng sau. Chức năng \emph{dựng mạng} sinh mạng mô phỏng từ dữ liệu OpenStreetMap và tệp cấu hình hiện trường, rồi áp dụng các tệp vá dạng plain XML cho bề rộng làn, kết nối rẽ và chương trình đèn. Chức năng \emph{sinh nhu cầu} tạo tệp lộ trình theo từng ngày dữ liệu và seed. Chức năng \emph{quản lý luật} gồm lược đồ đặc tả luật, tệp miền tham số, bộ kiểm tra hợp lệ và bộ biên dịch chuyển đặc tả thành tệp kiểu phương tiện cho SUMO và tệp luật cho bộ điều khiển TraCI. Chức năng \emph{chạy mô phỏng} khởi động SUMO qua \texttt{libsumo} hoặc TraCI, gắn bộ điều khiển thực thi luật, thu các đầu ra, chuyển chúng sang lược đồ dữ liệu quan sát và ghi tệp \texttt{manifest.json} cho mỗi lần chạy. Chức năng \emph{dữ liệu mục tiêu} sinh các ngày dữ liệu đại diện từ bảng giá trị mục tiêu tổng hợp từ tài liệu. Chức năng \emph{đánh giá} tính các chỉ số trong Bảng~\ref{table:3.3} (đang triển khai) và khoảng cách giữa mô phỏng và quan sát (dự kiến). Cuối cùng, chức năng \emph{vòng lặp hiệu chỉnh} gọi LLM để sinh và tinh chỉnh đặc tả luật, và chức năng \emph{đối sánh} chạy Optuna cùng đánh giá cuối các phương án; cả hai đều là phần dự kiến.
 
 \subsection{Biểu đồ use case tổng quát}
 \label{subsection:2.2.1}
-Sinh viên vẽ biểu đồ use case tổng quan và giải thích các tác nhân tham gia là gì, nêu vai trò của từng tác nhân, và mô tả ngắn gọn các use case chính.
 
 \subsection{Biểu đồ use case phân rã XYZ}
 \label{subsection:2.2.2}
-Với mỗi use case mức cao trong biểu đồ use case tổng quan, sinh viên tạo một mục riêng như mục \ref{subsection:2.2.2} và tiến hành phân rã use case đó. Lưu ý tên use case cần phân rã trong biểu đồ use case tổng quan phải khớp với tên đề mục.
-
-Trong mỗi mục như vậy, sinh viên vẽ và giải thích ngắn gọn các use case phân rã.
 
 \subsection{Quy trình nghiệp vụ}
 \label{subsection:2.2.3}
-Nếu sản phẩm/hệ thống cần xây dựng có quy trình nghiệp vụ quan trọng/đáng chú ý, sinh viên cần mô tả và vẽ biểu đồ hoạt động minh họa quy trình nghiệp vụ đó. Sinh viên lưu ý đây không phải là luồng sự kiện của từng use case, mà là luồng hoạt động kết hợp nhiều use case để thực hiện một nghiệp vụ nào đó.
 
-Ví dụ, một hệ thống quản lý thư viện có quy trình nghiệp vụ mượn trả với mô tả sơ bộ như sau: Sinh viên làm thẻ mượn, sau đó sinh viên đăng ký mượn sách, thủ thư cho mượn, và cuối cùng sinh viên trả lại sách cho thư viện. Một hệ thống có thể có một vài quy trình nghiệp vụ quan trọng như vậy.
+Quy trình nghiệp vụ trung tâm của hệ thống là một vòng hiệu chỉnh, gồm sáu bước nối tiếp. Trạng thái triển khai của từng bước được ghi rõ dưới đây; trạng thái của các thành phần tương ứng được tóm tắt tại Bảng~\ref{table:3.1}.
+
+\textbf{Bước 1 -- Sinh đặc tả luật (dự kiến).} LLM nhận mô tả nút giao, từ điển tham số sinh tự động từ tệp miền giá trị, các giá trị mục tiêu của các ngày hiệu chỉnh và phản hồi của vòng trước, rồi trả về một hoặc nhiều đặc tả luật dạng JSON theo lược đồ đã định nghĩa. LLM chỉ viết đặc tả JSON, không viết mã nguồn và không chỉnh sửa mạng lưới. Hiện tại, các đặc tả của phương án B0 và B1 đã được viết thủ công theo cùng lược đồ; chưa có đặc tả nào do LLM sinh.
+
+\textbf{Bước 2 -- Kiểm tra hợp lệ (đã triển khai).} Bộ kiểm tra đối chiếu đặc tả với lược đồ JSON, tệp miền tham số và các ràng buộc logic (Mục~\ref{section:3.4}). Mỗi lỗi được trả về kèm mã lỗi để có thể đưa nguyên văn vào phản hồi. Đặc tả không hợp lệ không được chạy mô phỏng; trong vòng lặp dự kiến, LLM được yêu cầu sửa và gửi lại với số lần thử giới hạn.
+
+\textbf{Bước 3 -- Biên dịch (đã triển khai).} Bộ biên dịch chuyển đặc tả hợp lệ thành tệp \texttt{vtypes.add.xml} chứa ba phân phối kiểu phương tiện mà tệp lộ trình tham chiếu, và tệp \texttt{traci\_rules.json} chứa các luật có điều kiện cho bộ điều khiển.
+
+\textbf{Bước 4 -- Mô phỏng (đã triển khai).} Trình chạy khởi động SUMO với mạng, lộ trình và kiểu phương tiện đã biên dịch, gắn bộ điều khiển TraCI và chạy với nhiều seed trên mỗi ngày hiệu chỉnh. Mỗi lần chạy sinh các tệp đầu ra của SUMO, nhật ký can thiệp \texttt{interventions.csv}, các bảng theo lược đồ dữ liệu quan sát và tệp \texttt{manifest.json} ghi cấu hình, giá trị băm của đầu vào, số teleport, số va chạm và kết luận về tính hợp lệ của lần chạy.
+
+\textbf{Bước 5 -- Tính chỉ số (đang triển khai) và khoảng cách (dự kiến).} Các chỉ số G0 và M1--M8 (Bảng~\ref{table:3.3}) được tính trên các bảng đầu ra theo cùng lược đồ với dữ liệu quan sát. Hàm khoảng cách giữa mô phỏng và quan sát, sàn nhiễu giữa các ngày và điểm tổng hợp là phần dự kiến.
+
+\textbf{Bước 6 -- Tạo phản hồi và chọn đặc tả (dự kiến).} Kết quả của vòng được tổng hợp thành phản hồi gồm khoảng cách theo từng chỉ số, lỗi kiểm tra hợp lệ và thống kê can thiệp TraCI, chỉ dựa trên các ngày hiệu chỉnh. Đặc tả tốt nhất trong số các lần chạy đủ điều kiện được giữ lại. Vòng lặp kết thúc khi hết ngân sách số lần chạy SUMO; sau đó đặc tả tốt nhất được đánh giá trên các ngày đánh giá cùng với các phương án đối sánh.
+
 \section{Đặc tả chức năng}
 \label{section:2.3}
-Sinh viên lựa chọn từ 4 đến 7 use case quan trọng nhất của đồ án để đặc tả chi tiết. Mỗi đặc tả bao gồm ít nhất các thông tin sau: (i) Tên use case, (ii) Luồng sự kiện (chính và phát sinh), (iii) Tiền điều kiện, và (iv) Hậu điều kiện. Sinh viên chỉ vẽ bổ sung biểu đồ hoạt động khi đặc tả use case phức tạp.
+
+Thay cho đặc tả use case, mục này nêu các yêu cầu chức năng của những thành phần cốt lõi. Bộ kiểm tra hợp lệ phải từ chối mọi đặc tả vi phạm lược đồ, dùng thuộc tính không có trong tệp miền tham số, có giá trị ngoài miền cho phép, có tổng tỷ trọng các nguyên mẫu tài xế khác 1 trong một vClass, có tham số luật không hợp lệ hoặc chứa mâu thuẫn logic, và phải trả về danh sách lỗi có mã thay vì dừng ở lỗi đầu tiên. Bộ biên dịch phải sinh ra các phân phối kiểu phương tiện đúng tên mà tệp lộ trình tham chiếu (\texttt{car}, \texttt{moto}, \texttt{moto\_violator}) và chỉ dùng các thuộc tính đã được khai báo hợp lệ trong lược đồ của SUMO. Bộ điều khiển TraCI phải chỉ xử lý các xe trong vùng nút giao, không áp dụng chồng nhiều can thiệp lên một xe, không vô hiệu hóa các cơ chế an toàn ngoài phạm vi của luật, và phải ghi lại mọi can thiệp cùng việc SUMO có thực thi hay không. Trình chạy mô phỏng phải hỗ trợ cả \texttt{libsumo} và TraCI, chuyển đầu ra sang lược đồ dữ liệu quan sát và ghi tệp \texttt{manifest.json} đủ thông tin để tái lập và đánh giá tính hợp lệ của lần chạy.
+
 \subsection{Đặc tả use case A}
-\hfill
+
 \subsection{Đặc tả use case B}
-\hfill
 
 \section{Yêu cầu phi chức năng}
 \label{section:2.4}
-Trong phần này, sinh viên đưa ra các yêu cầu khác nếu có, bao gồm các yêu cầu phi chức năng như hiệu năng, độ tin cậy, tính dễ dùng, tính dễ bảo trì, hoặc các yêu cầu về mặt kỹ thuật như về CSDL, công nghệ sử dụng, v.v.
 
+\textbf{Khả năng tái lập.} Mọi kết quả phải tái lập được từ mã nguồn và dữ liệu đầu vào. Mạng mô phỏng được sinh bằng script từ tệp xuất OpenStreetMap cộng các tệp vá plain XML; tệp \texttt{.net.xml} không bao giờ được sửa thủ công và thư mục dữ liệu thô được giữ bất biến. Seed được cố định cho cả sinh nhu cầu, sinh dữ liệu đại diện và mô phỏng. Mỗi lần chạy ghi tệp \texttt{manifest.json} gồm mã commit và cờ cho biết cây mã có thay đổi chưa commit hay không, phiên bản SUMO, backend, giá trị băm của đặc tả, mạng, lộ trình và tệp cấu hình hiện trường, nguồn của cấu hình hiện trường, toàn bộ cấu hình thí nghiệm và các tùy chọn SUMO đã dùng.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\textbf{Không bịa số liệu hiện trường.} Mọi giá trị đo thực địa (bề rộng làn, chu kỳ đèn, nhánh cấm rẽ, lưu lượng) chỉ được lấy từ tệp cấu hình hiện trường; giá trị chưa đo được để \texttt{null} kèm chú thích \texttt{TODO\_MEASURE}. Khi một giá trị bắt buộc còn \texttt{null}, mã nguồn phải báo lỗi rõ ràng thay vì tự điền giá trị mặc định; tương tự, các tham số thí nghiệm chưa chốt (\texttt{TODO\_DECIDE}) gây lỗi khi được sử dụng. Cấu hình đại diện dựa trên tài liệu được giữ trong một tệp riêng, mỗi giá trị kèm nguồn và nhãn bằng chứng, và chỉ được dùng khi chỉ định tường minh.
+
+\textbf{Xác minh tên tham số SUMO.} Mọi thuộc tính vType và tùy chọn của \texttt{netconvert}, \texttt{sumo} phải được kiểm tra bằng lệnh trợ giúp của công cụ hoặc tài liệu chính thức trước khi sử dụng; mỗi dòng của tệp miền tham số ghi đường dẫn tài liệu xác nhận tên thuộc tính. Khi chưa chắc về một hành vi của SUMO, cần viết thí nghiệm nhỏ để kiểm chứng thay vì giả định; thí nghiệm về số xe có thể dừng chờ giữa nút là một ví dụ.
+
+\textbf{Hiệu năng và tương đương giữa các backend.} Các lần chạy hàng loạt dùng \texttt{libsumo} để giảm chi phí giao tiếp, còn TraCI được dùng khi cần gỡ lỗi với giao diện đồ họa. Hai backend phải cho kết quả như nhau: một kiểm thử tự động chạy cùng một kịch bản nhỏ với cùng seed qua \texttt{libsumo} và TraCI và yêu cầu quỹ đạo của mọi phương tiện trùng khớp. Bộ điều khiển TraCI dùng cơ chế đăng ký nhận dữ liệu và chỉ xử lý xe trong vùng nút để hạn chế chi phí mỗi bước mô phỏng.
+
+\textbf{Tính khả chuyển.} Hệ thống được phát triển trên Windows; mọi đường dẫn được xử lý bằng \texttt{pathlib}, không viết cứng ký tự phân cách, và các tệp đầu ra được đọc ở cả dạng \texttt{.xml} lẫn \texttt{.xml.gz}. Mã nguồn yêu cầu Python 3.10 trở lên và chạy trong môi trường ảo. Phần gọi LLM dự kiến dùng giao diện tương thích OpenAI để không phụ thuộc vào một runtime cụ thể.
+
+\textbf{Kiểm thử.} Các thành phần được kiểm thử tự động bằng \texttt{pytest} trên dữ liệu tổng hợp nhỏ, gồm dựng mạng, sinh nhu cầu, cấu hình và trình chạy mô phỏng, bộ kiểm tra hợp lệ, bộ biên dịch và bộ điều khiển TraCI. Lần chạy toàn bộ bộ kiểm thử gần nhất sau khi hoàn thành bộ điều khiển TraCI cho kết quả 221 kiểm thử đạt và 1 kiểm thử được đánh dấu là dự kiến thất bại. Kiểm thử cho các chỉ số đang được viết cùng với mã chỉ số.
 
 \end{document}

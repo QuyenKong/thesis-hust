@@ -1,71 +1,325 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
+% Nguồn số liệu của chương: repo SUMO (CLAUDE.md, pyproject.toml, docs/PROGRESS.md,
+% docs/research/phase3_box_capacity.md, experiments/phase3/results_r21.csv,
+% experiments/operator/task4b/b0_table.csv, src/thesis_sumo/**). Các mục [TODO] cần bổ sung trước khi nộp.
+
+Chương này trình bày phần hiện thực của phương pháp ở Chương~\ref{chapter:Methodology}: kiến trúc phần mềm, các gói và lớp chính, công cụ sử dụng, kiểm thử, các thực nghiệm đã tiến hành và cách tái lập. Tại thời điểm viết, quy trình đã hoàn thành từ mạng mô phỏng đến bộ điều khiển TraCI; các chỉ số đánh giá đang được triển khai; vòng lặp LLM, phương án Optuna và đánh giá cuối là phần dự kiến (Bảng~\ref{table:3.1}). Mọi kết quả định lượng trong chương được tính trên mạng và dữ liệu đại diện xây dựng từ tài liệu, không phải số liệu đo tại nút giao.
+
 \section{Thiết kế kiến trúc}
+
 \subsection{Lựa chọn kiến trúc phần mềm}
-Mục này có độ dài từ một đến ba trang. Sinh viên cần lựa chọn kiến trúc phần mềm cho ứng dụng của mình như: kiến trúc ba lớp MVC, MVP, SOA, Microservice, v.v. rồi giải thích sơ bộ về kiến trúc đó (không giải thích chi tiết/dài dòng).
-Sử dụng kiến trúc phần mềm đã chọn ở trên, sinh viên mô tả kiến trúc cụ thể cho ứng dụng của mình. Gợi ý: sinh viên áp dụng lý thuyết chung vào hệ thống/sản phẩm của mình như thế nào, có thay đổi, bổ sung hoặc cải tiến gì không. Ví dụ, thành phần M trong kiến trúc lý thuyết MVC sẽ là những thành phần cụ thể nào (ví dụ: là interface I + class C1 + class C2, v.v.) trong kiến trúc phần mềm của sinh viên.
 
-\subsection{Thiết kế tổng quan}
-Sinh viên vẽ biểu đồ gói UML (UML package diagram), nêu rõ sự phụ thuộc giữa các gói (package). SV cần vẽ các gói sao cho chúng được phân theo các tầng rõ ràng, không được sắp đặt package lộn xộn trong hình vẽ. Sinh viên chú ý các quy tắc thiết kế (Các gói không phụ thuộc lẫn nhau, gói tầng dưới không phụ thuộc gói tầng trên, không phụ thuộc bỏ qua tầng, v.v.) và cần giải thích sơ lược về mục đích/nhiệm vụ của từng package. SV tham khảo ví dụ minh họa trong Hình \ref{fig:Fig1}
-\begin{figure}[H]
-    \centering
-    \includegraphics{Hinhve/Picture1.png}
-    \caption{Ví dụ biểu đồ phụ thuộc gói}
-    \label{fig:Fig1}
-\end{figure}
-\subsection{Thiết kế chi tiết gói}
-Sinh viên thiết kế và lần lượt vẽ biểu đồ thiết kế cho từng package, hoặc một nhóm các package liên quan để giải quyết một vấn đề gì đó. Khi vẽ thiết kế gói, sinh viên chỉ cần đưa tên lớp, không cần chỉ ra các thành viên phương thức và thuộc tính. SV tham khảo ví dụ minh họa trong Hình \ref{fig:Fig2}.
+Hệ thống được tổ chức theo kiểu đường ống (pipeline) gồm các bước tách rời, mỗi bước đọc tệp đầu vào và ghi tệp đầu ra ở dạng văn bản (YAML, JSON, XML, CSV). Lựa chọn này xuất phát từ ba yêu cầu. Thứ nhất là tính tái lập: mạng lưới được sinh lại từ dữ liệu gốc bằng script và các tệp vá, mọi lần chạy dùng seed cố định và ghi một tệp \texttt{manifest.json}. Thứ hai là khả năng thay thế nguồn đặc tả luật: B0, B1, Optuna và LLM đều chỉ tạo ra một đặc tả JSON cùng lược đồ, phần còn lại của đường ống không phân biệt nguồn gốc của đặc tả. Thứ ba là khả năng dùng chung một bộ hàm chỉ số cho dữ liệu mô phỏng và dữ liệu quan sát, nhờ chuyển đầu ra SUMO về cùng lược đồ với dữ liệu quan sát.
 
-Sinh viên cần vẽ rõ ràng quan hệ giữa các lớp trong biểu đồ. Các quan hệ bao gồm: phụ thuộc (dependency), kết hợp (association), kết tập (aggregation), hợp thành (composition), kế thừa (inheritance), và thực thi (implementation). Các quan hệ này đều đã được minh họa trong Hình~\ref{fig:Fig2}.
-
-Sau khi vẽ hình minh họa, sinh viên cần giải thích ngắn gọn về thiết kế của mình. 
-
-\begin{figure}[H]
-    \centering
-    \includegraphics{Hinhve/Picture2.png}
-    \caption{Ví dụ thiết kế gói}
-    \label{fig:Fig2}
-\end{figure}
-
-\section{Thiết kế chi tiết}
-\subsection{Thiết kế giao diện}
-Phần này có độ dài từ hai đến ba trang. Sinh viên đặc tả thông tin về màn hình mà ứng dụng của mình hướng tới, bao gồm độ phân giải màn hình, kích thước màn hình, số lượng màu sắc hỗ trợ, v.v. Tiếp đến, sinh viên đưa ra các thống nhất/chuẩn hóa của mình khi thiết kế giao diện như thiết kế nút, điều khiển, vị trí hiển thị thông điệp phản hồi, phối màu, v.v. Sau cùng sinh viên đưa ra một số hình ảnh minh họa thiết kế giao diện cho các chức năng quan trọng nhất. Lưu ý, sinh viên không nhầm lẫn giao diện thiết kế với giao diện của sản phẩm sau cùng.
-\subsection{Thiết kế lớp}
-Phần này có độ dài từ ba đến bốn trang. Sinh viên trình bày thiết kế chi tiết các thuộc tính và phương thức cho một số lớp chủ đạo/quan trọng nhất của ứng dụng (từ 2-4 lớp). Thiết kế chi tiết cho các lớp khác, nếu muốn trình bày, sinh viên đưa vào phần phụ lục.
-
-Để minh họa thiết kế lớp, sinh viên thiết kế luồng truyền thông điệp giữa các đối tượng tham gia cho 2 đến 3 use case quan trọng nào đó bằng biểu đồ trình tự (hoặc biểu đồ giao tiếp).
-\subsection{Thiết kế cơ sở dữ liệu}
-Phần này có độ dài từ hai đến bốn trang. Sinh viên thiết kế, vẽ và giải thích biểu đồ thực thể liên kết (E-R diagram). Từ đó, sinh viên thiết kế cơ sở dữ liệu tùy theo hệ quản trị cơ sở dữ liệu mà mình sử dụng (SQL, NoSQL, Firebase, v.v.)
-
-\section{Xây dựng ứng dụng}
-\subsection{Thư viện và công cụ sử dụng}
-Sinh viên liệt kê các công cụ, ngôn ngữ lập trình, API, thư viện, IDE, công cụ kiểm thử, v.v. mà mình sử dụng để phát triển ứng dụng. Mỗi công cụ phải được chỉ rõ phiên bản sử dụng. SV nên kẻ bảng mô tả tương tự như Bảng \ref{table:my_label}. Nếu có nhiều nội dung trình bày, sinh viên cần xoay ngang bảng.
+Mã nguồn là một gói Python duy nhất \texttt{thesis\_sumo}, chia thành các gói con theo trách nhiệm (Bảng~\ref{table:4.1}). Hai gói \texttt{llm} và \texttt{baselines} hiện chỉ là khung rỗng, dành cho vòng lặp LLM và phương án Optuna dự kiến.
 
 \begin{table}[H]
-\centering{}
-    \begin{tabular}{lll}
-        \hline
-        \textbf{Mục đích} & \textbf{Công cụ}       & \textbf{Địa chỉ URL}    \\ \hline
-        IDE lập trình     & Eclipse Oxygen a64 bit & http://www.eclipse.org/ \\ \hline
-        v.v.              & v.v.                   & v.v.                    \\ \hline
-        \end{tabular}
-    \caption{Danh sách thư viện và công cụ sử dụng}
-    \label{table:my_label}
+\centering
+\small
+\begin{tabular}{|p{2.4cm}|p{8.3cm}|p{2.3cm}|}
+\hline
+\textbf{Gói} & \textbf{Trách nhiệm} & \textbf{Trạng thái} \\ \hline
+\texttt{config}, \texttt{schema\_\allowbreak observed} & Đọc tệp cấu hình hiện trường, thí nghiệm và LLM; báo lỗi khi trường bắt buộc còn trống; định nghĩa các bảng và cột của lược đồ dữ liệu quan sát & Đã triển khai \\ \hline
+\texttt{net} & Sinh mạng từ OpenStreetMap bằng \texttt{netconvert}, áp tệp vá plain XML (bề rộng làn, kết nối rẽ, chương trình đèn), xuất bảng cạnh và sơ đồ mạng & Đã triển khai \\ \hline
+\texttt{demand} & Sinh tuyến ứng viên và tệp tuyến theo số đếm rẽ 15 phút bằng công cụ \texttt{routeSampler} của SUMO & Đã triển khai \\ \hline
+\texttt{proxy} & Sinh năm ngày dữ liệu đại diện PROXY\_D1--PROXY\_D5 theo từng sự kiện phương tiện từ bảng giá trị mục tiêu & Đã triển khai \\ \hline
+\texttt{rules} & Lược đồ đặc tả luật, bộ kiểm tra hợp lệ, bộ biên dịch & Đã triển khai \\ \hline
+\texttt{runtime} & Bộ điều khiển TraCI và năm luật có điều kiện & Đã triển khai \\ \hline
+\texttt{sim} & Ghi cấu hình SUMO, chạy mô phỏng, ghi manifest, chuyển đầu ra sang lược đồ quan sát & Đã triển khai \\ \hline
+\texttt{metrics} & Các chỉ số M1--M8 và cổng G0 & Đang triển khai \\ \hline
+\texttt{llm} & Gọi LLM, quản lý prompt, tạo phản hồi, vòng lặp tinh chỉnh & Dự kiến \\ \hline
+\texttt{baselines} & Phương án đối sánh B2 bằng Optuna & Dự kiến \\ \hline
+\end{tabular}
+\caption{Các gói con của \texttt{thesis\_sumo}}
+\label{table:4.1}
 \end{table}
 
-\subsection{Kết quả đạt được}
-Sinh viên trước tiên mô tả kết quả đạt được của mình là gì, ví dụ như các sản phẩm được đóng gói là gì, bao gồm những thành phần nào, ý nghĩa, vai trò?
+\begin{sloppypar}
+Điểm cốt lõi của kiến trúc là tách hai giai đoạn theo thời gian. Giai đoạn ngoại tuyến (offline) gồm việc sinh hoặc soạn đặc tả luật, kiểm tra hợp lệ và biên dịch; LLM (dự kiến) chỉ tham gia ở giai đoạn này và chỉ tạo ra tệp JSON. Giai đoạn trực tuyến (online) là một lần chạy SUMO: tham số tĩnh đã được SUMO nạp từ tệp \texttt{vtypes.add.xml} khi khởi tạo, còn bộ điều khiển TraCI đọc \texttt{traci\_rules.json} và đánh giá các luật có điều kiện tại mỗi bước mô phỏng. Không có lời gọi LLM nào trong vòng lặp mô phỏng; LLM không điều khiển phương tiện theo thời gian thực.
+\end{sloppypar}
 
-Sinh viên cần thống kê các thông tin về ứng dụng của mình như: số dòng code, số lớp, số gói, dung lượng toàn bộ mã nguồn, dung lượng của từng sản phẩm đóng gói, v.v. Tương tự như phần liệt kê về công cụ sử dụng, sinh viên cũng nên dùng bảng để mô tả phần thông tin thống kê này.
+Mỗi lần chạy được điều phối bởi một trình chạy (runner) duy nhất. Trình chạy xác định đầu vào theo quy ước tên (mạng theo tệp cấu hình hiện trường, tệp tuyến theo ngày, đặc tả đã biên dịch theo mã đặc tả), khởi động SUMO qua thư viện \texttt{libsumo} (chạy hàng loạt) hoặc \texttt{traci} (khi cần giao diện đồ họa \texttt{sumo-gui}), gắn bộ điều khiển TraCI nếu đặc tả có luật, rồi ghi tệp manifest và chuyển đầu ra sang lược đồ quan sát. Nhiều lần chạy (nhiều seed) được thực hiện song song, mỗi tiến trình một phiên SUMO.
+
+\subsection{Thiết kế tổng quan}
+
+Luồng dữ liệu của hệ thống được tóm tắt trong Bảng~\ref{table:4.2}. Các bước 1--3 chạy một lần cho mỗi cấu hình hiện trường hoặc mỗi ngày dữ liệu; các bước 4--7 lặp lại cho mỗi đặc tả luật; bước 8 đang được triển khai.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.6cm}|p{3.4cm}|p{3.6cm}|p{4.9cm}|}
+\hline
+\textbf{\#} & \textbf{Bước (gói)} & \textbf{Đầu vào} & \textbf{Đầu ra} \\ \hline
+1 & Dựng mạng (\texttt{net}) & Bản xuất OSM, tệp cấu hình hiện trường & Mạng cơ sở, mạng hiện trường, tệp vá, bảng cạnh, sơ đồ mạng \\ \hline
+2 & Dữ liệu mục tiêu (\texttt{proxy}) & Bảng giá trị mục tiêu, cấu hình hiện trường & Các bảng CSV theo lược đồ quan sát của từng ngày \\ \hline
+3 & Demand (\texttt{demand}) & Mạng, số đếm rẽ 15 phút & Tệp tuyến của từng ngày \\ \hline
+4 & Kiểm tra hợp lệ (\texttt{rules}) & Đặc tả JSON, miền tham số, cấu hình hiện trường, mạng & Danh sách lỗi có mã \\ \hline
+5 & Biên dịch (\texttt{rules}) & Đặc tả hợp lệ & \texttt{vtypes.add.xml}, \texttt{traci\_\allowbreak rules.json} (nếu có luật) \\ \hline
+6 & Chạy mô phỏng (\texttt{sim}, \texttt{runtime}) & Mạng, tệp tuyến, đặc tả đã biên dịch, cấu hình thí nghiệm, seed & Đầu ra SUMO, \texttt{sumo.log}, \texttt{interventions.csv}, \texttt{manifest.json} \\ \hline
+7 & Chuyển lược đồ (\texttt{sim}) & Đầu ra SUMO & Các bảng CSV theo lược đồ quan sát \\ \hline
+8 & Chỉ số (\texttt{metrics}) & Bảng CSV mô phỏng và quan sát & M1--M8, G0 (đang triển khai) \\ \hline
+\end{tabular}
+\caption{Luồng dữ liệu giữa các gói}
+\label{table:4.2}
+\end{table}
+
+\begin{sloppypar}
+Phụ thuộc giữa các gói đi theo một chiều. Gói \texttt{config} và \texttt{schema\_observed} là nền tảng, được mọi gói khác sử dụng. Gói \texttt{rules} dùng chung một mô-đun xác định kết nối đi sai làn với gói \texttt{runtime}, để bộ kiểm tra hợp lệ và bộ điều khiển có cùng cách hiểu về các kết nối có thể dùng. Gói \texttt{sim} gọi \texttt{runtime} khi đặc tả có luật TraCI. Gói \texttt{proxy} sinh dữ liệu mục tiêu độc lập với mọi đầu ra SUMO, nhưng dùng lại các định nghĩa hình học và lược đồ của \texttt{sim} để hai phía có cùng định nghĩa bảng. Gói \texttt{metrics} chỉ đọc các bảng CSV theo lược đồ quan sát, nên không phụ thuộc vào SUMO.
+\end{sloppypar}
+
+\subsection{Thiết kế chi tiết gói}
+\label{subsection:package_design}
+
+Phần này mô tả các thành phần chính như đã hiện thực; chức năng của bộ kiểm tra hợp lệ, bộ biên dịch và bộ điều khiển đã được trình bày ở Mục~\ref{section:3.4} và Mục~\ref{section:3.5}.
+
+\textbf{Gói \texttt{config}.} Các hàm đọc cấu hình hiện trường, cấu hình thí nghiệm và cấu hình LLM trả về đối tượng cấu hình; khi một trường bắt buộc có giá trị rỗng, chương trình dừng với lỗi \texttt{MissingFieldDataError} nêu tên trường, thay vì tự điền giá trị mặc định. Tệp cấu hình hiện trường đo thực mang nhãn \texttt{MEASURED} và hiện chưa có giá trị đo; tệp cấu hình đại diện mang nhãn \texttt{LITERATURE\_PROXY}, trong đó mỗi giá trị đi kèm nguồn và mức bằng chứng. Chương trình không bao giờ tự chuyển từ tệp đo thực sang tệp đại diện.
+
+\textbf{Gói \texttt{net}.} Mạng được dựng bằng hai lượt \texttt{netconvert}: lượt đầu cắt theo bán kính quanh nút và giữ các cạnh cho phép ô tô và xe máy, lượt sau chỉ giữ bốn nhánh và đơn giản hóa hình học. Mô-đun áp vá sinh ba tệp plain XML cho bề rộng làn, kết nối rẽ và chương trình đèn từ cấu hình hiện trường, trong đó kết nối rẽ trái trên nhánh cấm rẽ được thêm lại với quyền chỉ dành cho vClass \texttt{custom1}. Toàn bộ quá trình được gọi qua một lệnh dòng lệnh duy nhất.
+
+\textbf{Gói \texttt{rules}.} Mô-đun lược đồ định nghĩa tham số hợp lệ của từng loại luật TraCI và các vClass mà mỗi luật được áp dụng. Hàm kiểm tra hợp lệ trả về toàn bộ lỗi trong một danh sách, mỗi lỗi mang một trong sáu mã \texttt{schema}, \texttt{unknown\_attr}, \texttt{out\_of\_bounds}, \texttt{share\_sum}, \texttt{rule\_params}, \texttt{logic}; nội dung lỗi nêu rõ khoảng giá trị hoặc tên được phép để có thể đưa nguyên văn vào phản hồi cho LLM (dự kiến), và một nhật ký hợp lệ ghi lại kết quả kiểm tra. Hàm biên dịch gọi bộ kiểm tra trước; nếu đặc tả không hợp lệ, nó báo lỗi \texttt{InvalidSpecError} kèm danh sách lỗi và không ghi tệp nào. Với đặc tả hợp lệ, nó ghi \texttt{vtypes.add.xml} gồm ba phân phối \texttt{car}, \texttt{moto}, \texttt{moto\_violator} theo thứ tự cố định, mỗi nguyên mẫu là một vType có mã trùng mã nguyên mẫu và xác suất bằng tỷ trọng; nguyên mẫu \texttt{custom1} được gán trước các giá trị mặc định của xe máy rồi mới ghi đè bởi đặc tả, vì \texttt{custom1} không có mặc định của xe máy. Mọi tham số, kể cả khi bằng giá trị mặc định, đều được ghi tường minh. Tệp sinh ra khai báo lược đồ XSD của SUMO, nhờ đó SUMO kiểm tra tên và giá trị thuộc tính mỗi khi nạp; thử nghiệm cho thấy nếu không khai báo, thuộc tính sai tên bị bỏ qua mà không có cảnh báo. Tệp \texttt{traci\_rules.json} chỉ được ghi khi đặc tả có luật, và mỗi luật mang danh sách mã vType thành viên mà nó áp dụng, vì xe lấy từ một phân phối báo mã của vType thành viên chứ không phải mã của phân phối.
+
+\textbf{Gói \texttt{runtime}.} Mô-đun trạng thái đọc thông tin nút giao một lần khi bắt đầu, sau đó mỗi bước dùng một đăng ký ngữ cảnh quanh nút với bán kính 120~m và một đăng ký trạng thái đèn để dựng ảnh chụp trạng thái chung cho mọi luật. Lớp \texttt{Controller} tạo một đối tượng luật cho mỗi mục trong \texttt{traci\_rules.json} thông qua một bảng đăng ký (\texttt{RULE\_REGISTRY}) ánh xạ loại luật sang lớp hiện thực. Mỗi luật có bộ sinh số ngẫu nhiên riêng, khởi tạo từ seed của lần chạy, chỉ số và loại luật; xe được duyệt theo thứ tự mã, nên hai backend \texttt{libsumo} và \texttt{traci} cho cùng chuỗi rút ngẫu nhiên và cùng nhật ký can thiệp. Mọi lệnh gửi tới SUMO đi qua lớp bao \texttt{Commands}, đảm bảo mỗi xe chỉ chịu một can thiệp tại một thời điểm, chỉ xóa đúng bit được nêu tên của speed mode và kiểm tra lại giá trị SUMO báo về, đồng thời lưu các khoảng thời gian xe chịu can thiệp. Một khoảng như vậy chỉ đóng khi xe đã đi qua nút (xuất hiện trên làn không thuộc nút và không phải làn vào) hoặc rời vùng xét, để va chạm trong nút của xe vượt đèn đỏ vẫn được tính là liên quan đến can thiệp. Bộ điều khiển cung cấp bảng tóm tắt số can thiệp đã thử và đã thực thi theo từng luật, thời gian xử lý của nó, và hàm cho biết một xe có đang trong khoảng can thiệp tại một thời điểm hay không.
+
+\textbf{Gói \texttt{sim}.} Mô-đun cấu hình ghi tệp \texttt{run.sumocfg} bằng chính SUMO (tùy chọn lưu cấu hình), nên tùy chọn sai tên bị SUMO từ chối; mô-đun này luôn bật kiểm tra va chạm trong nút (\texttt{collision.check-junctions}) và gộp cảnh báo cùng loại. Trình chạy cung cấp hàm chạy một lần, hàm chạy nhiều lần song song và giao diện dòng lệnh. Tệp \texttt{manifest.json} của mỗi lần chạy ghi: mã lần chạy, mã đặc tả, ngày, seed; mã commit và trạng thái thay đổi chưa commit; phiên bản SUMO và backend; giá trị băm của đặc tả, mạng, tệp tuyến và cấu hình hiện trường; nhãn nguồn cấu hình hiện trường; cấu hình thí nghiệm hiệu lực và tùy chọn SUMO; thời gian chạy; số teleport (tổng và không do va chạm); số va chạm (tổng, theo loại, trên làn và trong nút, liên quan can thiệp TraCI); tóm tắt can thiệp và thời gian xử lý của bộ điều khiển; số xe chưa chèn được vào mạng (cuối lần chạy và lớn nhất); số cảnh báo và lỗi; và cờ \texttt{valid\_strict}, chỉ đúng khi không có teleport và không có va chạm nào. Một hàm riêng đánh giá tính đủ điều kiện của lần chạy theo các ngưỡng trong cấu hình thí nghiệm. Mô-đun đầu ra đọc đầu ra SUMO (cả \texttt{.xml} và \texttt{.xml.gz}) trong một lượt duyệt dữ liệu quỹ đạo và ghi bảy bảng theo lược đồ quan sát: số đếm rẽ, sự kiện đèn, lượt qua vạch dừng, ảnh chụp hàng chờ, vị trí ngang, hàng chờ giữa nút và lượt đi qua nút.
+
+\textbf{Gói \texttt{proxy} và \texttt{metrics}.} Bộ sinh dữ liệu đại diện tạo, với mỗi ngày, bảy bảng CSV cùng một tệp manifest và tệp tuyến tương ứng; nó không đọc đầu ra SUMO. Gói chỉ số gồm một mô-đun dùng chung và một mô-đun cho mỗi chỉ số trong Bảng~\ref{table:3.3}; gói này đang được viết, chưa được commit, và hàm khoảng cách mà nó cần chưa tồn tại.
+
+\section{Thiết kế chi tiết}
+
+\subsection{Thiết kế giao diện}
+
+\subsection{Thiết kế lớp}
+
+Mỗi luật TraCI là một lớp con của lớp cơ sở \texttt{Rule}. Lớp cơ sở giữ tham số của luật, tập mã vType áp dụng, thông tin nút giao, lớp bao lệnh và bộ sinh số ngẫu nhiên, cùng một từ điển các can thiệp đang diễn ra (mỗi phần tử ghi mã xe, hành động, thời điểm bắt đầu, speed mode gốc nếu đã bị thay đổi và cờ cho biết tốc độ đang bị ghi đè). Phương thức trừu tượng \texttt{on\_step} nhận ảnh chụp trạng thái của bước hiện tại và trả về danh sách các can thiệp đã có kết quả trong bước đó. Lớp cơ sở cung cấp các thao tác dùng chung: kiểm tra xe có thuộc phạm vi luật và đang rảnh hay không, bắt đầu can thiệp, hoàn tác ghi đè (trả tốc độ về cho SUMO quyết định và khôi phục speed mode gốc), kết thúc can thiệp với kết quả và lý do, và đóng mọi can thiệp còn dang dở khi lần chạy kết thúc với lý do \texttt{run\_ended}. Khi SUMO báo speed mode khác với giá trị bộ điều khiển vừa đặt, lớp bao lệnh báo lỗi \texttt{ModeNotRestoredError} thay vì bỏ qua.
+
+Kết quả của một can thiệp là một bản ghi bất biến gồm bảy trường: thời điểm phát lệnh, mã xe, loại luật, hành động, cờ thực thi (phản ứng quan sát được của SUMO, định nghĩa riêng cho từng luật), lý do không thực thi (rỗng nếu đã thực thi) và thời điểm kết quả được xác định. Mỗi bản ghi là một dòng của \texttt{interventions.csv}.
+
+\subsection{Thiết kế cơ sở dữ liệu}
+
+\section{Xây dựng ứng dụng}
+
+\subsection{Thư viện và công cụ sử dụng}
+
+Bảng~\ref{table:4.3} liệt kê các công cụ và thư viện. Với các thư viện Python, cột phiên bản ghi ràng buộc phiên bản tối thiểu khai báo trong cấu hình gói của dự án; phiên bản thực tế đã cài trong môi trường chạy chưa được ghi lại \textbf{[TODO: ghi phiên bản đã cài từ môi trường ảo]}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{5.0cm}|p{4.2cm}|p{3.6cm}|}
+\hline
+\textbf{Mục đích} & \textbf{Công cụ} & \textbf{Phiên bản} \\ \hline
+Mô phỏng vi mô, dựng mạng, sinh tuyến & SUMO (\texttt{sumo}, \texttt{sumo-gui}, \texttt{netconvert}, \texttt{routeSampler})~\cite{lopez2018sumo} & 1.27.0 \\ \hline
+Điều khiển SUMO từ Python, chạy hàng loạt & \texttt{libsumo}, \texttt{sumo-data} & 1.27.0 \\ \hline
+Điều khiển SUMO qua giao diện đồ họa, đọc mạng & \texttt{traci}, \texttt{sumolib} (lấy từ thư mục cài đặt SUMO) & Cùng phiên bản SUMO (1.27.0) \\ \hline
+Ngôn ngữ lập trình & Python (môi trường ảo) & 3.12 \\ \hline
+Đọc cấu hình & \texttt{pyyaml} & $\geq$ 6.0 \\ \hline
+Tính toán số, xử lý bảng, thống kê & \texttt{numpy}, \texttt{pandas}, \texttt{scipy} & $\geq$ 1.26; $\geq$ 2.1; $\geq$ 1.11 \\ \hline
+Đọc và ghi XML & \texttt{lxml} & $\geq$ 5.0 \\ \hline
+Vẽ hình & \texttt{matplotlib} & $\geq$ 3.8 \\ \hline
+Kiểm tra đặc tả theo lược đồ JSON & \texttt{jsonschema} & $\geq$ 4.20 \\ \hline
+Chuyển tọa độ kinh vĩ độ sang tọa độ mạng & \texttt{pyproj} & $\geq$ 3.6 \\ \hline
+Kiểm thử tự động & \texttt{pytest} & $\geq$ 8.0 \\ \hline
+Gọi LLM qua giao diện tương thích OpenAI (dự kiến) & \texttt{openai} & $\geq$ 1.30 \\ \hline
+Tối ưu tham số B2 (dự kiến)~\cite{akiba2019optuna} & \texttt{optuna} & $\geq$ 3.5 \\ \hline
+Chạy LLM cục bộ (đã cài, dự kiến dùng) & Ollama, mô hình \texttt{qwen3.5:9b} & Ollama 0.40.10 \\ \hline
+Quản lý phiên bản mã & Git & \textbf{[TODO]} \\ \hline
+\end{tabular}
+\caption{Thư viện và công cụ sử dụng}
+\label{table:4.3}
+\end{table}
+
+Thư viện \texttt{traci} và \texttt{sumolib} không được cài từ kho PyPI mà được nạp từ thư mục công cụ của bản cài SUMO, để luôn khớp với tệp thực thi SUMO. Gói \texttt{libsumo} và \texttt{sumo-data} được cài không kèm phụ thuộc, vì phụ thuộc khai báo của chúng kéo theo \texttt{traci} và \texttt{sumolib} phiên bản khác từ PyPI và che mất bản đi kèm SUMO. Hai backend được kiểm tra cho kết quả giống nhau bằng một kiểm thử riêng (Mục~\ref{section:testing}). Mô hình LLM đích theo kế hoạch là một mô hình lớn hơn; mô hình \texttt{qwen3.5:9b} được chọn tạm thời cho phần cứng hiện có, và cấu hình LLM của dự án vẫn để trống mô hình, mức lượng tử hóa, nhiệt độ và số mẫu \textbf{[TODO: chốt mô hình LLM]}.
+
+\subsection{Kết quả đạt được}
+
+Công việc được chia thành 15 hạng mục. Bảng~\ref{table:4.4} tóm tắt sản phẩm và trạng thái của từng hạng mục tại thời điểm viết.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.8cm}|p{9.6cm}|p{2.6cm}|}
+\hline
+\textbf{\#} & \textbf{Sản phẩm} & \textbf{Trạng thái} \\ \hline
+1 & Đọc cấu hình; tệp cấu hình hiện trường đại diện có nguồn và mức bằng chứng cho từng giá trị & Hoàn thành \\ \hline
+2 & Mạng mô phỏng sinh bằng script từ OSM và tệp vá; bảng cạnh; sơ đồ mạng & Hoàn thành \\ \hline
+3 & vType B0, sinh demand, cấu hình SUMO và các đầu ra & Hoàn thành \\ \hline
+4 & Trình chạy, manifest, chuyển đầu ra sang lược đồ quan sát & Hoàn thành \\ \hline
+4b & Sửa bề rộng làn ra; tắt mặc định thiết bị đo chỉ số an toàn thay thế (SSM) của SUMO, gộp cảnh báo; chạy lại B0 trên dữ liệu đại diện & Hoàn thành \\ \hline
+5 & Thí nghiệm khả thi về xe chờ giữa nút; quyết định dùng cơ chế sẵn có của SUMO & Hoàn thành \\ \hline
+6 & Bảng giá trị mục tiêu và bộ sinh dữ liệu đại diện PROXY\_D1--PROXY\_D5 & Hoàn thành \\ \hline
+7 & Miền tham số, lược đồ đặc tả luật, bộ kiểm tra hợp lệ, đặc tả B1 & Hoàn thành \\ \hline
+8 & Bộ biên dịch đặc tả & Hoàn thành \\ \hline
+9 & Bộ điều khiển TraCI và năm luật có điều kiện & Hoàn thành \\ \hline
+10 & Các chỉ số M1--M8, G0 và hàm khoảng cách & Đang triển khai \\ \hline
+11 & Khung đánh giá chung và bộ đếm ngân sách số lần chạy & Dự kiến \\ \hline
+12 & Gọi LLM, prompt, phản hồi & Dự kiến \\ \hline
+13 & Vòng lặp LLM ba vòng & Dự kiến \\ \hline
+14 & Phương án đối sánh B2 bằng Optuna & Dự kiến \\ \hline
+15 & Đánh giá cuối và báo cáo & Dự kiến \\ \hline
+\end{tabular}
+\caption{Các hạng mục và trạng thái}
+\label{table:4.4}
+\end{table}
+
+Thống kê kích thước mã nguồn chưa được tổng hợp \textbf{[TODO: số tệp và số dòng mã của từng gói]}.
 
 \subsection{Minh họa các chức năng chính}
-Sinh viên lựa chọn và đưa ra màn hình cho các chức năng chính, quan trọng, và thú vị nhất. Mỗi giao diện cần phải có lời giải thích ngắn gọn. Khi giải thích, sinh viên có thể kết hợp với các chú thích ở trong hình ảnh giao diện.
+
+Quá trình dựng mạng sinh ra một sơ đồ mạng dạng SVG, và thí nghiệm về xe chờ giữa nút sinh hai hình về số xe trong vùng chờ và vị trí ngang của các xe chờ \textbf{[TODO: chuyển sơ đồ mạng và hai hình của thí nghiệm vùng chờ sang PNG, chèn vào mục này kèm chú thích]}. Ảnh chụp \texttt{sumo-gui} khi xe chờ giữa nút cũng đã được ghi nhận trong quá trình điều tra va chạm \textbf{[TODO: bổ sung ảnh chụp sumo-gui]}.
 
 \section{Kiểm thử}
-Phần này có độ dài từ hai đến ba trang. Sinh viên thiết kế các trường hợp kiểm thử cho hai đến ba chức năng quan trọng nhất. Sinh viên cần chỉ rõ các kỹ thuật kiểm thử đã sử dụng. Chi tiết các trường hợp kiểm thử khác, nếu muốn trình bày, sinh viên đưa vào phần phụ lục.
-Sinh viên sau cùng tổng kết về số lượng các trường hợp kiểm thử và kết quả kiểm thử. Sinh viên cần phân tích lý do nếu kết quả kiểm thử không đạt.
+\label{section:testing}
+
+Kiểm thử tự động dùng \texttt{pytest}. Phần lớn kiểm thử chạy trên dữ liệu nhỏ dựng tay hoặc trên các mạng chữ thập tí hon, với giá trị kỳ vọng tính độc lập với mã được kiểm thử; một số kiểm thử chạy SUMO thật trong thời gian ngắn. Bảng~\ref{table:4.5} tóm tắt các bộ kiểm thử.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{3.6cm}|p{9.4cm}|}
+\hline
+\textbf{Bộ kiểm thử} & \textbf{Nội dung kiểm tra} \\ \hline
+\texttt{test\_env} & \texttt{traci} và \texttt{sumolib} được nạp từ bản cài SUMO và khớp phiên bản tệp thực thi \\ \hline
+\texttt{test\_config} & Trường bắt buộc rỗng gây lỗi nêu tên trường; cấu hình đo thực không bao giờ tự lấy giá trị đại diện \\ \hline
+\texttt{test\_net} & Dựng mạng bằng một lệnh; tệp vá, đèn, bảng cạnh; dựng lại cho kết quả giống từng byte; làn nội bộ có bề rộng bằng làn ra tương ứng \\ \hline
+\texttt{test\_demand} & vType B0, tuyến ứng viên, sinh tuyến từ số đếm rẽ và kiểm tra dữ liệu số đếm \\ \hline
+\texttt{test\_sumocfg} & Tùy chọn SUMO lấy từ cấu hình thí nghiệm, tệp đầu ra, chế độ SSM, gộp cảnh báo, chạy thật ngắn \\ \hline
+\texttt{test\_runner} & Trình chạy, các trường của manifest, chuyển đổi sang lược đồ quan sát, tiêu chí đủ điều kiện \\ \hline
+\texttt{test\_outputs\_\allowbreak synthetic} & Chuyển đổi lược đồ trên đầu ra SUMO viết tay cho mạng chữ thập nhỏ, kết quả kỳ vọng tính tay \\ \hline
+\texttt{test\_proxy} & Tính tất định của bộ sinh dữ liệu đại diện, lược đồ, tính nhất quán nội tại và độ khớp với giá trị mục tiêu \\ \hline
+\texttt{test\_validator} & Miền tham số, tham số luật, các mã lỗi và nội dung thông báo lỗi của bộ kiểm tra hợp lệ \\ \hline
+\texttt{test\_compiler} & Biên dịch B1 khớp từng byte với bản chụp; mọi thuộc tính nằm trong miền; SUMO nạp được với kiểm tra XSD; đặc tả B0 tương đương tệp vType viết tay; mã vType xe báo về khi lấy từ phân phối \\ \hline
+\texttt{test\_runtime} & Mỗi luật một kịch bản trên mạng nhỏ; lệnh bị SUMO bỏ qua được ghi là không thực thi; khôi phục speed mode; tích hợp với trình chạy; giữ xe giữa nút không gây va chạm trong nút; cấm \texttt{ignoreIDs} trong mã nguồn \\ \hline
+\texttt{test\_backends} & \texttt{libsumo} và \texttt{traci} cho quỹ đạo giống hệt nhau với cùng kịch bản và seed \\ \hline
+\texttt{test\_metrics} & Các chỉ số M1--M8, G0 và hàm khoảng cách trên bảng dựng tay (đang viết) \\ \hline
+\end{tabular}
+\caption{Các bộ kiểm thử tự động}
+\label{table:4.5}
+\end{table}
+
+Lần chạy toàn bộ kiểm thử gần nhất được ghi nhận, sau khi hoàn thành bộ điều khiển TraCI, cho kết quả 221 kiểm thử đạt và 1 kiểm thử được đánh dấu là thất bại dự kiến (xfail). Kiểm thử xfail này so sánh tỷ lệ vượt đèn đỏ của ô tô trong dữ liệu đại diện với giá trị mục tiêu: trên năm ngày, tỷ lệ này lệch +18,3\% so với mục tiêu trong khi ngưỡng chấp nhận là $\pm$15\%, do số sự kiện quá ít (khoảng 22 sự kiện trong năm ngày) chứ không do bộ sinh bị lệch. Bộ kiểm thử chỉ số chưa nằm trong lần chạy đó và hiện chưa chạy được, vì nó nhập mô-đun hàm khoảng cách chưa được viết.
+
+Hai kiểm thử có vai trò đặc biệt đối với độ tin cậy của kết quả. Kiểm thử đối chiếu backend đảm bảo việc dùng \texttt{libsumo} để tăng tốc không làm thay đổi kết quả so với \texttt{traci}; ở cấp bộ điều khiển, hai backend cũng cho cùng nhật ký can thiệp. Kiểm thử giữ xe giữa nút chạy trên mạng chữ thập nhỏ có dòng xe cắt ngang và bật kiểm tra va chạm trong nút: giữ xe thuần bằng cách đặt tốc độ bằng 0 không gây va chạm trong nút, còn một đối chứng âm cố ý cho xe cắt ngang bỏ qua xe đang bị giữ thì gây va chạm, nên kiểm thử phát hiện được nếu cách làm sai này quay lại. Script thí nghiệm vùng chờ giữa nút (Mục~\ref{section:box_capacity}) không có kiểm thử tự động.
+
+\section{Thực nghiệm}
+\label{section:experiments}
+
+Mục này trình bày các thực nghiệm đã tiến hành. Tất cả đều chạy trên mạng đại diện (cấu hình hiện trường lấy từ tài liệu và giả định) với vType B0 hoặc B1; chưa có thực nghiệm nào dùng đặc tả do LLM hay Optuna sinh. Với mỗi thực nghiệm, phần quan sát chỉ nêu số liệu, phần diễn giải chỉ dựa trên các số liệu đó, còn các giả thuyết cần kiểm chứng được nêu riêng. Trong mục này, \emph{va chạm/h} là số va chạm SUMO ghi nhận trong một lần chạy quy về một giờ mô phỏng; \emph{teleport kẹt} là số lần SUMO đưa một xe ra khỏi mạng vì xe bị kẹt quá thời gian cho phép (mặc định 300~s) hoặc kẹt khi nhường đường, không tính teleport do va chạm.
+
+\subsection{Thí nghiệm khả thi về xe chờ giữa nút}
+\label{section:box_capacity}
+
+\textbf{Câu hỏi và thiết lập.} Thí nghiệm trả lời câu hỏi: với mô hình làn con SL2015, SUMO 1.27.0 có tự mô phỏng được cảnh xe máy rẽ trái trái phép dừng chờ giữa nút hay không, và chứa được bao nhiêu xe. Nếu sức chứa tối đa của cơ chế sẵn có không nhỏ hơn trung bình mục tiêu của số xe chờ giữa nút (chỉ số M7a, Bảng~\ref{table:3.3}), bằng 6 xe mỗi chu kỳ, thì dùng cơ chế sẵn có; nếu không, phải sửa mạng bằng một cạnh và tín hiệu riêng cho vùng chờ. Thí nghiệm dùng mạng đại diện với chu kỳ đèn 120~s (xanh, vàng, đỏ toàn phần lần lượt 64/4/2~s cho Lê Văn Lương và 44/4/2~s cho Hoàng Đạo Thúy) và vType B0. Demand được tổng hợp riêng cho thí nghiệm, không phải dữ liệu đại diện: dòng đi thẳng đối diện dày gồm 4000 xe máy/h và 700 ô tô/h (không còn khoảng trống trong pha xanh), hoặc vừa phải gồm 1300 xe máy/h và 200 ô tô/h (gần lưu lượng đi thẳng của nhánh đối diện trong các ngày đại diện); mỗi nhánh Hoàng Đạo Thúy có 1200 xe máy/h và 250 ô tô/h đi thẳng. Năm kịch bản khác nhau ở dòng xe vi phạm (Bảng~\ref{table:4.box}): \texttt{sat} với 1500 xe/h làm bão hòa vùng chờ; \texttt{target} với 225 xe/h, tức 7,5 xe vào mỗi chu kỳ theo trung bình mục tiêu; \texttt{sat\_tight} với 1500 xe/h và xe vi phạm có \texttt{minGap} 1,0~m, \texttt{minGapLat} 0,3~m; \texttt{sat\_mg18} với 1500 xe/h và \texttt{minGap} 1,8~m; \texttt{target\_modopp} giống \texttt{target} nhưng với dòng đối diện vừa phải. Mỗi kịch bản chạy 5 seed (1--5), mỗi lần 900~s (7 lần kết thúc pha xanh đối diện), tổng 25 lần chạy. Một bộ quan sát TraCI không can thiệp ghi lại tại mỗi bước 0,1~s vị trí, vị trí ngang, tốc độ của mọi xe trong vùng chờ, trạng thái đèn, teleport và va chạm. Xe được coi là đang dừng khi tốc độ dưới 5~km/h; \emph{sức chứa} là số xe đang dừng lớn nhất trong vùng chờ khi dòng đối diện còn xanh; \emph{thoát sớm} là xe rời vùng chờ qua khe trống trước khi pha xanh đối diện kết thúc, tỷ lệ tính trên số xe vào vùng chờ. Thí nghiệm này chạy trước khi bật kiểm tra va chạm giữa các làn nội bộ cắt nhau.
+
+\begin{table}[H]
+\centering
+\small\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|p{2.3cm}|p{1.5cm}|p{1.3cm}|p{1.2cm}|p{0.9cm}|p{0.9cm}|p{2.4cm}|p{1.6cm}|}
+\hline
+\textbf{Kịch bản} & \textbf{Đối diện (xe/h)} & \textbf{minGap (m)} & \textbf{Chờ TB} & \textbf{p90} & \textbf{Max} & \textbf{Thoát sớm mỗi chu kỳ (tỷ lệ)} & \textbf{Khoảng xả (s)} \\ \hline
+\texttt{sat} & 4700 & 2,5 & 8,00 & 8 & 8 & 0 (0\%) & 0,52 \\ \hline
+\texttt{target} & 4700 & 2,5 & 6,43 & 8 & 8 & 0 (0\%) & 0,68 \\ \hline
+\texttt{sat\_tight} & 4700 & 1,0 & 12,00 & 12 & 12 & 0 (0\%) & 0,51 \\ \hline
+\texttt{target\_\allowbreak modopp} & 1500 & 2,5 & 2,60 & 6 & 7 & 4,17 (62\%) & 0,88 \\ \hline
+\texttt{sat\_mg18} & 4700 & 1,8 & 10,00 & 10 & 10 & 0 (0\%) & 0,52 \\ \hline
+\end{tabular}
+\caption{Xe chờ giữa nút trên vùng chờ rộng 3,2~m (gộp chu kỳ 1--6 của 5 seed, 30 chu kỳ mỗi kịch bản; ``Chờ'' là số xe đang chờ khi pha xanh đối diện kết thúc; ``Khoảng xả'' là khoảng thời gian trung bình giữa hai xe liên tiếp rời vùng chờ)}
+\label{table:4.box}
+\end{table}
+
+\textbf{Quan sát (vùng chờ 3,2~m).} Trong mọi chu kỳ của mọi lần chạy, xe vi phạm dừng chờ trên làn nội bộ rẽ trái, xe đầu dừng cách điểm chờ nội bộ 0,10~m; khi làn này đầy, các xe tiếp theo dừng tại vạch dừng. Với vType B0, sức chứa đo được là 8 xe ở cả 5 seed, xếp thành hai cột ngang ở vị trí ngang khoảng $-1{,}15$~m và từ 0 đến $+0{,}65$~m. Giảm \texttt{minGap} của xe vi phạm xuống 1,8~m và 1,0~m cho sức chứa 10 và 12 xe. Ở kịch bản \texttt{target}, vùng chờ đầy trong 43\% số chu kỳ. Xe chờ đầu tiên rời vùng chờ trung bình 4,7~s sau khi pha xanh đối diện kết thúc; vùng chờ trống sau 8,2~s với 8 xe và 10,4~s với 12 xe. Khi pha xanh Hoàng Đạo Thúy bắt đầu, vẫn còn 3,4 (\texttt{target}) đến 4,6 (\texttt{sat}) xe trong vùng chờ, làm lượt qua vạch đầu tiên của làn 2 nhánh Hoàng Đạo Thúy phía bắc trễ 0,4--1,1~s với B0 và 1,6--2,7~s với 12 xe. Không có kẹt cứng, không có teleport không do va chạm trong cả 25 lần chạy, thời gian lưu lại vùng chờ lớn nhất là 70,4~s. Tổng cộng có 334 va chạm trong 25 lần chạy, chỉ một va chạm có xe vi phạm tham gia; còn lại là giữa các xe đi thẳng cùng dòng.
+
+\textbf{Diễn giải.} Cơ chế điểm chờ nội bộ sẵn có của SUMO tái hiện được hành vi vào nút, dừng chờ, chặn xe sau khi vùng chờ đầy và xả sau khi dòng đối diện dừng, mà không cần tùy chọn hay sửa mạng. Sức chứa do hình học quyết định: số hàng theo công thức $\lfloor (18{,}79 + \text{minGap}) / (2{,}2 + \text{minGap}) \rfloor$, trong đó 18,79~m là vị trí đầu xe dẫn đầu, dự đoán 4, 5 và 6 hàng tại \texttt{minGap} 2,5; 1,8 và 1,0~m, tức 8, 10 và 12 xe với hai cột, đúng như đo được. Vì sức chứa 8 không nhỏ hơn trung bình mục tiêu 6, đồ án chọn dùng cơ chế sẵn có. Tuy nhiên, sức chứa 8 nhỏ hơn phân vị 90 của mục tiêu (10 xe), nên phân phối số xe chờ bị cắt ở 8 với vType B0; đây là vấn đề hiệu chỉnh tham số (\texttt{minGap} của nguyên mẫu \texttt{custom1}) chứ không phải vấn đề mạng. Tỷ lệ thoát sớm phụ thuộc mạnh vào dòng đối diện: 0\% với dòng dày và 62\% với dòng gần mức ngày đại diện, trong khi mục tiêu là 20\% (giả định); do đó ở mức lưu lượng đại diện, tham số cần hiệu chỉnh chủ yếu phải giảm thoát sớm. Các va chạm của xe đi thẳng thuộc vấn đề bề rộng làn trình bày ở Mục~\ref{subsection:exit_width}, không liên quan vùng chờ.
+
+\textbf{Kiểm tra lại trên vùng chờ 3,5~m.} Sau khi bề rộng làn ra được sửa thành 3,5~m (Mục~\ref{subsection:exit_width}), làn nội bộ rẽ trái cũng rộng 3,5~m, nên kịch bản \texttt{target} được chạy lại với 5 seed, mỗi lần 900~s, vẫn chưa bật kiểm tra va chạm giữa các làn nội bộ cắt nhau. Kết quả ở Bảng~\ref{table:4.box_r21}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{1.4cm}|p{3.4cm}|p{3.6cm}|p{2.3cm}|p{1.8cm}|}
+\hline
+\textbf{Seed} & \textbf{Số xe dừng lớn nhất trong vùng chờ} & \textbf{Số xe chờ TB khi hết xanh đối diện} & \textbf{Bề rộng dàn ngang (m)} & \textbf{Va chạm} \\ \hline
+1 & 13 & 6,86 & 2,60 & 0 \\ \hline
+2 & 8 & 6,00 & 2,60 & 0 \\ \hline
+3 & 8 & 6,57 & 2,60 & 0 \\ \hline
+4 & 7 & 4,86 & 2,50 & 1 \\ \hline
+5 & 10 & 6,86 & 2,60 & 0 \\ \hline
+\end{tabular}
+\caption{Kiểm tra lại kịch bản \texttt{target} trên vùng chờ rộng 3,5~m (vType B0, 900~s mỗi seed)}
+\label{table:4.box_r21}
+\end{table}
+
+\textbf{Quan sát.} Số xe dừng lớn nhất là 13, 8, 8, 7 và 10 theo seed 1--5, xếp thành ba cột ngang thay vì hai; số va chạm mỗi lần chạy là 0--1, so với 10--24 trên vùng chờ 3,2~m ở cùng kịch bản. Mục tiêu M7a có trung bình 6,0, phân vị 90 bằng 10 và phân vị 95 bằng 11.
+
+\textbf{Diễn giải.} Trên vùng chờ 3,5~m, sức chứa không còn là cận trên thấp hơn mục tiêu: giá trị 13 ở seed 1 đã vượt phân vị 95. Quyết định dùng cơ chế sẵn có vẫn giữ nguyên. Các kết luận về sức chứa và tỷ lệ thoát sớm ở trên đo trên vùng chờ 3,2~m; riêng tỷ lệ thoát sớm chưa được đo lại trên vùng chờ 3,5~m với nhiều seed.
+
+\textbf{Giả thuyết cần kiểm chứng.} Sức chứa phụ thuộc trực tiếp vào hình học vùng chờ (chiều dài làn nội bộ, vị trí điểm chờ, bề rộng làn), vốn đang lấy từ tiêu chuẩn thiết kế chứ không phải đo đạc. Khi có hình học đo thực, thí nghiệm cần chạy lại; nếu sức chứa khi đó nhỏ hơn mục tiêu thì phương án sửa mạng cần được xem xét lại.
+
+\subsection{Ảnh hưởng của bề rộng làn ra đến va chạm}
+\label{subsection:exit_width}
+
+\textbf{Thiết lập.} Trong phiên bản mạng đầu tiên, cấu hình đại diện chỉ đặt bề rộng 3,5~m cho làn vào; làn ra giữ giá trị mặc định 3,2~m của \texttt{netconvert}, không có nguồn. Cấu hình B0 được chạy trên dữ liệu SYNTHETIC (chỉ dùng để thử đường ống) và trên PROXY\_D1, mỗi trường hợp 3 seed, khi chưa bật kiểm tra va chạm giữa các làn nội bộ cắt nhau. Lần chạy PROXY\_D1 dùng trực tiếp tệp thực thi SUMO, không ghi dữ liệu quỹ đạo, SSM và detector, vì trình chạy khi đó dừng giữa chừng do thiết bị SSM ghi quá nhiều cảnh báo.
+
+\textbf{Quan sát.} Số va chạm/h theo seed 1, 2, 3 là 5, 16, 10 trên SYNTHETIC và 62, 52, 46 trên PROXY\_D1. Trong 31 va chạm của các lần chạy SYNTHETIC, 20 xảy ra khi xe đi vào nút, 8 ở cuối làn gần vạch dừng và 3 là va chạm làn con khi chuyển làn cách vạch dừng 16--18~m. Thử nghiệm với làn ra rộng 3,5~m giảm tổng số va chạm từ 31 xuống 2 trên SYNTHETIC và từ 160 xuống 10 trên PROXY\_D1; tuy nhiên trên PROXY\_D1, số teleport kẹt khi đó là 18, 32 và 10 theo seed. Các yếu tố khác được thử từng yếu tố một: độ phân giải làn con 0,2~m cho 40 va chạm, 0,8~m cho 12 va chạm; bật kiểm tra va chạm trong nút làm số va chạm tăng từ 31 lên 86.
+
+\textbf{Diễn giải.} \texttt{netconvert} gán cho làn nội bộ bề rộng của làn ra. Xe máy trong mô hình làn con có thể đi sát vạch làn (vị trí ngang tới $\pm$1,5~m), nên khi đi từ làn vào 3,5~m sang làn nội bộ 3,2~m mà tâm các làn vẫn cách nhau 3,5~m, các xe máy đi song song chồng lấn nhau. Đây là sản phẩm phụ của một giá trị mặc định do chính mô hình để lại, không phải hành vi giao thông. Cách sửa là khai báo danh sách làn ra trong cấu hình hiện trường với bề rộng bằng làn vào (3,5~m, theo tiêu chuẩn thiết kế đường đô thị \textbf{[TODO: trích dẫn TCVN 13592:2022]}), kèm một kiểm thử khẳng định mọi làn nội bộ có bề rộng bằng làn ra tương ứng. Sau khi sửa, cả 56 làn của mạng rộng 3,5~m. Một lần chạy kiểm tra 600~s trên PROXY\_D1, seed 1, tắt SSM cho 0 va chạm và 0 teleport trên mạng mới, so với 8 va chạm và 8 teleport (đều do va chạm) trên mạng cũ.
+
+\textbf{Giả thuyết cần kiểm chứng.} Kết quả này cho thấy số va chạm của mô hình làn con rất nhạy với bề rộng làn nội bộ. Trên mạng có bề rộng đo thực, nếu làn vào và làn ra khác nhau, va chạm kiểu này có thể xuất hiện lại; khi đó cần báo cáo như một giới hạn của mô hình làn con chứ không coi là hành vi thực.
+
+\subsection{Cấu hình cơ sở B0 trên dữ liệu đại diện}
+\label{subsection:b0_proxy}
+
+\textbf{Thiết lập.} Sau khi sửa bề rộng làn ra, B0 được chạy trên ba ngày hiệu chỉnh PROXY\_D1--PROXY\_D3, mỗi ngày 3 seed (1, 2, 3), mỗi lần 1800~s (thay vì 3600~s, vì một lần chạy PROXY\_D1 3600~s mất hơn 20 phút), tắt thiết bị SSM. Các lần chạy này thực hiện \emph{trước} khi đồ án quyết định bật kiểm tra va chạm trong nút cho mọi lần chạy, nên số va chạm không bao gồm va chạm giữa các làn nội bộ cắt nhau. Bảng~\ref{table:4.b0} dùng các đại lượng: teleport kẹt (định nghĩa ở đầu Mục~\ref{section:experiments}); số xe chưa chèn được vào mạng khi kết thúc; cờ \texttt{valid\_strict} (không có teleport và va chạm nào); và tỷ lệ ô có GEH $<5$ của cổng G0 (Bảng~\ref{table:3.3}) tính trên 62 ô theo 15 phút $\times$ nhánh $\times$ hướng $\times$ loại xe, cùng tỷ lệ tương ứng khi gộp loại xe (ô theo nhánh $\times$ hướng).
+
+\begin{table}[H]
+\centering
+\small\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|p{1.3cm}|p{0.9cm}|p{1.5cm}|p{1.6cm}|p{1.8cm}|p{1.8cm}|p{1.6cm}|p{1.7cm}|}
+\hline
+\textbf{Ngày} & \textbf{Seed} & \textbf{Va chạm/h} & \textbf{Teleport kẹt} & \textbf{Xe chưa chèn cuối} & \textbf{valid\_\allowbreak strict} & \textbf{GEH$<$5 (ô)} & \textbf{GEH$<$5 (nhánh $\times$ hướng)} \\ \hline
+D1 & 1 & 2 & 14 & 161 & Không & 0,919 & 0,844 \\ \hline
+D1 & 2 & 0 & 22 & 0 & Không & 0,952 & 0,875 \\ \hline
+D1 & 3 & 2 & 10 & 0 & Không & 1,000 & 0,969 \\ \hline
+D2 & 1 & 2 & 22 & 0 & Không & 1,000 & 1,000 \\ \hline
+D2 & 2 & 6 & 23 & 0 & Không & 1,000 & 0,969 \\ \hline
+D2 & 3 & 0 & 2 & 0 & Không & 1,000 & 1,000 \\ \hline
+D3 & 1 & 0 & 0 & 0 & Có & 1,000 & 1,000 \\ \hline
+D3 & 2 & 2 & 11 & 0 & Không & 0,984 & 0,906 \\ \hline
+D3 & 3 & 0 & 0 & 0 & Có & 1,000 & 1,000 \\ \hline
+\end{tabular}
+\caption{B0 trên PROXY\_D1--PROXY\_D3 (1800~s, chưa bật kiểm tra va chạm trong nút, tắt SSM)}
+\label{table:4.b0}
+\end{table}
+
+\textbf{Quan sát.} Số va chạm/h của 9 lần chạy là 2, 0, 2, 2, 6, 0, 0, 2, 0 (trung bình 1,56); với thời lượng 1800~s, mỗi va chạm tương ứng 2 va chạm/h. So với 46--62 va chạm/h trên mạng làn ra 3,2~m, mức va chạm đã giảm mạnh. Tuy nhiên, 7/9 lần chạy có teleport kẹt và chỉ hai lần chạy (PROXY\_D3 seed 1 và 3) đạt \texttt{valid\_strict}; lần chạy PROXY\_D1 seed 1 kết thúc với 161 xe chưa chèn được vào mạng. Mọi teleport kẹt đều là xe máy; chúng xảy ra thành cụm trong cùng giây, lần đầu hầu như luôn ở vạch dừng làn 2 (làn dùng chung cho đi thẳng, rẽ trái và rẽ phải) của nhánh Lê Văn Lương phía tây rồi lan sang các liên kết làn 2 trong nút. PROXY\_D1 có nhu cầu cao hơn PROXY\_D2 và PROXY\_D3 khoảng 20\% (4556, 3765 và 3857 xe trong 1800~s). Tỷ lệ ô GEH $<5$ theo loại xe nằm trong khoảng 0,919--1,000, đều vượt ngưỡng 0,85; ở mức nhánh $\times$ hướng, tỷ lệ này là 0,844--1,000, giá trị thấp nhất thuộc lần chạy còn xe chưa chèn.
+
+\textbf{Thí nghiệm một yếu tố.} Trên PROXY\_D1 với 3 seed, loại bỏ 217 xe rẽ trái trái phép (2,4\% số xe) làm tổng số teleport còn 0, 0 và 3; loại bỏ mọi xe rẽ trái cho 0, 3 và 2 teleport và không còn teleport kẹt; còn giảm \texttt{minGap} xuống 1,5~m làm kết quả xấu hơn (68 và 103 teleport ở seed 1 và 2).
+
+\textbf{Diễn giải.} Nguyên nhân chính gây kẹt của B0 trên dữ liệu đại diện là các xe máy rẽ trái trái phép chờ giữa nút với vType mặc định, khiến làn 2 của nhánh có xe vi phạm bị tắc. Đây là một phát hiện về hành vi của cấu hình mặc định chứ không phải lỗi mạng, nên mạng không được vá thêm; giảm tình trạng kẹt này là một mục tiêu cải thiện mà các bộ luật hiệu chỉnh cần đạt. Tỷ lệ GEH cao chỉ cho thấy nút phục vụ được nhu cầu đại diện: các số ``quan sát'' đại diện và tệp tuyến cùng được sinh từ một bộ sinh, nên G0 ở đây không phải bằng chứng về độ thực tế.
+
+\textbf{Giới hạn về điều kiện chạy.} Từ 9 tỷ lệ va chạm trên, ngưỡng va chạm cho phép từng được đặt bằng $\max(2, \lceil p_{90} \rceil) = 3$ va chạm/h (với $p_{90} = 2{,}8$). Ngưỡng này \emph{đã bị hủy} khi đồ án quyết định bật kiểm tra va chạm trong nút cho mọi lần chạy, vì khi tắt kiểm tra, va chạm giữa xe đang chờ giữa nút và dòng cắt ngang không được đếm; hai ngưỡng mới (va chạm trên làn và trong nút) đang được tính lại từ B0 với kiểm tra bật \textbf{[TODO: cập nhật ngưỡng và bảng B0 khi có kết quả chạy lại với kiểm tra va chạm trong nút]}. Do đó, các số va chạm trong Bảng~\ref{table:4.b0} không dùng để so sánh với các cấu hình chạy sau quyết định này. Toàn bộ kết quả trong mục chỉ phản ánh hành vi của mô hình trên dữ liệu đại diện và chỉ bao phủ nửa giờ đầu của khung cao điểm.
+
+\subsection{Kiểm tra chức năng bộ luật thủ công B1}
+\label{subsection:b1_check}
+
+\textbf{Thiết lập.} Đặc tả B1 (tham số vType chuyển từ Saval và cộng sự~\cite{saval2023mixed}, kèm luật vượt đèn đỏ theo đoàn với $p_0 = p_{\max} = 0{,}5$, $k = 0$ và luật xuất phát sớm với $p = 0$) được chạy một lần 600~s trên PROXY\_D1, seed 1, đã bật kiểm tra va chạm trong nút, trên máy đang chạy song song các tác vụ khác. Lần chạy này nhằm kiểm tra bộ điều khiển hoạt động đúng trong trình chạy, không phải một đánh giá; chưa có lần chạy B0 cùng điều kiện để so sánh.
+
+\textbf{Quan sát.} Khi chỉ dùng vType B1 và khi thêm bộ điều khiển với các luật không bao giờ kích hoạt, hai lần chạy cho cùng kết quả: 0 va chạm trên làn, 7 va chạm trong nút, 11 teleport trong đó 4 không do va chạm; quỹ đạo giống hệt nhau (628 bản ghi chuyến đi, so sánh không có khác biệt). Với đầy đủ B1 (luật vượt đỏ theo đoàn và xuất phát sớm), lần chạy có 0 va chạm trên làn, 13 va chạm trong nút (1 va chạm liên quan xe đang chịu can thiệp) và 13 teleport, không teleport nào không do va chạm. Luật vượt đỏ theo đoàn đưa ra 80 quyết định, 53 được SUMO thực thi, 27 không thực thi vì pha đỏ đã kết thúc trước khi xe qua vạch; luật xuất phát sớm với $p = 0$ không tạo can thiệp nào qua 69 lần rút ngẫu nhiên. Thời gian xử lý của bộ điều khiển là 3--7~s cho mỗi 600~s mô phỏng.
+
+\textbf{Diễn giải.} Bộ điều khiển không làm thay đổi quỹ đạo khi không có luật nào kích hoạt, ghi nhận đúng các lệnh bị SUMO bỏ qua, và có chi phí tính toán nhỏ. Các số va chạm và teleport chỉ đến từ một seed, 600~s, nên không được dùng để kết luận về chất lượng của B1.
+
+\subsection{Các thực nghiệm dự kiến}
+\label{subsection:planned_experiments}
+
+Các thực nghiệm sau chưa được thực hiện. Trước tiên, hai ngưỡng va chạm sẽ được tính lại và cố định từ B0 trên PROXY\_D1--PROXY\_D3 với 3 seed và kiểm tra va chạm trong nút bật, trước vòng LLM đầu tiên, để ngưỡng không phụ thuộc kết quả của LLM (dự kiến). Vòng lặp LLM dự kiến chạy ba vòng, mỗi vòng sinh 4 đặc tả và chạy mỗi đặc tả với 3 seed trên các ngày hiệu chỉnh, tổng ngân sách 36 lần chạy SUMO; đặc tả không hợp lệ không tốn lần chạy vì bị bộ kiểm tra chặn trước. Phương án B2 dùng Optuna với cùng không gian tham số, cùng hàm mục tiêu và cùng ngân sách 36 lần chạy (12 thử nghiệm $\times$ 3 seed) (dự kiến). Đánh giá cuối dự kiến chạy B0, B1, B2 và P trên hai ngày đánh giá PROXY\_D4--PROXY\_D5 với 20 seed, so sánh từng cặp bằng kiểm định Mann--Whitney có hiệu chỉnh Holm và kích thước hiệu ứng Cliff's delta, kèm một lần chạy chẩn đoán 3600~s $\times$ 3 seed cho B0 và P trên PROXY\_D4. Nếu còn thời gian, đồ án dự kiến thực hiện thêm phân tích loại bỏ (ablation) bằng cách tắt lần lượt từng luật TraCI hoặc từng nhóm tham số, và kịch bản chính sách với lưu lượng rẽ trái trái phép bằng 0\%, 50\% và 100\% mức quan sát, đo độ trễ và số xung đột; kịch bản chính sách sẽ được ghi rõ là ngoại suy. Ngân sách số lần chạy, trọng số của điểm tổng và mô hình LLM vẫn chưa được chốt trong cấu hình \textbf{[TODO]}.
+
 \section{Triển khai}
-Sinh viên trình bày mô hình và/hoặc cách thức triển khai thử nghiệm/thực tế. Ứng dụng của sinh viên được triển khai trên server/thiết bị gì, cấu hình như thế nào. Kết quả triển khai thử nghiệm nếu có (số lượng người dùng, số lượng truy cập, thời gian phản hồi, phản hồi người dùng, khả năng chịu tải, các thống kê, v.v.)
+
+Hệ thống chạy trên một máy Windows \textbf{[TODO: cấu hình phần cứng của máy chạy thực nghiệm (CPU, RAM, GPU)]} với SUMO 1.27.0 cài đặt sẵn và biến môi trường \texttt{SUMO\_HOME} trỏ tới thư mục cài đặt. Môi trường Python là một môi trường ảo tạo bằng Python 3.12. Gói dự án được cài ở chế độ có thể chỉnh sửa kèm nhóm phụ thuộc phát triển; \texttt{libsumo} và \texttt{sumo-data} phiên bản 1.27.0 được cài không kèm phụ thuộc; một tệp đường dẫn trong môi trường ảo đưa thư mục công cụ của SUMO vào đường dẫn tìm mô-đun để nạp \texttt{traci} và \texttt{sumolib}. Toàn bộ kiểm thử chạy bằng \texttt{pytest} từ thư mục gốc của dự án.
+
+Quy trình tái lập gồm các lệnh mô-đun Python theo thứ tự của Bảng~\ref{table:4.2}: \texttt{thesis\_sumo.net.build} với tệp cấu hình hiện trường đại diện để dựng mạng; \texttt{thesis\_sumo.proxy.generate} để sinh năm ngày dữ liệu đại diện và tệp tuyến tương ứng; \texttt{thesis\_sumo.rules.compiler} để biên dịch một đặc tả (bắt buộc truyền tệp cấu hình hiện trường đại diện, vì cấu hình đo thực chưa có bề rộng làn); và \texttt{thesis\_sumo.sim.runner} để chạy mô phỏng, với các tham số mã đặc tả, ngày, danh sách seed, tệp cấu hình hiện trường, thời điểm kết thúc, số tiến trình song song, chế độ SSM và tùy chọn mở \texttt{sumo-gui}. Thí nghiệm vùng chờ giữa nút có script riêng với tùy chọn chỉ phân tích lại các lần chạy đã có.
+
+Mỗi lần chạy ghi vào một thư mục riêng theo dạng \texttt{experiments/\allowbreak runs/\allowbreak <spec\_id>\_\_<day>/\allowbreak seed\_XX/}, với \texttt{spec\_id} là mã đặc tả, \texttt{day} là ngày dữ liệu và \texttt{XX} là seed; thư mục của seed bị xóa và tạo lại nếu chạy lại. Thư mục gồm tệp cấu hình \texttt{run.sumocfg} và tệp khai báo đầu ra, các đầu ra của SUMO (thông tin chuyến đi, quỹ đạo nén, chuyển làn, thống kê, va chạm, trạng thái đèn, detector), nhật ký \texttt{sumo.log}, tệp \texttt{vtypes.json} ghi các vType SUMO đã nạp, \texttt{interventions.csv} nếu có luật TraCI, \texttt{manifest.json} với các trường nêu ở Mục~\ref{subsection:package_design}, và thư mục các bảng CSV theo lược đồ quan sát. Các đầu ra thô không được đưa vào kho mã; kho mã chỉ lưu mã, cấu hình, tệp vá, mạng đã sinh, dữ liệu đại diện và các bảng kết quả nhỏ. Thời gian thực của một lần chạy B0 1800~s trên dữ liệu đại diện, khi chạy 3 lần song song, là 88--463~s.
 
 \end{document}

@@ -1,15 +1,153 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
-Chương này có độ dài không quá 10 trang. Nếu cần trình bày dài hơn, sinh viên đưa vào phần phụ lục. Chú ý đây là kiến thức đã có sẵn; SV sau khi tìm hiểu được thì phân tích và tóm tắt lại. Sinh viên không trình bày dài dòng, chi tiết. 
+% Nguồn số liệu của chương: repo SUMO (PLAN.md, config/*.yaml, rules/bounds/param_bounds.yaml,
+% src/thesis_sumo/rules/schema.py, docs/PROGRESS.md). Các mục [TODO] cần bổ sung trước khi nộp.
 
-Với đồ án ứng dụng, sinh viên để tên chương là “Nền tảng lý thuyết và Công nghệ sử dụng”. Trong chương này, sinh viên giới thiệu về các công nghệ, nền tảng lý thuyết sử dụng trong đồ án. Sinh viên cũng có thể trình bày thêm nền tảng lý thuyết nào đó nếu cần dùng tới.
+Chương này trình bày phương pháp hiệu chỉnh hành vi tài xế cho mô phỏng vi mô giao thông hỗn hợp ô tô -- xe máy, trong đó một mô hình ngôn ngữ lớn (LLM) chạy cục bộ sinh và tinh chỉnh lặp một bộ luật hành vi, còn trình mô phỏng SUMO~\cite{lopez2018sumo} cùng một bộ điều khiển TraCI chịu trách nhiệm thực thi các luật đó. Mục~\ref{section:3.1} mô tả kiến trúc tổng thể và trạng thái triển khai của từng thành phần. Các mục tiếp theo lần lượt trình bày kịch bản và mạng mô phỏng, cách biểu diễn luật, cơ chế kiểm tra hợp lệ và biên dịch, bộ điều khiển thực thi luật, dữ liệu mục tiêu, hệ thống chỉ số đánh giá, và quy trình hiệu chỉnh cùng các phương án đối sánh.
 
-Với từng công nghệ/nền tảng/lý thuyết được trình bày, sinh viên phải phân tích rõ công nghệ/nền tảng/lý thuyết đó dùng để để giải quyết vấn đề/yêu cầu cụ thể nào ở Chương 2. Hơn nữa, với từng vấn đề/yêu cầu, sinh viên phải liệt kê danh sách các công nghệ/hướng tiếp cận tương tự có thể dùng làm lựa chọn thay thế, rồi giải thích rõ sự lựa chọn của mình.
+\section{Tổng quan phương pháp}
+\label{section:3.1}
 
-Lưu ý: Nội dung ĐATN phải có tính chất liên kết, liền mạch, và nhất quán. Vì vậy, các công nghệ/thuật toán trình bày trong chương này phải khớp với nội dung giới thiệu của sinh viên ở phần trước đó. 
+Phương pháp tách biệt hai vai trò. Vai trò thứ nhất là \textbf{sinh và tinh chỉnh luật}: LLM nhận mô tả nút giao, từ điển tham số được phép điều chỉnh và phản hồi từ vòng mô phỏng trước, rồi trả về một đặc tả luật (rule spec) ở định dạng JSON. LLM hoạt động bên ngoài vòng lặp mô phỏng, không điều khiển trực tiếp bất kỳ phương tiện nào theo thời gian thực và không sinh hay chỉnh sửa mạng lưới đường. Vai trò thứ hai là \textbf{thực thi luật}: đặc tả luật được biên dịch thành (i) các tham số tĩnh của kiểu phương tiện (vType) mà SUMO nạp một lần khi khởi tạo mô phỏng, và (ii) các luật có điều kiện được bộ điều khiển TraCI đánh giá tại mỗi bước mô phỏng.
 
-Trong chương này, để tăng tính khoa học và độ tin cậy, sinh viên nên chỉ rõ nguồn kiến thức mình thu thập được ở tài liệu nào, đồng thời đưa tài liệu đó vào trong danh sách tài liệu tham khảo rồi tạo các tham chiếu chéo (xem hướng dẫn ở phụ lục A.7).
+Một vòng hiệu chỉnh gồm các bước: (i) sinh đặc tả luật, (ii) kiểm tra hợp lệ, (iii) biên dịch, (iv) chạy SUMO với nhiều seed, (v) tính các chỉ số trên đầu ra mô phỏng, (vi) so sánh với dữ liệu mục tiêu của các ngày hiệu chỉnh, và (vii) tạo phản hồi cho vòng tiếp theo. Bảng~\ref{table:3.1} tóm tắt trạng thái triển khai của các thành phần tại thời điểm viết.
 
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{6.5cm}|p{7.5cm}|}
+\hline
+\textbf{Thành phần} & \textbf{Trạng thái} \\ \hline
+Mạng lưới tái lập được, demand, cấu hình và trình chạy mô phỏng & Đã triển khai, có kiểm thử tự động \\ \hline
+Thí nghiệm khả thi về xe chờ giữa nút & Đã thực hiện \\ \hline
+Lược đồ đặc tả luật, miền tham số, bộ kiểm tra hợp lệ, bộ biên dịch & Đã triển khai, có kiểm thử tự động \\ \hline
+Bộ điều khiển TraCI với năm luật có điều kiện & Đã triển khai, có kiểm thử tự động \\ \hline
+Các chỉ số M1--M8 và cổng GEH (G0) & Đang triển khai \\ \hline
+Hàm khoảng cách và sàn nhiễu giữa các ngày & Dự kiến \\ \hline
+Vòng lặp LLM & Dự kiến \\ \hline
+Phương án đối sánh Optuna và đánh giá cuối & Dự kiến \\ \hline
+\end{tabular}
+\caption{Trạng thái triển khai các thành phần của phương pháp}
+\label{table:3.1}
+\end{table}
+
+\section{Kịch bản và mạng mô phỏng}
+\label{section:3.2}
+
+\subsection{Phạm vi kịch bản}
+
+Nghiên cứu xét một nút giao có đèn tín hiệu bốn nhánh duy nhất là nút Lê Văn Lương -- Hoàng Đạo Thúy (quận Thanh Xuân, Hà Nội) trong khung giờ cao điểm sáng 07:30--09:00. Dòng xe gồm ô tô (vClass \texttt{passenger}) và xe máy (vClass \texttt{motorcycle}); nhóm xe máy rẽ trái trái phép được tách thành một lớp riêng dùng vClass \texttt{custom1}. Kịch bản không xét người đi bộ, xe buýt, xe tải, hành vi đi ngược chiều, đi trên vỉa hè, đỗ xe dưới lòng đường và hành vi chọn lộ trình.
+
+Tám nhóm hành vi nằm trong phạm vi mô hình hóa gồm: (i) ngưỡng kiên nhẫn và vượt đèn đỏ, (ii) vượt đèn đỏ theo đoàn, (iii) xuất phát sớm trước khi đèn xanh, (iv) khoảng cách ngang nhỏ và lấn chiếm, (v) chấp nhận khoảng trống nhỏ, (vi) đi sai làn để tiến lên khi chờ đèn, (vii) xe máy đi chậm giữa làn, và (viii) rẽ trái trái phép theo kiểu đi vào giữa nút trong pha xanh đi thẳng, dừng chờ, rồi rẽ khi pha đi thẳng của hướng đối diện kết thúc. Hành vi (viii) là kịch bản trọng tâm của đồ án.
+
+\subsection{Xây dựng mạng lưới}
+
+Mạng lưới được sinh hoàn toàn bằng script từ dữ liệu OpenStreetMap đã xuất cho khu vực nút giao: công cụ \texttt{netconvert} giữ lại các tuyến trong bán kính 300~m quanh tâm nút, chỉ giữ các cạnh cho phép ô tô và xe máy, đặt kiểu đèn tĩnh, rồi loại bỏ các nút và đèn phụ trên các nhánh. Mọi điều chỉnh tiếp theo (bề rộng làn, kết nối rẽ, chương trình đèn) được áp dụng qua các tệp vá dạng plain XML sinh từ tệp cấu hình hiện trường, không chỉnh sửa thủ công tệp \texttt{.net.xml}. Nhờ đó, mạng chạy mô phỏng được tái tạo từ đầu bằng một lệnh duy nhất.
+
+Hành vi rẽ trái trái phép được biểu diễn bằng một chỉnh sửa mạng tĩnh duy nhất: trên nhánh cấm rẽ trái, các kết nối rẽ trái hợp lệ bị xóa và được thêm lại với quyền sử dụng chỉ dành cho vClass \texttt{custom1}. Như vậy, chỉ nhóm xe vi phạm có thể thực hiện chuyển động này. Việc dừng chờ giữa nút sử dụng cơ chế điểm chờ nội bộ (internal junction) sẵn có của SUMO. Lựa chọn này dựa trên một thí nghiệm khả thi đo số xe máy có thể cùng dừng chờ trên liên kết rẽ trái bên trong nút với mô hình làn con (sublane); kết quả thí nghiệm được trình bày tại Mục~\ref{section:box_capacity}.
+
+\subsection{Thông số hiện trường}
+
+Tại thời điểm viết, chưa có số liệu đo đạc thực địa: mọi giá trị đo trong tệp cấu hình hiện trường đều đang để trống. Mô phỏng vì vậy sử dụng một cấu hình đại diện, trong đó mỗi giá trị được gắn nguồn và mức bằng chứng (lấy từ tài liệu, chuyển giao từ tài liệu của bối cảnh khác, hoặc giả định). Cấu hình này dùng bề rộng làn 3,5~m cho mọi làn vào và làn ra, chu kỳ đèn 120~s gồm hai pha chính với các trạng thái 64/4/2/44/4/2~s, và giả định nhánh phía tây đường Lê Văn Lương cấm rẽ trái \textbf{[TODO: trích dẫn tiêu chuẩn thiết kế đường đô thị và tiêu chuẩn đèn tín hiệu đã dùng làm nguồn]}. Các giá trị này sẽ được thay bằng số liệu đo khi có dữ liệu thực địa; do đó, đồ án không khẳng định mạng mô phỏng tái hiện đúng hình học hay chương trình đèn thực tế của nút.
+
+\section{Biểu diễn luật hành vi}
+\label{section:3.3}
+
+\subsection{Đặc tả luật}
+
+Một đặc tả luật gồm mã định danh, nguồn gốc (thủ công, LLM hoặc Optuna), thông tin truy vết (mô hình, phiên bản prompt, vòng lặp, chỉ số mẫu) và hai thành phần chính. Thành phần thứ nhất là danh sách các \emph{nguyên mẫu tài xế} (driver archetype); mỗi nguyên mẫu thuộc một vClass cơ sở, có tỷ trọng trong vClass đó, một tập tham số vType và phần giải thích lý do (bắt buộc với đặc tả do LLM sinh). Các nguyên mẫu của cùng một vClass được biên dịch thành một phân phối kiểu phương tiện (\texttt{vTypeDistribution}) và tổng tỷ trọng của chúng phải bằng 1. Thành phần thứ hai là danh sách các luật TraCI có điều kiện, mỗi luật xác định loại luật, các nguyên mẫu áp dụng và các tham số.
+
+\subsection{Tham số tĩnh}
+
+\begin{sloppypar}
+Không gian tham số tĩnh được giới hạn trong một tệp miền giá trị dùng chung cho LLM và Optuna. Mỗi dòng ghi mô hình con của SUMO, đơn vị, cận dưới, cận trên, giá trị mặc định, nhóm hành vi liên quan, các chỉ số có thể ràng buộc tham số đó và đường dẫn tài liệu SUMO xác nhận tên thuộc tính. Không gian hiện gồm các nhóm: bám xe theo mô hình Krauss (\texttt{tau}, \texttt{minGap}, \texttt{accel}, \texttt{decel}, \texttt{sigma}, \texttt{speedFactor}, \texttt{speedDev}); làn con (\texttt{minGapLat}, \texttt{maxSpeedLat}, \texttt{latAlignment}); chuyển làn SL2015 (\texttt{lcSublane}, \texttt{lcPushy}, \texttt{lcPushyGap}, \texttt{lcAssertive}, \texttt{lcImpatience}, \texttt{lcTimeToImpatience}, \texttt{lcMaxSpeedLatStanding}, \texttt{lcSpeedGain}); và nút giao (\texttt{impatience}, \texttt{jmDriveAfterRedTime}, \texttt{jmDriveRedSpeed}, cùng \texttt{jmTimegapMinor} chỉ cho \texttt{custom1}). Thuộc tính không được chỉ số nào ràng buộc được cố định ở giá trị mặc định (\texttt{lcAccelLat}, \texttt{jmDriveAfterYellowTime}); \texttt{jmIgnoreFoeProb} và \texttt{jmIgnoreFoeSpeed} bị loại khỏi không gian tìm kiếm.
+\end{sloppypar}
+
+\subsection{Luật có điều kiện}
+
+Năm loại luật TraCI được định nghĩa trong Bảng~\ref{table:3.2}. Miền giá trị của các tham số là lựa chọn mô hình hóa, chủ yếu ở mức giả định, và được kiểm tra bởi bộ kiểm tra hợp lệ.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{2.6cm}|p{5.2cm}|p{3.3cm}|p{2.1cm}|}
+\hline
+\textbf{Luật} & \textbf{Hành vi} & \textbf{Tham số (miền)} & \textbf{vClass} \\ \hline
+\texttt{early\_\allowbreak start} & Trong $t_{\text{before\_green}}$ giây cuối pha đỏ, xe đầu hàng nhích qua vạch dừng với xác suất $p$, tốc độ không quá $v_{\max}$ & $t_{\text{before\_green}} \in [0,10]$~s; $p \in [0,1]$; $v_{\max} \in [0{,}5;\,5]$~m/s & passenger, motorcycle, custom1 \\ \hline
+\texttt{swarm\_\allowbreak red\_\allowbreak running} & Xác suất vượt đỏ $p = \min(p_0 + k\,n,\ p_{\max})$, với $n$ là số xe đã vượt đỏ trên cùng nhánh trong $\Delta t$ giây gần nhất & $p_0, p_{\max} \in [0,1]$; $k \in [0;\,0{,}5]$~1/xe; $\Delta t \in [1,30]$~s & passenger, motorcycle, custom1 \\ \hline
+\texttt{wrong\_\allowbreak lane\_\allowbreak dodge} & Khi đèn đỏ và hàng chờ ở làn đúng dài hơn $q_{\min}$, xe chuyển sang làn sai để tiến lên với tốc độ không quá $v_{\text{creep}}$ & $q_{\min} \in [5,80]$~m; $v_{\text{creep}} \in [0{,}5;\,5]$~m/s & passenger, motorcycle \\ \hline
+\texttt{illegal\_\allowbreak left\_\allowbreak box} & Giữ thêm xe đang chờ giữa nút một khoảng $\Delta_{\text{release}}$ so với thời điểm SUMO tự giải phóng; không bỏ qua xe xung đột & $\Delta_{\text{release}} \in [0,4]$~s & custom1 \\ \hline
+\texttt{slow\_\allowbreak lane\_\allowbreak center} & Xe máy đi chậm giữ vị trí ngang lệch $\delta$ so với tim làn & $\delta \in [-1,1]$~m & motorcycle \\ \hline
+\end{tabular}
+\caption{Các luật TraCI có điều kiện}
+\label{table:3.2}
+\end{table}
+
+\section{Kiểm tra hợp lệ và biên dịch}
+\label{section:3.4}
+
+Bộ kiểm tra hợp lệ đối chiếu đặc tả với lược đồ JSON, kiểm tra tên thuộc tính có trong miền tham số, giá trị nằm trong khoảng cho phép, tổng tỷ trọng theo từng vClass và tham số của từng loại luật. Ngoài ra, bộ kiểm tra phát hiện các mâu thuẫn logic, chẳng hạn \texttt{minGapLat} lớn hơn bề rộng làn nhỏ nhất, khai báo đồng thời \texttt{lcPushy} và \texttt{lcPushyGap} (khi đó SUMO bỏ qua \texttt{lcPushyGap}), \texttt{lcPushyGap} lớn hơn \texttt{minGapLat}, $p_0 > p_{\max}$, luật áp dụng cho vClass không phù hợp, hoặc luật đi sai làn trên nhánh không có kết nối tương ứng. Kết quả trả về là danh sách lỗi có cấu trúc, phân loại theo mã (\texttt{schema}, \texttt{unknown\_attr}, \texttt{out\_of\_bounds}, \texttt{share\_sum}, \texttt{rule\_params}, \texttt{logic}), để có thể đưa ngược lại cho LLM. Tỷ lệ đặc tả hợp lệ được ghi lại và dự kiến được báo cáo như một chỉ số của vòng lặp LLM.
+
+Bộ biên dịch chuyển một đặc tả hợp lệ thành hai tệp: \texttt{vtypes.add.xml} chứa ba phân phối kiểu phương tiện \texttt{car}, \texttt{moto} và \texttt{moto\_violator} (đều dùng mô hình chuyển làn SL2015), và \texttt{traci\_rules.json} chứa các luật có điều kiện. Tên phân phối khớp với tên được tham chiếu trong tệp demand, nên mọi đặc tả dùng chung một demand.
+
+\section{Bộ điều khiển thực thi luật}
+\label{section:3.5}
+
+Bộ điều khiển TraCI tổ chức mỗi loại luật thành một lớp riêng được gọi tại mỗi bước mô phỏng. Bộ điều khiển dùng cơ chế đăng ký nhận dữ liệu (subscription) thay vì truy vấn từng xe, và chỉ xử lý các xe trong vùng nút giao. Mỗi xe chỉ chịu tối đa một can thiệp tại một thời điểm để các lệnh ghi đè không chồng lên nhau.
+
+Để không vô hiệu hóa các cơ chế an toàn của SUMO, luật vượt đèn đỏ chỉ xóa đúng bit ``phanh để không vượt đèn đỏ'' của speed mode; các bit an toàn khác, trong đó có bit nhường đường cho xe xung đột, được giữ nguyên. Sau can thiệp, bộ điều khiển khôi phục speed mode ban đầu và kiểm tra lại giá trị SUMO trả về. Mỗi can thiệp được ghi vào nhật ký với thời điểm, mã xe, luật, hành động, việc SUMO có thực thi hay không, lý do nếu không thực thi và thời điểm kết thúc. Số va chạm liên quan đến xe đang chịu can thiệp được thống kê riêng trong tệp manifest của mỗi lần chạy.
+
+\section{Dữ liệu mục tiêu}
+\label{section:3.6}
+
+Đồ án dự kiến dùng dữ liệu quan sát trích xuất từ video quay tại nút giao. Một lược đồ dữ liệu quan sát đã được định nghĩa (số đếm rẽ theo 15 phút, sự kiện đèn, lượt qua vạch dừng, ảnh chụp hàng chờ, vị trí ngang, hàng chờ giữa nút) và đầu ra mô phỏng được chuyển sang cùng lược đồ, để cùng một bộ hàm chỉ số áp dụng được cho cả hai nguồn.
+
+\begin{sloppypar}
+Tại thời điểm viết, chưa có dữ liệu video \textbf{[TODO: cập nhật khi có dữ liệu thực]}. Để kiểm thử toàn bộ quy trình, đồ án xây dựng năm ``ngày đại diện'' (PROXY\_D1--PROXY\_D5) được sinh theo từng sự kiện phương tiện từ một bảng giá trị mục tiêu tổng hợp từ tài liệu. Mỗi giá trị mục tiêu được gắn nhãn bằng chứng: lấy từ tài liệu, chuyển giao từ tài liệu của bối cảnh khác, hoặc giả định. Biến động giữa các ngày được tạo bằng hệ số theo ngày đã chuẩn hóa để trung bình năm ngày bằng giá trị mục tiêu danh nghĩa. Ba ngày PROXY\_D1--PROXY\_D3 dùng cho hiệu chỉnh; hai ngày PROXY\_D4--PROXY\_D5 chỉ dùng cho đánh giá cuối, và LLM cũng như Optuna không được thấy thống kê của chúng. Vì dữ liệu mục tiêu không phải quan sát thực, kết quả hiệu chỉnh trên các ngày này chỉ chứng minh khả năng vận hành của quy trình, không chứng minh mức độ tương đồng với giao thông thực tế.
+\end{sloppypar}
+
+\section{Hệ thống chỉ số đánh giá}
+\label{section:3.7}
+
+Mỗi chỉ số là một hàm tính trên dữ liệu theo lược đồ chung, trả về một phân phối hoặc một giá trị vô hướng. Bảng~\ref{table:3.3} liệt kê các chỉ số đang được triển khai. Các chỉ số được tính trong cửa sổ thời gian sau giai đoạn khởi động của mô phỏng \textbf{[TODO: chốt độ dài giai đoạn khởi động và cửa sổ tính chỉ số trong cấu hình]}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{1.0cm}|p{9.0cm}|p{3.2cm}|}
+\hline
+\textbf{Mã} & \textbf{Định nghĩa} & \textbf{Đơn vị / dạng} \\ \hline
+G0 & Cổng lọc: GEH $=\sqrt{2(m-c)^2/(m+c)}$ của số đếm rẽ theo ô 15 phút $\times$ nhánh $\times$ hướng $\times$ vClass ($m$: mô phỏng, $c$: quan sát); lần chạy đạt khi tỷ lệ ô có GEH $<5$ không nhỏ hơn 0,85. Không tính vào điểm & Tỷ lệ ô đạt \\ \hline
+M1 & Khoảng thời gian xả hàng (discharge headway) sau khi đèn xanh, theo vClass & s; phân phối \\ \hline
+M2 & Tỷ lệ xe qua vạch trong 10~s cuối pha đỏ; độ trễ từ lúc xanh đến khi xe đầu tiên qua vạch & Tỷ lệ; s \\ \hline
+M3 & Số xe vượt đỏ mỗi chu kỳ, tỷ số phương sai/trung bình, tỷ lệ vượt đỏ & xe/chu kỳ; tỷ lệ \\ \hline
+M4 & Vị trí ngang của xe máy đang dừng khi đèn chuyển xanh; tỷ lệ và độ sâu vượt quá vạch dừng & m; phân phối \\ \hline
+M5 & Chiều dài hàng chờ và mật độ xe máy khi đèn chuyển xanh, theo nhánh & m; xe/m\textsuperscript{2} \\ \hline
+M6 & Thời gian đi qua nút và qua nhánh vào, theo hướng $\times$ vClass & s; phân phối \\ \hline
+M7 & M7a: số xe chờ giữa nút và thời điểm xả; M7b: độ trễ giải phóng vùng chờ (đại diện cho PET); M7c: độ dốc tổn thất khởi động của hướng giao cắt theo số xe chờ & xe; s; s/xe \\ \hline
+M8 & Tỷ lệ xe rẽ đi ở làn không khớp hướng ra & Tỷ lệ \\ \hline
+\end{tabular}
+\caption{Các chỉ số đánh giá (đang triển khai)}
+\label{table:3.3}
+\end{table}
+
+Hàm khoảng cách dự kiến dùng khoảng cách Wasserstein bậc 1 chuẩn hóa theo khoảng tứ phân vị của dữ liệu quan sát cho chỉ số dạng phân phối, và sai số tương đối cho chỉ số dạng vô hướng. Để phân biệt sai lệch mô hình với biến động tự nhiên, cùng các khoảng cách đó được tính giữa các ngày quan sát với nhau (sàn nhiễu), và mỗi chỉ số được báo cáo dưới dạng tỷ số $d_{\text{sim-obs}}/d_{\text{day-day}}$. Điểm tổng dùng cho bộ tối ưu là trung bình có trọng số của các khoảng cách đã chuẩn hóa \textbf{[TODO: chốt trọng số]}.
+
+\section{Quy trình hiệu chỉnh và các phương án đối sánh}
+\label{section:3.8}
+
+\subsection{Vòng lặp LLM (dự kiến)}
+
+LLM được gọi qua giao diện tương thích OpenAI để mã nguồn không phụ thuộc vào một runtime cụ thể, với đầu ra có cấu trúc theo lược đồ JSON của đặc tả luật. Prompt được quản lý theo phiên bản và gồm ba phần: vai trò và ràng buộc, bối cảnh nút giao kèm từ điển tham số sinh tự động từ tệp miền giá trị, và phản hồi của vòng trước (khoảng cách theo từng chỉ số, lỗi từ bộ kiểm tra hợp lệ, nhật ký can thiệp TraCI). Phản hồi không chứa thông tin của các ngày đánh giá. Mỗi vòng sinh nhiều mẫu đặc tả, chạy mỗi mẫu với nhiều seed, giữ lại đặc tả tốt nhất và dừng khi hết ngân sách số lần chạy SUMO. Toàn bộ yêu cầu và phản hồi của LLM được lưu nguyên văn để truy vết. Mô hình, mức lượng tử hóa, nhiệt độ lấy mẫu và số mẫu mỗi vòng chưa được chốt \textbf{[TODO]}.
+
+\subsection{Các phương án đối sánh}
+
+Bốn cấu hình được so sánh: B0 là SUMO với tham số mặc định và không có luật TraCI; B1 là bộ luật thủ công, trong đó tham số tham khảo từ mô hình giao thông hỗn hợp cho Hà Nội của Saval và cộng sự~\cite{saval2023mixed}; B2 là bộ tham số do Optuna~\cite{akiba2019optuna} tối ưu trên cùng không gian tham số, cùng hàm mục tiêu và cùng ngân sách số lần chạy SUMO với vòng lặp LLM (dự kiến); P là bộ luật tốt nhất do LLM sinh (dự kiến). Ngân sách số lần chạy SUMO dùng chung cho LLM và Optuna chưa được chốt \textbf{[TODO]}.
+
+\subsection{Cấu hình mô phỏng}
+
+Mọi lần chạy dùng SUMO 1.27.0 với bước thời gian 0,1~s, độ phân giải làn con 0,4~m, mô hình chuyển làn SL2015, tắt định tuyến lại và bật kiểm tra va chạm trong nút. Thời lượng mô phỏng đầy đủ là 3600~s; vòng hiệu chỉnh và đánh giá dùng 1800~s đầu (tương ứng 07:30--08:00). Giai đoạn phát triển dùng các seed 1, 2 và 3; đánh giá cuối dự kiến dùng ít nhất 20 seed trên các ngày đánh giá. Mỗi lần chạy ghi một tệp manifest gồm mã commit, phiên bản SUMO, giá trị băm của đặc tả và của mạng, seed và cấu hình, để mọi kết quả có thể tái lập.
+
+Một lần chạy chỉ được xét chọn làm đặc tả tốt nhất khi không có teleport nào không do va chạm và không còn xe chờ chèn vào mạng khi kết thúc mô phỏng. Ngưỡng số va chạm cho phép mỗi giờ đang được xác định lại từ các lần chạy B0 \textbf{[TODO]}. Việc so sánh các cấu hình trên các ngày đánh giá dự kiến dùng kiểm định Mann--Whitney có hiệu chỉnh Holm và kích thước hiệu ứng Cliff's delta \textbf{[TODO: trích dẫn phương pháp thống kê]}.
 
 \end{document}

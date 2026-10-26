@@ -1,0 +1,25 @@
+{
+  // VS Code được mở trước khi cài TinyTeX nên PATH của nó không có latexmk ("spawn latexmk ENOENT").
+  // Gọi latexmk bằng đường dẫn tuyệt đối; runscript của TeX Live tự thêm thư mục bin cho pdflatex/biber.
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk",
+      "command": "C:/Users/qdcon/AppData/Roaming/TinyTeX/bin/windows/latexmk.exe",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-pdf",
+        "-outdir=%OUTDIR%",
+        "-auxdir=%AUXDIR%",
+        "%DOC%"
+      ]
+    }
+  ],
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "latexmk",
+      "tools": ["latexmk"]
+    }
+  ]
+}

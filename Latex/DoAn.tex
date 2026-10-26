@@ -50,14 +50,14 @@
 
 % ===================================================
 
-\usepackage[backend=bibtex,style=ieee]{biblatex}  %backend=biber is 'better'
+\usepackage[backend=biber,style=ieee]{biblatex} % style=ieee với backend=bibtex luôn báo "Please (re)run BibTeX"
 
 \renewcommand\appendixname{PHỤ LỤC}
 \renewcommand\appendixpagename{PHỤ LỤC}
 \renewcommand\appendixtocname{PHỤ LỤC}
 
 
-\addbibresource{Danh_sach_tai_lieu_tham_khao.bib} % chèn file chứa danh mục tài liệu tham khảo vào 
+\addbibresource{\subfix{Danh_sach_tai_lieu_tham_khao.bib}} % \subfix: đúng đường dẫn cả khi build riêng file trong Chuong/
 
 \input{Tu_viet_tat}
 
@@ -259,7 +259,7 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[RE, LO]{\leftmark}
+\fancyhead[RE, LO]{\small\leftmark} % \small: tên Chương 4 dài, cỡ thường bị xuống 2 dòng ở header
 %\fancyhead[LE]{\rightmark}
 \fancyfoot[RE, LO]{\thepage}
 

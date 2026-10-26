@@ -5,9 +5,7 @@
     \Large{\textbf{ABSTRACT}}\\
 \end{center}
 \vspace{1cm}
-Mục này khuyến khích sinh viên viết lại mục “Tóm tắt” đồ án tốt nghiệp ở trang trước bằng tiếng Anh. Phần này phải có đầy đủ các nội dung như trong phần tóm tắt bằng tiếng Việt.
-Sinh viên không nhất thiết phải trình bày mục này. 
-
-Nhưng nếu lựa chọn trình bày, sinh viên cần đảm bảo câu từ và ngữ pháp chuẩn tắc, nếu không sẽ có tác dụng ngược, gây phản cảm.
+% TODO: update the final sentence once LLM-loop, Optuna and observed-data results are available.
+Microscopic simulation is widely used to analyse signalised intersections, yet the default behaviour models of simulators such as SUMO assume lane-disciplined, rule-compliant traffic. Mixed car--motorcycle traffic in Vietnamese cities exhibits non-normative behaviours such as swarm red-light running, early starts, lateral encroachment, and illegal left turns in which riders wait inside the junction box. Calibrating a large parameter space by hand to reproduce these behaviours is laborious and hard to trace. This thesis proposes a workflow in which a locally hosted large language model (LLM) generates and iteratively refines a driver-behaviour rule specification consisting of static vehicle-type parameters and conditional rules executed through TraCI. The LLM only produces rules outside the simulation loop; the rules are executed by SUMO and a TraCI controller. Every specification is validated against a schema and a source-documented parameter space before it is compiled and simulated. The workflow is applied to the Le Van Luong -- Hoang Dao Thuy intersection in Hanoi during the morning peak, with illegal left turns as the focus scenario. To date, the work has implemented a reproducible simulation network, a baseline configuration, a feasibility experiment on in-junction waiting, the validator, the compiler, and a controller with five conditional rules; the metric suite is under implementation, while the LLM loop and an Optuna baseline with the same simulation budget are planned. Because no video-based observations are available yet, the workflow is exercised on proxy days derived from the literature; results on these data assess the operability of the workflow and do not establish realism with respect to real traffic. \textbf{[TODO: main contributions and results]}
 
 \end{document}

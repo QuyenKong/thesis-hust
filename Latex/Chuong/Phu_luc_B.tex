@@ -1,11 +1,42 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
-Nếu trong nội dung chính không đủ không gian cho các use case khác (ngoài các use case nghiệp vụ chính) thì đặc tả thêm cho các use case đó ở đây.
 
 \section{Đặc tả use case ``Thống kê tình hình mượn sách''}
-\ldots
 
 \section{Đặc tả use case ``Đăng ký làm thẻ mượn''}
-\ldots
+
+% Nguồn: PLAN.md mục 5.1 và src/thesis_sumo/schema_observed.py (lược đồ đã cài đặt, quyết định R3, R9, R11).
+\section{Lược đồ dữ liệu quan sát}
+\label{section:appendix_schema}
+
+Lược đồ dữ liệu quan sát quy định các tệp mà mỗi ngày dữ liệu phải có. Cùng một lược đồ được dùng cho ba nguồn: đường ống xử lý video (dự kiến), bộ sinh dữ liệu đại diện PROXY\_D1--PROXY\_D5, và bộ chuyển đầu ra mô phỏng; nhờ đó một bộ hàm chỉ số duy nhất áp dụng được cho cả dữ liệu quan sát lẫn dữ liệu mô phỏng (Mục~\ref{section:3.6}). Danh sách cột được định nghĩa tại một mô-đun duy nhất trong mã nguồn để các thành phần không giữ các bản sao lệch nhau. Bảng~\ref{table:appendix_schema} trình bày lược đồ đã cài đặt.
+
+\begin{table}[H]
+\centering
+\small\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|p{3.3cm}|p{5.4cm}|p{4.3cm}|}
+\hline
+\textbf{Tệp} & \textbf{Cột} & \textbf{Nội dung} \\ \hline
+\texttt{turn\_\allowbreak counts.csv} & \texttt{interval\_\allowbreak start}, \texttt{interval\_\allowbreak end}, \texttt{approach}, \texttt{movement}, \texttt{vclass}, \texttt{count} & Số đếm theo ô 15 phút (900~s); \texttt{movement} thuộc \{\texttt{l}, \texttt{s}, \texttt{r}, \texttt{u}, \texttt{illegal\_\allowbreak l}\} \\ \hline
+\texttt{signal\_\allowbreak events.csv} & \texttt{t}, \texttt{approach\_\allowbreak group}, \texttt{state} & Thời điểm đổi trạng thái đèn; \texttt{state} thuộc \{\texttt{G}, \texttt{y}, \texttt{r}\} \\ \hline
+\texttt{stopline\_\allowbreak crossings.csv} & \texttt{t}, \texttt{approach}, \texttt{lane\_\allowbreak or\_\allowbreak lat\_\allowbreak m}, \texttt{vclass}, \texttt{track\_\allowbreak id}, \texttt{signal\_\allowbreak state\_\allowbreak at\_\allowbreak t} & Mỗi lượt xe qua vạch dừng, kèm trạng thái đèn tại thời điểm đó \\ \hline
+\texttt{queue\_\allowbreak snapshots.csv} & \texttt{cycle\_\allowbreak id}, \texttt{t\_\allowbreak green\_\allowbreak onset}, \texttt{approach}, \texttt{queue\_\allowbreak length\_\allowbreak m}, \texttt{n\_\allowbreak car}, \texttt{n\_\allowbreak moto}, \texttt{area\_\allowbreak m2} & Hàng chờ tại thời điểm bắt đầu đèn xanh của mỗi chu kỳ \\ \hline
+\texttt{lateral\_\allowbreak snapshots.csv} & \texttt{cycle\_\allowbreak id}, \texttt{approach}, \texttt{track\_\allowbreak id}, \texttt{vclass}, \texttt{lat\_\allowbreak m}, \texttt{long\_\allowbreak m\_\allowbreak from\_\allowbreak stopline} & Vị trí ngang và dọc của xe đang dừng chờ \\ \hline
+\texttt{box\_\allowbreak queue.csv} & \texttt{cycle\_\allowbreak id}, \texttt{t}, \texttt{approach}, \texttt{n\_\allowbreak waiting\_\allowbreak in\_\allowbreak box}, \texttt{t\_\allowbreak clear\_\allowbreak start}, \texttt{t\_\allowbreak clear\_\allowbreak end} & Xe rẽ trái trái phép chờ giữa nút, mỗi dòng ứng với một lần kết thúc pha xanh đi thẳng của hướng đối diện \\ \hline
+\texttt{traversals.csv} (bổ sung so với kế hoạch) & \texttt{track\_\allowbreak id}, \texttt{vclass}, \texttt{approach}, \texttt{movement}, \texttt{exit\_\allowbreak approach}, \texttt{lat\_\allowbreak m\_\allowbreak at\_\allowbreak stopline}, \texttt{t\_\allowbreak range\_\allowbreak entry}, \texttt{t\_\allowbreak stopline}, \texttt{t\_\allowbreak exit} & Bảng dẫn xuất, mỗi dòng một lượt qua vạch dừng; phục vụ M6 và M8 \\ \hline
+\end{tabular}
+\caption{Lược đồ dữ liệu quan sát đã cài đặt}
+\label{table:appendix_schema}
+\end{table}
+
+\begin{sloppypar}
+Các quy ước chung của lược đồ như sau. Mọi thời điểm tính bằng giây kể từ đầu cửa sổ quan sát (phía mô phỏng là giây mô phỏng). Mã nhánh \texttt{approach} là một trong \texttt{LVL\_W}, \texttt{LVL\_E}, \texttt{HDT\_N}, \texttt{HDT\_S}; \texttt{approach\_group} trong \texttt{signal\_events.csv} cũng là mã nhánh và biểu thị trạng thái đèn của hướng đi thẳng của nhánh đó. Trạng thái đèn được chuẩn hóa về ba giá trị: \texttt{G} (xanh, gồm cả trạng thái xanh phải nhường của SUMO), \texttt{y} (vàng) và \texttt{r} (mọi trạng thái buộc dừng còn lại). \texttt{vclass} nhận \texttt{car} hoặc \texttt{moto}; xe máy vi phạm được tính là \texttt{moto}. Chu kỳ được xác định theo từng nhánh từ các thời điểm bắt đầu đèn xanh: chu kỳ thứ $k$ là khoảng giữa lần bắt đầu xanh thứ $k$ và thứ $k+1$, còn các thời điểm trước lần bắt đầu xanh đầu tiên thuộc chu kỳ $-1$ và bị loại khi tính chỉ số.
+\end{sloppypar}
+
+\begin{sloppypar}
+Trong \texttt{box\_queue.csv}, \texttt{t} là thời điểm kết thúc pha xanh đi thẳng của hướng đối diện; \texttt{n\_waiting\_in\_box} là số xe rẽ trái trái phép đang dừng (tốc độ dưới 5~km/h) trong nút tại thời điểm đó; \texttt{t\_clear\_start} và \texttt{t\_clear\_end} là thời điểm rời nút đầu tiên và cuối cùng của tất cả xe vi phạm đã vào nút trong chu kỳ, kể cả xe rời sớm qua khoảng trống, nên \texttt{t\_clear\_start} có thể sớm hơn \texttt{t}. Trong \texttt{traversals.csv}, \texttt{exit\_approach} là nhánh xe đi ra, \texttt{t\_range\_entry} là thời điểm xe đi vào phạm vi quan sát hàng chờ phía trước vạch dừng, \texttt{t\_stopline} là thời điểm qua vạch và \texttt{t\_exit} là thời điểm xe vào làn ra.
+\end{sloppypar}
+
+Lược đồ đã cài đặt khác kế hoạch ban đầu ở hai điểm. Thứ nhất, bảng \texttt{traversals.csv} được bổ sung như một bảng dẫn xuất để tính thời gian đi qua nút (M6) và tỷ lệ đi sai làn (M8), do cả bộ chuyển đầu ra mô phỏng và bộ sinh dữ liệu đại diện cùng sinh ra. Thứ hai, kế hoạch có thêm tầng quỹ đạo \texttt{trajectories.parquet} (cột \texttt{track\_id}, \texttt{t}, \texttt{x}, \texttt{y}, \texttt{vclass} trong hệ tọa độ đã chiếu về mặt đường) dành cho dữ liệu video; tầng này chưa được đưa vào lược đồ đã cài đặt và chưa có chỉ số nào sử dụng.
 
 \end{document}
