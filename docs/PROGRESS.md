@@ -598,6 +598,17 @@ Implementer + 1 vòng sửa (rẽ phải khi đỏ bị M2/M3 tính là vi phạ
 
 **Phát hiện (B0, PROXY_D1, seed 1, check-junctions bật, mạng lane 0 rẽ phải, trước khi đặt cọc):** 600 s: va chạm lane/junction 1/17, teleport 18/0, backlog 0. 1800 s: 4/63, teleport 75 (8 không do va chạm), backlog cuối 23 (reviewer: 286 ở lần chạy khác, đỉnh 445), hàng chờ chạm 80 m ở 66 % chu kỳ (mạng cũ 26 %), kẹt chủ yếu ở LVL_W làn 1–2. B0 trên mạng này không ELIGIBLE (backlog). Ngưỡng R28 phải tính lại trên mạng này.
 
+### 2026-10-27 — Phase 3A–3D: thí nghiệm khả thi F2 và box (DỪNG: chờ Viktor quyết 3C, 3D)
+
+Ba thí nghiệm 3A/3B/3C chạy trên kịch bản đồ chơi riêng (mọi số là thiết lập thí nghiệm, không phải số đo); 3D chạy trên mạng proxy F2. Báo cáo: `docs/research/phase3a_right_lane_blocking.md`, `phase3b_sidewalk.md`, `phase3c_wrong_way.md`, `phase3_box_capacity.md` (mục F2). Mọi run bật check-junctions.
+
+- **3A — chặn làn rẽ phải (hành vi 6):** SL2015 không tự làm (0 xe vi phạm vào lane 0 ở 12 run hàng chờ tới 232 m: lane 0 là ngõ cụt với lộ trình đi thẳng). Cần trigger TraCI theo độ dài hàng chờ + mạng tách đoạn có cọc thành edge riêng cấm chuyển làn (`changeLeft/changeRight="emergency"`; `"ignoring"` bị netconvert 1.27 bỏ âm thầm). Với trigger: xe vi phạm đi lane 0, dừng trước đầu đoạn cọc chờ nhập → xe rẽ phải trễ 4,2 s (p 0,3) tới 8–27 s (p 1) so với 3,4–3,6 s; 0 va chạm junction / 90 run; va chạm lane tăng theo p (0–4/run). Xe tuân thủ không bao giờ kẹt. Cần số đo: chiều dài đoạn cọc từng nhánh, chỗ xe nhập lại.
+- **3B — vỉa hè (hành vi 7):** SL2015 không tự dùng (≤1/134). Chỉ cấu trúc "edge vỉa hè riêng tới vạch dừng, có link đèn riêng và được ưu tiên" + trigger là chạy được (0 teleport kẹt, ≥97 % đi hết; chi phí cho xe tuân thủ: đi thẳng mất 59–84 s so với 42 s). Nhập lại kiểu phải nhường → kẹt cứng. Thêm làn mép trên cùng edge dời mọi chỉ số làn → không dùng. Không có chỉ số an toàn cho vỉa hè. Cần số đo: nhánh nào, điểm lên/nhập, bề rộng, tốc độ, ngưỡng hàng chờ.
+- **3C — đi ngược chiều (hành vi 8):** opposite-overtaking native không dùng được: đường nhiều làn chỉ xe ưu tiên được dùng; `lcOpposite` theo docs chỉ cho LC2013, mà LC2013 không chạy cùng sublane; SL2015 + sublane có phản ứng nhưng xe đứng lại trên làn ngược chiều (trung vị 54 s) và đi chậm hơn. Làn ảo ngược chiều cho custom1 chạy được (71/71 dùng, 0 va chạm) nhưng SUMO KHÔNG tính xung đột với dòng ngược chiều thật (năng lực ngược chiều bị thổi phồng, không có chỉ số an toàn). TraCI `changeSublane` đưa xe sang làn ngược chiều thật được (có tính xung đột) nhưng điểm quay về không kiểm soát được.
+- **3D — chờ giữa nút:** trên mạng F2, check-junctions bật: sức chứa 13, 8, 8, 7, 10 (giống R21), 0 va chạm với xe rẽ trái trái luật, không kẹt; (a) native vẫn đứng.
+
+**Lệnh tái tạo (từ `SUMO/`):** `.venv/bin/python experiments/phase3a/right_lane_blocking.py --nproc 10`; `experiments/phase3b/sidewalk.py --nproc 11`; `experiments/phase3c/wrong_way.py --nproc 8`; `experiments/phase3/box_capacity.py --scenarios target target_modopp --seeds 1 2 3 4 5 --tag f2 --nproc 6`.
+
 ### Bước tiếp theo
 
 - Operator đang tính lại hai ngưỡng va chạm (lane và junction) với `check-junctions` BẬT (R28): B0 trên PROXY_D1–D3 x 3 seed rồi đóng băng và commit trước vòng 1 (R24); kèm kiểm cặp seed hold so với lag 0 (R29) và một run chẩn đoán B0 D1 với time-to-teleport `-1` (R33).

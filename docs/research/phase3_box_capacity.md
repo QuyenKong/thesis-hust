@@ -292,3 +292,24 @@ the rule and its archetype parameters need to control:
 
 All ranges are assumptions sized on the native behaviour above. Each must be checked against
 `param_bounds.yaml` sources in Task 7.
+
+## Re-check on the F2 network with check-junctions on (2026-10-26, Linux, Phase 3D)
+
+Network after Task F2-net (lane 0 = continuous right lane with bollards, ruling R37); every run through
+`thesis_sumo.sim.runner.run`, so `--collision.check-junctions` is on (R28); 5 seeds × 900 s per scenario, vType B0.
+Command: `.venv/bin/python experiments/phase3/box_capacity.py --scenarios target target_modopp --seeds 1 2 3 4 5
+--tag f2 --nproc 6` → `experiments/phase3/results_f2.csv`, figures `docs/research/figures/phase3_box_*_f2.png`.
+
+| | target (seeds 1–5) | target_modopp (seeds 1–5) |
+|---|---|---|
+| max halting in box during opposing green | 13, 8, 8, 7, 10 | 8, 9, 10, 6, 9 |
+| mean waiting at opposing green end | 4.3–7.0 | 1.4–2.0 |
+| early leavers per cycle | 0–0.29 | 3.1–5.3 |
+| first / last exit after opposing green end (mean) | 4.1–5.0 s / 6.9–8.1 s | 2.9–4.5 s / 4.6–6.1 s |
+| collisions (all) / with an illegal-left vehicle | 0–1 / 0 | 0 / 0 |
+| non-collision teleports, stuck over a cycle | 0, 0 | 0, 0 |
+| max box residence | 68–70 s | 64–67 s |
+
+Capacity is identical to the R21 re-check (13, 8, 8, 7, 10): the F2 change does not touch the box. With
+check-junctions on, the box produces no collision with illegal-left vehicles and no deadlock. Decision (a) native
+still holds; Viktor confirms or reverses it at the Phase 3 stop together with 3C.

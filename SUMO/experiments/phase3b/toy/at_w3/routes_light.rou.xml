@@ -1,0 +1,14 @@
+<routes>
+  <route id="s_moto_violator_r" edges="up S1 S2 S3 out_s"/>
+  <route id="s_moto_r" edges="up S1 S2 S3 out_s"/>
+  <route id="s_car_r" edges="up S1 S2 S3 out_s"/>
+  <route id="r_moto_violator_r" edges="up S1 S2 S3 out_r"/>
+  <route id="r_moto_r" edges="up S1 S2 S3 out_r"/>
+  <route id="r_car_r" edges="up S1 S2 S3 out_r"/>
+  <flow id="r_car" type="car" begin="0" end="900" period="exp(0.010417)" departLane="best" departPosLat="random" departSpeed="max" route="r_car_r"/>
+  <flow id="r_moto" type="moto" begin="0" end="900" period="exp(0.041667)" departLane="best" departPosLat="random" departSpeed="max" route="r_moto_r"/>
+  <flow id="r_moto_violator" type="moto_violator" begin="0" end="900" period="exp(0.010417)" departLane="best" departPosLat="random" departSpeed="max" route="r_moto_violator_r"/>
+  <flow id="s_car" type="car" begin="0" end="900" period="exp(0.041667)" departLane="best" departPosLat="random" departSpeed="max" route="s_car_r"/>
+  <flow id="s_moto" type="moto" begin="0" end="900" period="exp(0.312500)" departLane="best" departPosLat="random" departSpeed="max" route="s_moto_r"/>
+  <flow id="s_moto_violator" type="moto_violator" begin="0" end="900" period="exp(0.027778)" departLane="best" departPosLat="random" departSpeed="max" route="s_moto_violator_r"/>
+</routes>
