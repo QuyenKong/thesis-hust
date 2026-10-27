@@ -83,7 +83,7 @@ Hai thuộc tính tồn tại trong SUMO 1.27 nhưng bị loại khỏi không g
 \section{Đặc tả luật B1}
 \label{section:appendix_b1}
 
-Bộ luật thủ công B1 (\texttt{spec\_id} \texttt{B1\_manual}, nguồn \texttt{manual}) được chuyển giao từ mô hình giao thông hỗn hợp ô tô -- xe máy của Saval và cộng sự~\cite{saval2023mixed}, được hiệu chỉnh trên video đường Tây Sơn, Hà Nội. Các tham số bám xe lấy từ Bảng 11 của bài báo (tham số tài xế cho Hà Nội, mô hình IDM) và được ánh xạ sang mô hình Krauss của SUMO theo cùng ý nghĩa: gia tốc cực đại $a$ thành \texttt{accel}, giảm tốc cực đại $b$ thành \texttt{decel}, khoảng thời gian an toàn $T$ thành \texttt{tau} và khoảng cách an toàn khi dừng $s_0$ thành \texttt{minGap}; do khác mô hình, các giá trị này mang nhãn chuyển giao. Cấu trúc của B1 (ba nguyên mẫu, các tham số được khai báo và hai luật) là cấu trúc cố định mà trong đó các phương án tối ưu dự kiến điều chỉnh giá trị. Bảng~\ref{table:appendix_b1_archetypes} liệt kê các nguyên mẫu và Bảng~\ref{table:appendix_b1_rules} liệt kê các luật TraCI.
+Bộ luật thủ công B1 (\texttt{spec\_id} \texttt{B1\_manual}, nguồn \texttt{manual}) được chuyển giao từ mô hình giao thông hỗn hợp ô tô -- xe máy của Saval và cộng sự~\cite{saval2023mixed}, được hiệu chỉnh trên video đường Tây Sơn, Hà Nội. Các tham số bám xe lấy từ Bảng 11 của bài báo (tham số tài xế cho Hà Nội, mô hình IDM) và được ánh xạ sang mô hình Krauss của SUMO theo cùng ý nghĩa: gia tốc cực đại $a$ thành \texttt{accel}, giảm tốc cực đại $b$ thành \texttt{decel}, khoảng thời gian an toàn $T$ thành \texttt{tau} và khoảng cách an toàn khi dừng $s_0$ thành \texttt{minGap}; do khác mô hình, các giá trị này mang nhãn chuyển giao. Cấu trúc của B1 (năm nguyên mẫu, các tham số được khai báo và ba luật) là cấu trúc cố định mà trong đó B2 (Optuna) và P1 (LLM) điều chỉnh giá trị. Bảng~\ref{table:appendix_b1_archetypes} liệt kê các nguyên mẫu và Bảng~\ref{table:appendix_b1_rules} liệt kê các luật TraCI.
 
 \begin{table}[H]
 \centering
@@ -91,11 +91,13 @@ Bộ luật thủ công B1 (\texttt{spec\_id} \texttt{B1\_manual}, nguồn \text
 \begin{tabular}{|p{3.2cm}|p{2.2cm}|p{1.4cm}|p{6.2cm}|}
 \hline
 \textbf{Nguyên mẫu} & \textbf{vClass cơ sở} & \textbf{Tỷ trọng} & \textbf{Tham số và nguồn} \\ \hline
-\texttt{car\_\allowbreak saval} & \texttt{passenger} & 1,0 & \texttt{accel} 1,2; \texttt{decel} 4,8; \texttt{tau} 2,5; \texttt{minGap} 1,1. Cột ô tô Bảng 11 của Saval và cộng sự. Ô tô luôn dừng khi đèn đỏ nên không có luật vượt đỏ và các thuộc tính \texttt{jm*} giữ mặc định của SUMO \\ \hline
-\texttt{moto\_\allowbreak saval} & \texttt{motorcycle} & 1,0 & \texttt{accel} 1,1; \texttt{decel} 4,6; \texttt{tau} 0,8; \texttt{minGap} 1,9; \texttt{minGapLat} 0,3. Cột xe máy Bảng 11. Khoảng cách ngang theo bài báo khoảng 0,1~m (làn xe máy 0,8~m gồm bề rộng 0,7~m và khoảng hở 0,1~m), nhỏ hơn cận dưới 0,3~m nên được kẹp về 0,3~m \\ \hline
+\texttt{car\_\allowbreak saval} & \texttt{passenger} & 0,9 & \texttt{accel} 1,2; \texttt{decel} 4,8; \texttt{tau} 2,5; \texttt{minGap} 1,1. Cột ô tô Bảng 11 của Saval và cộng sự. Ô tô luôn dừng khi đèn đỏ nên không có luật vượt đỏ và các thuộc tính \texttt{jm*} giữ mặc định của SUMO \\ \hline
+\texttt{moto\_\allowbreak saval} & \texttt{motorcycle} & 0,9 & \texttt{accel} 1,1; \texttt{decel} 4,6; \texttt{tau} 0,8; \texttt{minGap} 1,9; \texttt{minGapLat} 0,3. Cột xe máy Bảng 11. Khoảng cách ngang theo bài báo khoảng 0,1~m (làn xe máy 0,8~m gồm bề rộng 0,7~m và khoảng hở 0,1~m), nhỏ hơn cận dưới 0,3~m nên được kẹp về 0,3~m \\ \hline
 \texttt{moto\_\allowbreak violator\_\allowbreak saval} & \texttt{custom1} & 1,0 & \texttt{accel} 1,1; \texttt{decel} 4,6; \texttt{tau} 0,8; \texttt{minGap} 1,9; \texttt{minGapLat} 0,3; \texttt{jmTimegapMinor} 1,0. Cùng giá trị với xe máy; \texttt{jmTimegapMinor} bằng mặc định của SUMO, là giả định vì bài báo không mô hình hóa rẽ trái trái phép \\ \hline
+\texttt{car\_\allowbreak seeker} & \texttt{custom2} (phân phối \texttt{car}) & 0,1 & Cùng tham số với \texttt{car\_saval}. Ô tô có thể tìm khoảng trống; tỷ trọng 0,1 là giả định \\ \hline
+\texttt{moto\_\allowbreak seeker} & \texttt{custom1} (phân phối \texttt{moto}) & 0,1 & Cùng tham số với \texttt{moto\_saval}. Xe máy có thể tìm khoảng trống (kể cả vỉa hè); tỷ trọng 0,1 là giả định \\ \hline
 \end{tabular}
-\caption{Các nguyên mẫu tài xế của B1 (đơn vị: m/s\textsuperscript{2} cho \texttt{accel}, \texttt{decel}; s cho \texttt{tau}, \texttt{jmTimegapMinor}; m cho \texttt{minGap}, \texttt{minGapLat})}
+\caption{Các nguyên mẫu tài xế của B1; tỷ trọng tính trong phân phối mà nguyên mẫu thuộc về (đơn vị: m/s\textsuperscript{2} cho \texttt{accel}, \texttt{decel}; s cho \texttt{tau}, \texttt{jmTimegapMinor}; m cho \texttt{minGap}, \texttt{minGapLat})}
 \label{table:appendix_b1_archetypes}
 \end{table}
 
@@ -105,13 +107,14 @@ Bộ luật thủ công B1 (\texttt{spec\_id} \texttt{B1\_manual}, nguồn \text
 \begin{tabular}{|p{3.2cm}|p{3.4cm}|p{3.0cm}|p{3.4cm}|}
 \hline
 \textbf{Luật} & \textbf{Áp dụng cho} & \textbf{Tham số} & \textbf{Nguồn} \\ \hline
-\texttt{swarm\_\allowbreak red\_\allowbreak running} & \texttt{moto\_\allowbreak saval}, \texttt{moto\_\allowbreak violator\_\allowbreak saval} & $p_0 = 0{,}5$; $k = 0{,}0$; $p_{\max} = 0{,}5$; $\Delta t = 10{,}0$~s & Mục 4 của bài báo: xe máy ở hàng đầu chỉ dừng khi đèn đỏ với xác suất 0,5; $k = 0$ vì bài báo không có hiệu ứng đoàn; $\Delta t$ là giả định và không có tác dụng khi $k = 0$ \\ \hline
-\texttt{early\_\allowbreak start} & \texttt{moto\_\allowbreak saval}, \texttt{moto\_\allowbreak violator\_\allowbreak saval} & $t_{\text{before\_green}} = 5{,}0$~s; $p = 0{,}0$; $v_{\max} = 2{,}0$~m/s & Không có trong bài báo (giả định): luật bị tắt ($p = 0$), chỉ giữ trong cấu trúc để các phương án tối ưu điều chỉnh \\ \hline
+\texttt{swarm\_\allowbreak red\_\allowbreak running} & \texttt{moto\_\allowbreak saval}, \texttt{moto\_\allowbreak seeker}, \texttt{moto\_\allowbreak violator\_\allowbreak saval} & $p_0 = 0{,}5$; $k = 0{,}0$; $p_{\max} = 0{,}5$; $\Delta t = 10{,}0$~s & Mục 4 của bài báo: xe máy ở hàng đầu chỉ dừng khi đèn đỏ với xác suất 0,5; $k = 0$ vì bài báo không có hiệu ứng đoàn; $\Delta t$ là giả định và không có tác dụng khi $k = 0$ \\ \hline
+\texttt{early\_\allowbreak start} & \texttt{moto\_\allowbreak saval}, \texttt{moto\_\allowbreak seeker}, \texttt{moto\_\allowbreak violator\_\allowbreak saval} & $t_{\text{before\_green}} = 5{,}0$~s; $p = 0{,}0$; $v_{\max} = 2{,}0$~m/s & Không có trong bài báo (giả định): luật bị tắt ($p = 0$), chỉ giữ trong cấu trúc để các phương án tối ưu điều chỉnh \\ \hline
+\texttt{queue\_\allowbreak space\_\allowbreak seeking} & \texttt{moto\_\allowbreak seeker}, \texttt{car\_\allowbreak seeker} & $q = 30$~m; $t_{g} = 0$; $\sigma = 0$; ba xác suất bằng 0; $v_{\text{creep}} = 3$~m/s; vùng nhập lại 15~m & Không có trong bài báo (giả định): mọi xác suất bằng 0 nên luật không can thiệp; giữ trong cấu trúc để B2, P1 điều chỉnh các hành vi tìm khoảng trống; vùng nhập lại 15~m lấy từ thiết lập thí nghiệm 3A \\ \hline
 \end{tabular}
 \caption{Các luật TraCI của B1}
 \label{table:appendix_b1_rules}
 \end{table}
 
-B1 không có luật \texttt{illegal\_\allowbreak left\_\allowbreak box}, vì mô hình của Saval và cộng sự không có hành vi chờ giữa nút; vùng chờ của B1 vận hành theo cơ chế sẵn có của SUMO như B0. B1 cũng không có luật \texttt{wrong\_\allowbreak lane\_\allowbreak dodge} và \texttt{slow\_\allowbreak lane\_\allowbreak center}, và không có luật nào áp dụng cho ô tô.
+B1 không có luật \texttt{illegal\_\allowbreak left\_\allowbreak box}, vì mô hình của Saval và cộng sự không có hành vi chờ giữa nút; vùng chờ của B1 vận hành theo cơ chế sẵn có của SUMO như B0. B1 cũng không có luật \texttt{slow\_\allowbreak lane\_\allowbreak center}; luật duy nhất áp dụng cho ô tô là \texttt{queue\_\allowbreak space\_\allowbreak seeking} (qua nguyên mẫu \texttt{car\_seeker}), hiện ở trạng thái tắt.
 
 \end{document}

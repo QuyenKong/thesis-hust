@@ -3,9 +3,11 @@
 
 % Nguồn số liệu của chương: repo SUMO (CLAUDE.md, pyproject.toml, docs/PROGRESS.md,
 % docs/research/phase3_box_capacity.md, experiments/phase3/results_r21.csv,
-% experiments/operator/task4b/b0_table.csv, src/thesis_sumo/**). Các mục [TODO] cần bổ sung trước khi nộp.
+% experiments/operator/task4b/b0_table.csv, src/thesis_sumo/**; cập nhật 2026-10-27: docs/research/phase3*.md,
+% report/2026-10-27/data/campaign_specs.csv, experiments/campaigns/{P1,P2}/loop/iter_*.json,
+% experiments/llm_logs/{P1,P2}/validity_log.csv, experiments/campaigns/REF_run.log). Các mục [TODO] cần bổ sung trước khi nộp.
 
-Chương này trình bày phần hiện thực của phương pháp ở Chương~\ref{chapter:Methodology}: kiến trúc phần mềm, các gói và lớp chính, công cụ sử dụng, kiểm thử, các thực nghiệm đã tiến hành và cách tái lập. Tại thời điểm viết, quy trình đã hoàn thành từ mạng mô phỏng đến bộ điều khiển TraCI; các chỉ số đánh giá đang được triển khai; vòng lặp LLM, phương án Optuna và đánh giá cuối là phần dự kiến (Bảng~\ref{table:3.1}). Mọi kết quả định lượng trong chương được tính trên mạng và dữ liệu đại diện xây dựng từ tài liệu, không phải số liệu đo tại nút giao.
+Chương này trình bày phần hiện thực của phương pháp ở Chương~\ref{chapter:Methodology}: kiến trúc phần mềm, các gói và lớp chính, công cụ sử dụng, kiểm thử, các thực nghiệm đã tiến hành và cách tái lập. Tại thời điểm viết (27/10/2026), toàn bộ mã của quy trình đã được hiện thực, từ mạng mô phỏng, bộ điều khiển TraCI, các chỉ số, khung đánh giá đến vòng lặp LLM và phương án Optuna; chiến dịch Optuna B2 đã hoàn thành, hai chiến dịch LLM P1 và P2 mới có kết quả của 24/36 lần chạy (2/3 vòng), còn phương án H và đánh giá cuối chưa chạy (Bảng~\ref{table:3.1}). Mọi kết quả định lượng trong chương được tính trên mạng và dữ liệu đại diện (\texttt{LITERATURE\_PROXY}) xây dựng từ tài liệu, không phải số liệu đo tại nút giao; mọi đặc tả P1, P2 được sinh bởi mô hình thay thế Claude Sonnet chứ không phải LLM cục bộ (Mục~\ref{section:3.8}).
 
 \section{Thiết kế kiến trúc}
 
@@ -13,7 +15,7 @@ Chương này trình bày phần hiện thực của phương pháp ở Chương
 
 Hệ thống được tổ chức theo kiểu đường ống (pipeline) gồm các bước tách rời, mỗi bước đọc tệp đầu vào và ghi tệp đầu ra ở dạng văn bản (YAML, JSON, XML, CSV). Lựa chọn này xuất phát từ ba yêu cầu. Thứ nhất là tính tái lập: mạng lưới được sinh lại từ dữ liệu gốc bằng script và các tệp vá, mọi lần chạy dùng seed cố định và ghi một tệp \texttt{manifest.json}. Thứ hai là khả năng thay thế nguồn đặc tả luật: B0, B1, Optuna và LLM đều chỉ tạo ra một đặc tả JSON cùng lược đồ, phần còn lại của đường ống không phân biệt nguồn gốc của đặc tả. Thứ ba là khả năng dùng chung một bộ hàm chỉ số cho dữ liệu mô phỏng và dữ liệu quan sát, nhờ chuyển đầu ra SUMO về cùng lược đồ với dữ liệu quan sát.
 
-Mã nguồn là một gói Python duy nhất \texttt{thesis\_sumo}, chia thành các gói con theo trách nhiệm (Bảng~\ref{table:4.1}). Hai gói \texttt{llm} và \texttt{baselines} hiện chỉ là khung rỗng, dành cho vòng lặp LLM và phương án Optuna dự kiến.
+Mã nguồn là một gói Python duy nhất \texttt{thesis\_sumo}, chia thành các gói con theo trách nhiệm (Bảng~\ref{table:4.1}). Ngoài các gói con, mô-đun \texttt{evaluate} chứa khung đánh giá dùng chung cho mọi phương án.
 
 \begin{table}[H]
 \centering
@@ -28,23 +30,24 @@ Mã nguồn là một gói Python duy nhất \texttt{thesis\_sumo}, chia thành 
 \texttt{rules} & Lược đồ đặc tả luật, bộ kiểm tra hợp lệ, bộ biên dịch & Đã triển khai \\ \hline
 \texttt{runtime} & Bộ điều khiển TraCI và năm luật có điều kiện & Đã triển khai \\ \hline
 \texttt{sim} & Ghi cấu hình SUMO, chạy mô phỏng, ghi manifest, chuyển đầu ra sang lược đồ quan sát & Đã triển khai \\ \hline
-\texttt{metrics} & Các chỉ số M1--M8 và cổng G0 & Đang triển khai \\ \hline
-\texttt{llm} & Gọi LLM, quản lý prompt, tạo phản hồi, vòng lặp tinh chỉnh & Dự kiến \\ \hline
-\texttt{baselines} & Phương án đối sánh B2 bằng Optuna & Dự kiến \\ \hline
+\texttt{metrics} & Các chỉ số M1--M10, cổng G0, hàm khoảng cách và điểm tổng & Đã triển khai \\ \hline
+\texttt{evaluate} & Bộ đếm ngân sách theo chiến dịch, đánh giá một đặc tả trên các ngày hiệu chỉnh, chọn đặc tả tốt nhất & Đã triển khai \\ \hline
+\texttt{llm} & Gọi LLM (backend tương thích OpenAI và backend tệp cho mô hình thay thế), prompt \texttt{v001}, tạo phản hồi, vòng lặp tinh chỉnh P1/P2 & Đã triển khai \\ \hline
+\texttt{baselines} & Phương án đối sánh B2 và H bằng Optuna & Đã triển khai \\ \hline
 \end{tabular}
 \caption{Các gói con của \texttt{thesis\_sumo}}
 \label{table:4.1}
 \end{table}
 
 \begin{sloppypar}
-Điểm cốt lõi của kiến trúc là tách hai giai đoạn theo thời gian. Giai đoạn ngoại tuyến (offline) gồm việc sinh hoặc soạn đặc tả luật, kiểm tra hợp lệ và biên dịch; LLM (dự kiến) chỉ tham gia ở giai đoạn này và chỉ tạo ra tệp JSON. Giai đoạn trực tuyến (online) là một lần chạy SUMO: tham số tĩnh đã được SUMO nạp từ tệp \texttt{vtypes.add.xml} khi khởi tạo, còn bộ điều khiển TraCI đọc \texttt{traci\_rules.json} và đánh giá các luật có điều kiện tại mỗi bước mô phỏng. Không có lời gọi LLM nào trong vòng lặp mô phỏng; LLM không điều khiển phương tiện theo thời gian thực.
+Điểm cốt lõi của kiến trúc là tách hai giai đoạn theo thời gian. Giai đoạn ngoại tuyến (offline) gồm việc sinh hoặc soạn đặc tả luật, kiểm tra hợp lệ và biên dịch; LLM (hoặc mô hình thay thế trong các chiến dịch hiện tại) chỉ tham gia ở giai đoạn này và chỉ tạo ra tệp JSON. Giai đoạn trực tuyến (online) là một lần chạy SUMO: tham số tĩnh đã được SUMO nạp từ tệp \texttt{vtypes.add.xml} khi khởi tạo, còn bộ điều khiển TraCI đọc \texttt{traci\_rules.json} và đánh giá các luật có điều kiện tại mỗi bước mô phỏng. Không có lời gọi LLM nào trong vòng lặp mô phỏng; LLM không điều khiển phương tiện theo thời gian thực.
 \end{sloppypar}
 
 Mỗi lần chạy được điều phối bởi một trình chạy (runner) duy nhất. Trình chạy xác định đầu vào theo quy ước tên (mạng theo tệp cấu hình hiện trường, tệp tuyến theo ngày, đặc tả đã biên dịch theo mã đặc tả), khởi động SUMO qua thư viện \texttt{libsumo} (chạy hàng loạt) hoặc \texttt{traci} (khi cần giao diện đồ họa \texttt{sumo-gui}), gắn bộ điều khiển TraCI nếu đặc tả có luật, rồi ghi tệp manifest và chuyển đầu ra sang lược đồ quan sát. Nhiều lần chạy (nhiều seed) được thực hiện song song, mỗi tiến trình một phiên SUMO.
 
 \subsection{Thiết kế tổng quan}
 
-Luồng dữ liệu của hệ thống được tóm tắt trong Bảng~\ref{table:4.2}. Các bước 1--3 chạy một lần cho mỗi cấu hình hiện trường hoặc mỗi ngày dữ liệu; các bước 4--7 lặp lại cho mỗi đặc tả luật; bước 8 đang được triển khai.
+Luồng dữ liệu của hệ thống được tóm tắt trong Bảng~\ref{table:4.2}. Các bước 1--3 chạy một lần cho mỗi cấu hình hiện trường hoặc mỗi ngày dữ liệu; các bước 4--8 lặp lại cho mỗi đặc tả luật; bước 9 đóng vòng lặp bằng cách đưa kết quả về cho bộ sinh đặc tả.
 
 \begin{table}[H]
 \centering
@@ -59,7 +62,8 @@ Luồng dữ liệu của hệ thống được tóm tắt trong Bảng~\ref{tab
 5 & Biên dịch (\texttt{rules}) & Đặc tả hợp lệ & \texttt{vtypes.add.xml}, \texttt{traci\_\allowbreak rules.json} (nếu có luật) \\ \hline
 6 & Chạy mô phỏng (\texttt{sim}, \texttt{runtime}) & Mạng, tệp tuyến, đặc tả đã biên dịch, cấu hình thí nghiệm, seed & Đầu ra SUMO, \texttt{sumo.log}, \texttt{interventions.csv}, \texttt{manifest.json} \\ \hline
 7 & Chuyển lược đồ (\texttt{sim}) & Đầu ra SUMO & Các bảng CSV theo lược đồ quan sát \\ \hline
-8 & Chỉ số (\texttt{metrics}) & Bảng CSV mô phỏng và quan sát & M1--M8, G0 (đang triển khai) \\ \hline
+8 & Chỉ số và điểm (\texttt{metrics}, \texttt{evaluate}) & Bảng CSV mô phỏng và quan sát của các ngày hiệu chỉnh & M1--M10, G0, $R$, $S$, tính đủ điều kiện \\ \hline
+9 & Sinh đặc tả kế tiếp (\texttt{llm}, \texttt{baselines}) & Kết quả đánh giá, ngân sách còn lại & Phản hồi cho LLM hoặc giá trị mục tiêu cho Optuna; đặc tả mới \\ \hline
 \end{tabular}
 \caption{Luồng dữ liệu giữa các gói}
 \label{table:4.2}
@@ -76,15 +80,21 @@ Phần này mô tả các thành phần chính như đã hiện thực; chức n
 
 \textbf{Gói \texttt{config}.} Các hàm đọc cấu hình hiện trường, cấu hình thí nghiệm và cấu hình LLM trả về đối tượng cấu hình; khi một trường bắt buộc có giá trị rỗng, chương trình dừng với lỗi \texttt{MissingFieldDataError} nêu tên trường, thay vì tự điền giá trị mặc định. Tệp cấu hình hiện trường đo thực mang nhãn \texttt{MEASURED} và hiện chưa có giá trị đo; tệp cấu hình đại diện mang nhãn \texttt{LITERATURE\_PROXY}, trong đó mỗi giá trị đi kèm nguồn và mức bằng chứng. Chương trình không bao giờ tự chuyển từ tệp đo thực sang tệp đại diện.
 
-\textbf{Gói \texttt{net}.} Mạng được dựng bằng hai lượt \texttt{netconvert}: lượt đầu cắt theo bán kính quanh nút và giữ các cạnh cho phép ô tô và xe máy, lượt sau chỉ giữ bốn nhánh và đơn giản hóa hình học. Mô-đun áp vá sinh ba tệp plain XML cho bề rộng làn, kết nối rẽ và chương trình đèn từ cấu hình hiện trường, trong đó kết nối rẽ trái trên nhánh cấm rẽ được thêm lại với quyền chỉ dành cho vClass \texttt{custom1}. Toàn bộ quá trình được gọi qua một lệnh dòng lệnh duy nhất.
+\textbf{Gói \texttt{net}.} Mạng được dựng bằng hai lượt \texttt{netconvert}: lượt đầu cắt theo bán kính quanh nút và giữ các cạnh cho phép ô tô và xe máy, lượt sau chỉ giữ bốn nhánh và đơn giản hóa hình học. Mô-đun áp vá sinh các tệp plain XML cho bề rộng làn, kết nối rẽ và chương trình đèn từ cấu hình hiện trường, trong đó kết nối rẽ trái trên nhánh cấm rẽ được thêm lại với quyền chỉ dành cho vClass \texttt{custom1}; liên kết rẽ phải của làn rẽ phải liên tục mang trạng thái \texttt{g} ở mọi pha; mỗi nhánh được tách thành đoạn phía trước và đoạn cọc 30~m cấm chuyển làn giữa lane 0 và lane 1; nhánh Lê Văn Lương phía tây có thêm cạnh vỉa hè chỉ dành cho \texttt{custom1} với hai liên kết đèn riêng. Việc tách cạnh làm vạch dừng dịch đi một khoảng nhỏ (từ $-0{,}70$ đến $+1{,}61$~m tùy nhánh), được ghi vào một tệp để các bảng quan sát dùng đúng vị trí; chỉ số 24 liên kết đèn của lòng đường không đổi. Toàn bộ quá trình được gọi qua một lệnh dòng lệnh duy nhất.
 
-\textbf{Gói \texttt{rules}.} Mô-đun lược đồ định nghĩa tham số hợp lệ của từng loại luật TraCI và các vClass mà mỗi luật được áp dụng. Hàm kiểm tra hợp lệ trả về toàn bộ lỗi trong một danh sách, mỗi lỗi mang một trong sáu mã \texttt{schema}, \texttt{unknown\_attr}, \texttt{out\_of\_bounds}, \texttt{share\_sum}, \texttt{rule\_params}, \texttt{logic}; nội dung lỗi nêu rõ khoảng giá trị hoặc tên được phép để có thể đưa nguyên văn vào phản hồi cho LLM (dự kiến), và một nhật ký hợp lệ ghi lại kết quả kiểm tra. Hàm biên dịch gọi bộ kiểm tra trước; nếu đặc tả không hợp lệ, nó báo lỗi \texttt{InvalidSpecError} kèm danh sách lỗi và không ghi tệp nào. Với đặc tả hợp lệ, nó ghi \texttt{vtypes.add.xml} gồm ba phân phối \texttt{car}, \texttt{moto}, \texttt{moto\_violator} theo thứ tự cố định, mỗi nguyên mẫu là một vType có mã trùng mã nguyên mẫu và xác suất bằng tỷ trọng; nguyên mẫu \texttt{custom1} được gán trước các giá trị mặc định của xe máy rồi mới ghi đè bởi đặc tả, vì \texttt{custom1} không có mặc định của xe máy. Mọi tham số, kể cả khi bằng giá trị mặc định, đều được ghi tường minh. Tệp sinh ra khai báo lược đồ XSD của SUMO, nhờ đó SUMO kiểm tra tên và giá trị thuộc tính mỗi khi nạp; thử nghiệm cho thấy nếu không khai báo, thuộc tính sai tên bị bỏ qua mà không có cảnh báo. Tệp \texttt{traci\_rules.json} chỉ được ghi khi đặc tả có luật, và mỗi luật mang danh sách mã vType thành viên mà nó áp dụng, vì xe lấy từ một phân phối báo mã của vType thành viên chứ không phải mã của phân phối.
+\textbf{Gói \texttt{rules}.} Mô-đun lược đồ định nghĩa tham số hợp lệ của từng loại luật TraCI và các vClass mà mỗi luật được áp dụng. Hàm kiểm tra hợp lệ trả về toàn bộ lỗi trong một danh sách, mỗi lỗi mang một trong sáu mã \texttt{schema}, \texttt{unknown\_attr}, \texttt{out\_of\_bounds}, \texttt{share\_sum}, \texttt{rule\_params}, \texttt{logic}; nội dung lỗi nêu rõ khoảng giá trị hoặc tên được phép để có thể đưa nguyên văn vào phản hồi cho LLM, và một nhật ký hợp lệ ghi lại kết quả kiểm tra. Hàm biên dịch gọi bộ kiểm tra trước; nếu đặc tả không hợp lệ, nó báo lỗi \texttt{InvalidSpecError} kèm danh sách lỗi và không ghi tệp nào. Với đặc tả hợp lệ, nó ghi \texttt{vtypes.add.xml} gồm các phân phối \texttt{car}, \texttt{moto}, \texttt{moto\_violator} và (nếu có) \texttt{car\_violator} theo thứ tự cố định, mỗi nguyên mẫu là một vType có mã trùng mã nguyên mẫu và xác suất bằng tỷ trọng; nguyên mẫu \texttt{custom1} (\texttt{custom2}) được gán trước các giá trị mặc định của xe máy (ô tô) rồi mới ghi đè bởi đặc tả, vì các vClass tùy biến không có mặc định này. Mọi tham số, kể cả khi bằng giá trị mặc định, đều được ghi tường minh. Tệp sinh ra khai báo lược đồ XSD của SUMO, nhờ đó SUMO kiểm tra tên và giá trị thuộc tính mỗi khi nạp; thử nghiệm cho thấy nếu không khai báo, thuộc tính sai tên bị bỏ qua mà không có cảnh báo. Tệp \texttt{traci\_rules.json} chỉ được ghi khi đặc tả có luật, và mỗi luật mang danh sách mã vType thành viên mà nó áp dụng, vì xe lấy từ một phân phối báo mã của vType thành viên chứ không phải mã của phân phối.
 
-\textbf{Gói \texttt{runtime}.} Mô-đun trạng thái đọc thông tin nút giao một lần khi bắt đầu, sau đó mỗi bước dùng một đăng ký ngữ cảnh quanh nút với bán kính 120~m và một đăng ký trạng thái đèn để dựng ảnh chụp trạng thái chung cho mọi luật. Lớp \texttt{Controller} tạo một đối tượng luật cho mỗi mục trong \texttt{traci\_rules.json} thông qua một bảng đăng ký (\texttt{RULE\_REGISTRY}) ánh xạ loại luật sang lớp hiện thực. Mỗi luật có bộ sinh số ngẫu nhiên riêng, khởi tạo từ seed của lần chạy, chỉ số và loại luật; xe được duyệt theo thứ tự mã, nên hai backend \texttt{libsumo} và \texttt{traci} cho cùng chuỗi rút ngẫu nhiên và cùng nhật ký can thiệp. Mọi lệnh gửi tới SUMO đi qua lớp bao \texttt{Commands}, đảm bảo mỗi xe chỉ chịu một can thiệp tại một thời điểm, chỉ xóa đúng bit được nêu tên của speed mode và kiểm tra lại giá trị SUMO báo về, đồng thời lưu các khoảng thời gian xe chịu can thiệp. Một khoảng như vậy chỉ đóng khi xe đã đi qua nút (xuất hiện trên làn không thuộc nút và không phải làn vào) hoặc rời vùng xét, để va chạm trong nút của xe vượt đèn đỏ vẫn được tính là liên quan đến can thiệp. Bộ điều khiển cung cấp bảng tóm tắt số can thiệp đã thử và đã thực thi theo từng luật, thời gian xử lý của nó, và hàm cho biết một xe có đang trong khoảng can thiệp tại một thời điểm hay không.
+\textbf{Gói \texttt{runtime}.} Mô-đun trạng thái đọc thông tin nút giao một lần khi bắt đầu, sau đó mỗi bước dùng một đăng ký ngữ cảnh quanh nút với bán kính 220~m và một đăng ký trạng thái đèn để dựng ảnh chụp trạng thái chung cho mọi luật. Lớp \texttt{Controller} tạo một đối tượng luật cho mỗi mục trong \texttt{traci\_rules.json} thông qua một bảng đăng ký (\texttt{RULE\_REGISTRY}) ánh xạ loại luật sang lớp hiện thực. Mỗi luật có bộ sinh số ngẫu nhiên riêng, khởi tạo từ seed của lần chạy, chỉ số và loại luật; xe được duyệt theo thứ tự mã, nên hai backend \texttt{libsumo} và \texttt{traci} cho cùng chuỗi rút ngẫu nhiên và cùng nhật ký can thiệp. Mọi lệnh gửi tới SUMO đi qua lớp bao \texttt{Commands}, đảm bảo mỗi xe chỉ chịu một can thiệp tại một thời điểm, chỉ xóa đúng bit được nêu tên của speed mode và kiểm tra lại giá trị SUMO báo về, đồng thời lưu các khoảng thời gian xe chịu can thiệp. Một khoảng như vậy chỉ đóng khi xe đã đi qua nút (xuất hiện trên làn không thuộc nút và không phải làn vào) hoặc rời vùng xét, để va chạm trong nút của xe vượt đèn đỏ vẫn được tính là liên quan đến can thiệp. Bộ điều khiển cung cấp bảng tóm tắt số can thiệp đã thử và đã thực thi theo từng luật, thời gian xử lý của nó, và hàm cho biết một xe có đang trong khoảng can thiệp tại một thời điểm hay không.
 
-\textbf{Gói \texttt{sim}.} Mô-đun cấu hình ghi tệp \texttt{run.sumocfg} bằng chính SUMO (tùy chọn lưu cấu hình), nên tùy chọn sai tên bị SUMO từ chối; mô-đun này luôn bật kiểm tra va chạm trong nút (\texttt{collision.check-junctions}) và gộp cảnh báo cùng loại. Trình chạy cung cấp hàm chạy một lần, hàm chạy nhiều lần song song và giao diện dòng lệnh. Tệp \texttt{manifest.json} của mỗi lần chạy ghi: mã lần chạy, mã đặc tả, ngày, seed; mã commit và trạng thái thay đổi chưa commit; phiên bản SUMO và backend; giá trị băm của đặc tả, mạng, tệp tuyến và cấu hình hiện trường; nhãn nguồn cấu hình hiện trường; cấu hình thí nghiệm hiệu lực và tùy chọn SUMO; thời gian chạy; số teleport (tổng và không do va chạm); số va chạm (tổng, theo loại, trên làn và trong nút, liên quan can thiệp TraCI); tóm tắt can thiệp và thời gian xử lý của bộ điều khiển; số xe chưa chèn được vào mạng (cuối lần chạy và lớn nhất); số cảnh báo và lỗi; và cờ \texttt{valid\_strict}, chỉ đúng khi không có teleport và không có va chạm nào. Một hàm riêng đánh giá tính đủ điều kiện của lần chạy theo các ngưỡng trong cấu hình thí nghiệm. Mô-đun đầu ra đọc đầu ra SUMO (cả \texttt{.xml} và \texttt{.xml.gz}) trong một lượt duyệt dữ liệu quỹ đạo và ghi bảy bảng theo lược đồ quan sát: số đếm rẽ, sự kiện đèn, lượt qua vạch dừng, ảnh chụp hàng chờ, vị trí ngang, hàng chờ giữa nút và lượt đi qua nút.
+\textbf{Gói \texttt{sim}.} Mô-đun cấu hình ghi tệp \texttt{run.sumocfg} bằng chính SUMO (tùy chọn lưu cấu hình), nên tùy chọn sai tên bị SUMO từ chối; mô-đun này luôn bật kiểm tra va chạm trong nút (\texttt{collision.check-junctions}) và gộp cảnh báo cùng loại. Trình chạy cung cấp hàm chạy một lần, hàm chạy nhiều lần song song và giao diện dòng lệnh. Tệp \texttt{manifest.json} của mỗi lần chạy ghi: mã lần chạy, mã đặc tả, ngày, seed; mã commit và trạng thái thay đổi chưa commit; phiên bản SUMO và backend; giá trị băm của đặc tả, mạng, tệp tuyến và cấu hình hiện trường; nhãn nguồn cấu hình hiện trường; cấu hình thí nghiệm hiệu lực và tùy chọn SUMO; thời gian chạy; số teleport (tổng và không do va chạm); số va chạm (tổng, theo loại, trên làn và trong nút, liên quan can thiệp TraCI); tóm tắt can thiệp và thời gian xử lý của bộ điều khiển; số xe chưa chèn được vào mạng (cuối lần chạy và lớn nhất); số cảnh báo và lỗi; và cờ \texttt{valid\_strict}, chỉ đúng khi không có teleport và không có va chạm nào. Một hàm riêng đánh giá tính đủ điều kiện của lần chạy theo các ngưỡng trong cấu hình thí nghiệm. Mô-đun đầu ra đọc đầu ra SUMO (cả \texttt{.xml} và \texttt{.xml.gz}) trong một lượt duyệt dữ liệu quỹ đạo và ghi mười bảng theo lược đồ quan sát: số đếm rẽ, sự kiện đèn, lượt qua vạch dừng, ảnh chụp hàng chờ, vị trí ngang, hàng chờ giữa nút, lượt đi qua nút, chuỗi thời gian hàng chờ (bước 2~s), sự kiện tìm khoảng trống và độ trễ xe rẽ phải. Ba bảng cuối chỉ được suy từ quỹ đạo, detector và tuyến, không đọc nhật ký can thiệp, để cùng một định nghĩa áp dụng được cho dữ liệu video.
 
-\textbf{Gói \texttt{proxy} và \texttt{metrics}.} Bộ sinh dữ liệu đại diện tạo, với mỗi ngày, bảy bảng CSV cùng một tệp manifest và tệp tuyến tương ứng; nó không đọc đầu ra SUMO. Gói chỉ số gồm một mô-đun dùng chung và một mô-đun cho mỗi chỉ số trong Bảng~\ref{table:3.3}; gói này đang được viết, chưa được commit, và hàm khoảng cách mà nó cần chưa tồn tại.
+\textbf{Gói \texttt{proxy} và \texttt{metrics}.} Bộ sinh dữ liệu đại diện tạo, với mỗi ngày, mười bảng CSV cùng một tệp manifest và tệp tuyến tương ứng; nó không đọc đầu ra SUMO, và ba bảng của nhóm F2 được sinh bằng một luồng số ngẫu nhiên riêng để các bảng cũ không đổi. Gói chỉ số gồm một mô-đun dùng chung (gán chu kỳ đèn theo mọi mốc bắt đầu xanh, xác định xe rẽ phải liên tục để loại khỏi các chỉ số vi phạm), một mô-đun cho mỗi chỉ số trong Bảng~\ref{table:3.3}, mô-đun báo cáo xác suất chọn không gian thay thế theo độ dài hàng chờ, và mô-đun khoảng cách. Hàm \texttt{compare} của mô-đun khoảng cách trả về một báo cáo gồm $S$, $S_{\text{sourced}}$, $S_{\text{assumed}}$, khoảng cách và tỷ số $R$ theo từng khóa, cùng các dòng tóm tắt không chứa tên ngày để dùng trực tiếp trong phản hồi cho LLM.
+
+\textbf{Mô-đun \texttt{evaluate}.} Lớp \texttt{RunBudget} giữ ngân sách của một chiến dịch trong tệp \texttt{budget.json}, đọc lại từ đĩa và trừ dưới khóa tệp. Hàm \texttt{evaluate\_spec} kiểm tra ngày, kiểm tra hợp lệ và biên dịch đặc tả vào thư mục của chiến dịch, trừ ngân sách, chạy song song các lần chạy, áp cổng G0 và tiêu chí đủ điều kiện, rồi gọi hàm khoảng cách trên mọi lần chạy. Đặc tả không hợp lệ không tốn lần chạy; mã đặc tả trùng trong cùng chiến dịch bị từ chối; ngày đánh giá bị chặn trừ khi được gọi tường minh từ bước đánh giá cuối. Hàm \texttt{select\_best} cài đặt quy tắc chọn đặc tả tốt nhất ở Mục~\ref{section:3.8}.
+
+\textbf{Gói \texttt{llm}.} Lớp \texttt{LLMClient} có hai backend: \texttt{openai} gọi máy chủ tương thích OpenAI (yêu cầu khai báo nhiệt độ và mức lượng tử hóa), và \texttt{file} ghi yêu cầu ra tệp rồi chờ tệp phản hồi, dùng cho mô hình thay thế. Với backend \texttt{file}, vòng lặp gửi mọi yêu cầu của một vòng, dừng với mã thoát riêng khi còn thiếu phản hồi, và được chạy tiếp sau khi các phản hồi đã có. Khi phát lại nhật ký, trình khách kiểm tra định danh LLM để một câu trả lời của mô hình thay thế không thể bị ghi nhận là của mô hình khác. Hàm \texttt{run\_loop} lưu trạng thái của chiến dịch (chế độ, đặc tả cơ sở, ngày, seed, ngân sách, thời lượng mô phỏng, cấu hình hiện trường, mức trần va chạm B0 và định danh LLM) và từ chối chạy tiếp nếu các giá trị này thay đổi; mỗi vòng ghi một tệp \texttt{iter\_<i>.json} với tỷ lệ hợp lệ và đặc tả tốt nhất đến lúc đó.
+
+\textbf{Gói \texttt{baselines}.} Hàm \texttt{search\_space} dựng không gian Optuna từ cấu trúc cho trước (Mục~\ref{section:3.8}); nghiên cứu Optuna được lưu trong một tệp nhật ký nên có thể chạy tiếp mà không trừ lại ngân sách, và từ chối chạy tiếp nếu ngày, seed hoặc cấu trúc khác. Đặc tả tốt nhất được chọn bằng cùng hàm \texttt{select\_best} như vòng lặp LLM và mang \texttt{provenance.model} là \texttt{optuna-tpe}.
 
 \section{Thiết kế chi tiết}
 
@@ -121,16 +131,17 @@ Vẽ hình & \texttt{matplotlib} & $\geq$ 3.8 \\ \hline
 Kiểm tra đặc tả theo lược đồ JSON & \texttt{jsonschema} & $\geq$ 4.20 \\ \hline
 Chuyển tọa độ kinh vĩ độ sang tọa độ mạng & \texttt{pyproj} & $\geq$ 3.6 \\ \hline
 Kiểm thử tự động & \texttt{pytest} & $\geq$ 8.0 \\ \hline
-Gọi LLM qua giao diện tương thích OpenAI (dự kiến) & \texttt{openai} & $\geq$ 1.30 \\ \hline
-Tối ưu tham số B2 (dự kiến)~\cite{akiba2019optuna} & \texttt{optuna} & $\geq$ 3.5 \\ \hline
-Chạy LLM cục bộ (đã cài, dự kiến dùng) & Ollama, mô hình \texttt{qwen3.5:9b} & Ollama 0.40.10 \\ \hline
+Gọi LLM qua giao diện tương thích OpenAI & \texttt{openai} & $\geq$ 1.30 \\ \hline
+Tối ưu tham số B2, H~\cite{akiba2019optuna} & \texttt{optuna} & $\geq$ 3.5 \\ \hline
+Chạy LLM cục bộ (chỉ trên máy Windows; chưa dùng cho chiến dịch nào) & Ollama, mô hình \texttt{qwen3.5:9b} & Ollama 0.40.10 \\ \hline
+Mô hình thay thế cho LLM cục bộ trong các chiến dịch P1, P2 hiện tại & Claude Sonnet (qua backend tệp) & \textbf{[TODO: phiên bản mô hình]} \\ \hline
 Quản lý phiên bản mã & Git & \textbf{[TODO]} \\ \hline
 \end{tabular}
 \caption{Thư viện và công cụ sử dụng}
 \label{table:4.3}
 \end{table}
 
-Thư viện \texttt{traci} và \texttt{sumolib} không được cài từ kho PyPI mà được nạp từ thư mục công cụ của bản cài SUMO, để luôn khớp với tệp thực thi SUMO. Gói \texttt{libsumo} và \texttt{sumo-data} được cài không kèm phụ thuộc, vì phụ thuộc khai báo của chúng kéo theo \texttt{traci} và \texttt{sumolib} phiên bản khác từ PyPI và che mất bản đi kèm SUMO. Hai backend được kiểm tra cho kết quả giống nhau bằng một kiểm thử riêng (Mục~\ref{section:testing}). Mô hình LLM đích theo kế hoạch là một mô hình lớn hơn; mô hình \texttt{qwen3.5:9b} được chọn tạm thời cho phần cứng hiện có, và cấu hình LLM của dự án vẫn để trống mô hình, mức lượng tử hóa, nhiệt độ và số mẫu \textbf{[TODO: chốt mô hình LLM]}.
+Thư viện \texttt{traci} và \texttt{sumolib} không được cài từ kho PyPI mà được nạp từ thư mục công cụ của bản cài SUMO, để luôn khớp với tệp thực thi SUMO. Gói \texttt{libsumo} và \texttt{sumo-data} được cài không kèm phụ thuộc, vì phụ thuộc khai báo của chúng kéo theo \texttt{traci} và \texttt{sumolib} phiên bản khác từ PyPI và che mất bản đi kèm SUMO. Hai backend được kiểm tra cho kết quả giống nhau bằng một kiểm thử riêng (Mục~\ref{section:testing}). Mô hình LLM đích theo kế hoạch là một mô hình lớn hơn; mô hình \texttt{qwen3.5:9b} chỉ là lựa chọn tạm thời cho phần cứng của máy Windows, và mức lượng tử hóa của nó chưa được chốt nên cấu hình này chưa được bật. Các chiến dịch hiện tại chạy trên máy Linux, nơi chưa có runtime LLM cục bộ, nên cấu hình LLM đang hoạt động là mô hình thay thế với 4 mẫu mỗi vòng và tối đa 3 lần thử \textbf{[TODO: chốt mô hình LLM cục bộ]}.
 
 \subsection{Kết quả đạt được}
 
@@ -152,11 +163,12 @@ Công việc được chia thành 15 hạng mục. Bảng~\ref{table:4.4} tóm t
 7 & Miền tham số, lược đồ đặc tả luật, bộ kiểm tra hợp lệ, đặc tả B1 & Hoàn thành \\ \hline
 8 & Bộ biên dịch đặc tả & Hoàn thành \\ \hline
 9 & Bộ điều khiển TraCI và năm luật có điều kiện & Hoàn thành \\ \hline
-10 & Các chỉ số M1--M8, G0 và hàm khoảng cách & Đang triển khai \\ \hline
-11 & Khung đánh giá chung và bộ đếm ngân sách số lần chạy & Dự kiến \\ \hline
-12 & Gọi LLM, prompt, phản hồi & Dự kiến \\ \hline
-13 & Vòng lặp LLM ba vòng & Dự kiến \\ \hline
-14 & Phương án đối sánh B2 bằng Optuna & Dự kiến \\ \hline
+10 & Các chỉ số M1--M8, G0 và hàm khoảng cách & Hoàn thành \\ \hline
+F2 & Mạng F2 (làn rẽ phải liên tục, \texttt{custom2}), thí nghiệm khả thi Phase 3A--3D, đoạn cọc, vỉa hè, luật \texttt{queue\_space\_seeking}, chỉ số M9--M10, đóng băng ngưỡng va chạm trên mạng F2 & Hoàn thành (đi ngược chiều được hoãn) \\ \hline
+11 & Khung đánh giá chung và bộ đếm ngân sách số lần chạy & Hoàn thành \\ \hline
+12 & Gọi LLM, prompt, phản hồi & Hoàn thành (chưa thử với LLM cục bộ) \\ \hline
+13 & Vòng lặp LLM P1 (\texttt{params\_only}) và P2 (\texttt{full}) & Mã hoàn thành; chiến dịch P1, P2 tạm dừng sau 2/3 vòng, 24/36 lần chạy có kết quả (mô hình thay thế) \\ \hline
+14 & Phương án đối sánh B2 và H bằng Optuna & Mã hoàn thành; B2 36/36 lần chạy; H chưa chạy \\ \hline
 15 & Đánh giá cuối và báo cáo & Dự kiến \\ \hline
 \end{tabular}
 \caption{Các hạng mục và trạng thái}
@@ -192,20 +204,24 @@ Kiểm thử tự động dùng \texttt{pytest}. Phần lớn kiểm thử chạ
 \texttt{test\_compiler} & Biên dịch B1 khớp từng byte với bản chụp; mọi thuộc tính nằm trong miền; SUMO nạp được với kiểm tra XSD; đặc tả B0 tương đương tệp vType viết tay; mã vType xe báo về khi lấy từ phân phối \\ \hline
 \texttt{test\_runtime} & Mỗi luật một kịch bản trên mạng nhỏ; lệnh bị SUMO bỏ qua được ghi là không thực thi; khôi phục speed mode; tích hợp với trình chạy; giữ xe giữa nút không gây va chạm trong nút; cấm \texttt{ignoreIDs} trong mã nguồn \\ \hline
 \texttt{test\_backends} & \texttt{libsumo} và \texttt{traci} cho quỹ đạo giống hệt nhau với cùng kịch bản và seed \\ \hline
-\texttt{test\_metrics} & Các chỉ số M1--M8, G0 và hàm khoảng cách trên bảng dựng tay (đang viết) \\ \hline
+\texttt{test\_metrics} & Các chỉ số M1--M10, G0 và hàm khoảng cách trên bảng dựng tay có đáp án; khoảng cách khi một phía rỗng không bao giờ nhỏ hơn khoảng cách khi sai \\ \hline
+\texttt{test\_evaluate} & Ngân sách theo chiến dịch không vượt khi chạy lại; đặc tả hỏng không tốn lần chạy; mã đặc tả trùng bị từ chối; chặn ngày đánh giá; quy tắc chọn đặc tả tốt nhất \\ \hline
+\texttt{test\_llm} & Lược đồ cho LLM, khóa cấu trúc, phát lại nhật ký có kiểm định danh LLM, chặn rò rỉ dữ liệu ngày đánh giá trong phản hồi \\ \hline
+\texttt{test\_loop} & Vòng lặp chạy tiếp đúng sau khi bị ngắt (giữa vòng, ở đặc tả cuối còn đủ ngân sách) mà không trừ lại ngân sách; mẫu không hợp lệ không tốn lần chạy; khóa cấu trúc của P1; chạy thêm vòng khi còn ngân sách; số lần chạy đã dùng khớp bộ đếm ngân sách \\ \hline
+\texttt{test\_optuna} & Không gian tìm kiếm theo cấu trúc; mọi thử nghiệm ngẫu nhiên đều hợp lệ; chạy tiếp nghiên cứu không trừ lại ngân sách \\ \hline
 \end{tabular}
 \caption{Các bộ kiểm thử tự động}
 \label{table:4.5}
 \end{table}
 
-Lần chạy toàn bộ kiểm thử gần nhất được ghi nhận, sau khi hoàn thành bộ điều khiển TraCI, cho kết quả 221 kiểm thử đạt và 1 kiểm thử được đánh dấu là thất bại dự kiến (xfail). Kiểm thử xfail này so sánh tỷ lệ vượt đèn đỏ của ô tô trong dữ liệu đại diện với giá trị mục tiêu: trên năm ngày, tỷ lệ này lệch +18,3\% so với mục tiêu trong khi ngưỡng chấp nhận là $\pm$15\%, do số sự kiện quá ít (khoảng 22 sự kiện trong năm ngày) chứ không do bộ sinh bị lệch. Bộ kiểm thử chỉ số chưa nằm trong lần chạy đó và hiện chưa chạy được, vì nó nhập mô-đun hàm khoảng cách chưa được viết.
+Lần chạy toàn bộ kiểm thử gần nhất được ghi nhận, sau khi hoàn thành vòng lặp LLM, cho kết quả 367 kiểm thử đạt và 3 kiểm thử được đánh dấu là thất bại dự kiến (xfail). Cả ba kiểm thử xfail so sánh một tỷ lệ trên năm ngày đại diện với giá trị mục tiêu, với ngưỡng chấp nhận $\pm$15\%: tỷ lệ vượt đỏ của xe máy nhánh Lê Văn Lương phía tây lệch $+17{,}6\%$, tỷ lệ xuất phát sớm của ô tô lệch $-19\%$ và tỷ lệ vượt đỏ của ô tô lệch $-45\%$. Các độ lệch này là sai số ngẫu nhiên của bộ năm ngày (ô tô có rất ít sự kiện; với xe máy, trung bình của 200 bộ sinh lại chỉ lệch $+0{,}1\%$), và bộ ngày không được sinh lại theo kết quả.
 
 Hai kiểm thử có vai trò đặc biệt đối với độ tin cậy của kết quả. Kiểm thử đối chiếu backend đảm bảo việc dùng \texttt{libsumo} để tăng tốc không làm thay đổi kết quả so với \texttt{traci}; ở cấp bộ điều khiển, hai backend cũng cho cùng nhật ký can thiệp. Kiểm thử giữ xe giữa nút chạy trên mạng chữ thập nhỏ có dòng xe cắt ngang và bật kiểm tra va chạm trong nút: giữ xe thuần bằng cách đặt tốc độ bằng 0 không gây va chạm trong nút, còn một đối chứng âm cố ý cho xe cắt ngang bỏ qua xe đang bị giữ thì gây va chạm, nên kiểm thử phát hiện được nếu cách làm sai này quay lại. Script thí nghiệm vùng chờ giữa nút (Mục~\ref{section:box_capacity}) không có kiểm thử tự động.
 
 \section{Thực nghiệm}
 \label{section:experiments}
 
-Mục này trình bày các thực nghiệm đã tiến hành. Tất cả đều chạy trên mạng đại diện (cấu hình hiện trường lấy từ tài liệu và giả định) với vType B0 hoặc B1; chưa có thực nghiệm nào dùng đặc tả do LLM hay Optuna sinh. Với mỗi thực nghiệm, phần quan sát chỉ nêu số liệu, phần diễn giải chỉ dựa trên các số liệu đó, còn các giả thuyết cần kiểm chứng được nêu riêng. Trong mục này, \emph{va chạm/h} là số va chạm SUMO ghi nhận trong một lần chạy quy về một giờ mô phỏng; \emph{teleport kẹt} là số lần SUMO đưa một xe ra khỏi mạng vì xe bị kẹt quá thời gian cho phép (mặc định 300~s) hoặc kẹt khi nhường đường, không tính teleport do va chạm.
+Mục này trình bày các thực nghiệm đã tiến hành. Tất cả đều chạy trên mạng đại diện (cấu hình hiện trường lấy từ tài liệu và giả định). Các Mục~\ref{section:box_capacity}--\ref{subsection:b1_check} được thực hiện trên mạng trước khi bổ sung làn rẽ phải liên tục (gọi là mạng trước F2); các Mục~\ref{subsection:phase3}--\ref{subsection:interim} dùng mạng cuối (mạng F2). Số liệu của hai mạng không so sánh trực tiếp được với nhau. Với mỗi thực nghiệm, phần quan sát chỉ nêu số liệu, phần diễn giải chỉ dựa trên các số liệu đó, còn các giả thuyết cần kiểm chứng được nêu riêng. Trong mục này, \emph{va chạm/h} là số va chạm SUMO ghi nhận trong một lần chạy quy về một giờ mô phỏng; \emph{teleport kẹt} là số lần SUMO đưa một xe ra khỏi mạng vì xe bị kẹt quá thời gian cho phép (mặc định 300~s) hoặc kẹt khi nhường đường, không tính teleport do va chạm.
 
 \subsection{Thí nghiệm khả thi về xe chờ giữa nút}
 \label{section:box_capacity}
@@ -298,7 +314,7 @@ D3 & 3 & 0 & 0 & 0 & Có & 1,000 & 1,000 \\ \hline
 
 \textbf{Diễn giải.} Nguyên nhân chính gây kẹt của B0 trên dữ liệu đại diện là các xe máy rẽ trái trái phép chờ giữa nút với vType mặc định, khiến làn 2 của nhánh có xe vi phạm bị tắc. Đây là một phát hiện về hành vi của cấu hình mặc định chứ không phải lỗi mạng, nên mạng không được vá thêm; giảm tình trạng kẹt này là một mục tiêu cải thiện mà các bộ luật hiệu chỉnh cần đạt. Tỷ lệ GEH cao chỉ cho thấy nút phục vụ được nhu cầu đại diện: các số ``quan sát'' đại diện và tệp tuyến cùng được sinh từ một bộ sinh, nên G0 ở đây không phải bằng chứng về độ thực tế.
 
-\textbf{Giới hạn về điều kiện chạy.} Từ 9 tỷ lệ va chạm trên, ngưỡng va chạm cho phép từng được đặt bằng $\max(2, \lceil p_{90} \rceil) = 3$ va chạm/h (với $p_{90} = 2{,}8$). Ngưỡng này \emph{đã bị hủy} khi đồ án quyết định bật kiểm tra va chạm trong nút cho mọi lần chạy, vì khi tắt kiểm tra, va chạm giữa xe đang chờ giữa nút và dòng cắt ngang không được đếm; hai ngưỡng mới (va chạm trên làn và trong nút) đang được tính lại từ B0 với kiểm tra bật \textbf{[TODO: cập nhật ngưỡng và bảng B0 khi có kết quả chạy lại với kiểm tra va chạm trong nút]}. Do đó, các số va chạm trong Bảng~\ref{table:4.b0} không dùng để so sánh với các cấu hình chạy sau quyết định này. Toàn bộ kết quả trong mục chỉ phản ánh hành vi của mô hình trên dữ liệu đại diện và chỉ bao phủ nửa giờ đầu của khung cao điểm.
+\textbf{Giới hạn về điều kiện chạy.} Từ 9 tỷ lệ va chạm trên, ngưỡng va chạm cho phép từng được đặt bằng $\max(2, \lceil p_{90} \rceil) = 3$ va chạm/h (với $p_{90} = 2{,}8$). Ngưỡng này \emph{đã bị hủy} khi đồ án quyết định bật kiểm tra va chạm trong nút cho mọi lần chạy, vì khi tắt kiểm tra, va chạm giữa xe đang chờ giữa nút và dòng cắt ngang không được đếm; hai ngưỡng mới (va chạm trên làn và trong nút) được tính lại từ B0 với kiểm tra bật trên mạng cuối và trình bày ở Mục~\ref{subsection:r28_f2}. Do đó, các số va chạm trong Bảng~\ref{table:4.b0} không dùng để so sánh với các cấu hình chạy sau quyết định này. Toàn bộ kết quả trong mục chỉ phản ánh hành vi của mô hình trên dữ liệu đại diện và chỉ bao phủ nửa giờ đầu của khung cao điểm.
 
 \subsection{Kiểm tra chức năng bộ luật thủ công B1}
 \label{subsection:b1_check}
@@ -309,16 +325,140 @@ D3 & 3 & 0 & 0 & 0 & Có & 1,000 & 1,000 \\ \hline
 
 \textbf{Diễn giải.} Bộ điều khiển không làm thay đổi quỹ đạo khi không có luật nào kích hoạt, ghi nhận đúng các lệnh bị SUMO bỏ qua, và có chi phí tính toán nhỏ. Các số va chạm và teleport chỉ đến từ một seed, 600~s, nên không được dùng để kết luận về chất lượng của B1.
 
+\subsection{Thí nghiệm khả thi Phase 3A--3D trên mạng có làn rẽ phải liên tục}
+\label{subsection:phase3}
+
+\textbf{Bối cảnh.} Khi xác nhận mọi nhánh có làn rẽ phải liên tục, lane 0 của mỗi nhánh trở thành làn chỉ để rẽ phải (không thêm làn mới), nên mỗi nhánh còn hai làn đi thẳng có đèn. Trước khi cài đặt các hành vi (6)--(8) và xác nhận lại hành vi (10) trên mạng này, bốn thí nghiệm khả thi được thực hiện. Ba thí nghiệm 3A, 3B, 3C chạy trên các kịch bản đồ chơi riêng, nên mọi con số dưới đây là thiết lập thí nghiệm, không phải số đo; thí nghiệm 3D chạy trên mạng đại diện F2. Mọi lần chạy bật kiểm tra va chạm trong nút.
+
+\textbf{Quan sát.}
+\begin{itemize}
+\item \textbf{3A -- chặn làn rẽ phải (hành vi 6).} Mô hình SL2015 không tự tạo hành vi này: trong 12 lần chạy với hàng chờ tới 232~m, không xe vi phạm nào đi vào lane 0, vì với tuyến đi thẳng lane 0 là ngõ cụt. Hành vi chỉ xuất hiện khi có một điều kiện kích hoạt qua TraCI theo độ dài hàng chờ, kết hợp với việc tách đoạn có cọc thành cạnh riêng cấm chuyển làn (giá trị \texttt{ignoring} của thuộc tính cấm chuyển làn bị \texttt{netconvert} 1.27 bỏ qua mà không báo, nên dùng \texttt{emergency}). Khi đó xe vi phạm đi trên lane 0 và dừng trước đầu đoạn cọc để chờ nhập lại; xe rẽ phải bị trễ 4,2~s với xác suất kích hoạt 0,3 và 8--27~s với xác suất 1, so với 3,4--3,6~s khi không có xe chặn. Không có va chạm trong nút trong 90 lần chạy; va chạm trên làn tăng theo xác suất kích hoạt (0--4 mỗi lần chạy); xe tuân thủ không bị kẹt.
+\item \textbf{3B -- đi trên vỉa hè (hành vi 7).} SL2015 không tự dùng làn vỉa hè (nhiều nhất 1 trên 134 xe). Trong các cấu trúc mạng được thử, chỉ cấu trúc ``cạnh vỉa hè riêng chạy tới vạch dừng, có liên kết đèn riêng và được ưu tiên'' kèm điều kiện kích hoạt là chạy được: không có teleport kẹt, ít nhất 97\% xe đi hết vỉa hè; chi phí cho xe tuân thủ là thời gian đi thẳng tăng từ 42~s lên 59--84~s. Cấu trúc nhập lại kiểu phải nhường đường gây kẹt cứng; thêm làn mép trên cùng cạnh làm dịch mọi chỉ số làn nên không dùng. SUMO không cung cấp chỉ số an toàn cho xe trên vỉa hè.
+\item \textbf{3C -- đi ngược chiều (hành vi 8).} Cơ chế vượt bằng làn ngược chiều sẵn có không dùng được: trên đường nhiều làn chỉ xe ưu tiên được dùng; tham số \texttt{lcOpposite} theo tài liệu chỉ áp dụng cho mô hình LC2013, vốn không chạy cùng mô hình làn con; với SL2015 và làn con, xe có phản ứng nhưng đứng lại trên làn ngược chiều (trung vị 54~s). Một làn ảo ngược chiều dành cho \texttt{custom1} chạy được (71/71 xe dùng, 0 va chạm) nhưng SUMO không tính xung đột giữa làn ảo và dòng ngược chiều thật, nên năng lực bị thổi phồng và không có chỉ số an toàn. Lệnh TraCI \texttt{changeSublane} đưa được xe sang làn ngược chiều thật (có tính xung đột) nhưng không kiểm soát được điểm quay về.
+\item \textbf{3D -- chờ giữa nút (hành vi 10).} Trên mạng F2, với kịch bản \texttt{target} và 5 seed, số xe dừng lớn nhất trong vùng chờ là 13, 8, 8, 7 và 10, giống kết quả trên vùng chờ 3,5~m ở Bảng~\ref{table:4.box_r21}; không có va chạm nào giữa xe rẽ trái trái phép với các xe khác và không có kẹt cứng.
+\end{itemize}
+
+\textbf{Quyết định.} Hành vi (6) và (7) được cài vào mạng đại diện với giá trị giả định lấy từ thiết lập của 3A và 3B (đoạn cọc 30~m; vỉa hè ở nhánh Lê Văn Lương phía tây, rộng 3,0~m, tốc độ 5~m/s, bắt đầu 170~m trước vạch dừng), cùng lựa chọn \texttt{right\_lane} và \texttt{sidewalk} của luật \texttt{queue\_space\_seeking}; trong tệp cấu hình hiện trường đo thực, các trường này để trống. Hành vi (8) được \emph{hoãn}: không cài vào mô hình, chỉ số tương ứng (M11) và lựa chọn \texttt{opposite} của luật không được hiện thực, và hành vi này được ghi vào phần hạn chế. Với hành vi (10), cơ chế điểm chờ nội bộ sẵn có tiếp tục được dùng.
+
+\textbf{Kiểm tra chức năng sau khi cài đặt.} Trên PROXY\_D1, 3 seed, 1800~s, so sánh B1 với mọi xác suất bằng 0 và một biến thể với xác suất chọn làn rẽ phải 0,3, chọn vỉa hè 0,3 và $q = 30$~m: lựa chọn \texttt{right\_lane} được SUMO thực thi ở 93/100, 132/143 và 104/109 lần quyết định; lựa chọn \texttt{sidewalk} chỉ thực thi ở 8/17, 16/33 và 3/25 lần, chủ yếu vì xe ở làn 1--2 không kịp sang lane 0 trong khoảng 27~m trước điểm bắt đầu vỉa hè. Va chạm trong nút không có xu hướng theo luật; số va chạm liên quan can thiệp là 3--11 so với 1--5 của B1.
+
+\textbf{Giả thuyết cần kiểm chứng.} Mức trễ của xe rẽ phải và tỷ lệ dùng vỉa hè phụ thuộc trực tiếp vào chiều dài đoạn cọc, vị trí điểm lên vỉa hè và điểm nhập lại, hiện đều là giả định; cần đo các đại lượng này tại nút trước khi diễn giải các chỉ số M9, M10.
+
+\subsection{Ngưỡng va chạm đóng băng trên mạng F2}
+\label{subsection:r28_f2}
+
+\textbf{Thiết lập.} Trước vòng LLM đầu tiên, B0 được chạy trên mạng cuối (F2) với PROXY\_D1--PROXY\_D3, mỗi ngày 3 seed, 1800~s, kiểm tra va chạm trong nút bật, tắt SSM. Hai ngưỡng được tính bằng $\max(2, \lceil p_{90} \rceil)$ của 9 tỷ lệ va chạm mỗi giờ, đóng băng trong cấu hình thí nghiệm và không thay đổi sau khi thấy kết quả của các vòng tối ưu. Kết quả ở Bảng~\ref{table:4.r28}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{1.6cm}|p{1.8cm}|p{2.0cm}|p{3.4cm}|p{2.2cm}|}
+\hline
+\textbf{Ngày / seed} & \textbf{Va chạm làn} & \textbf{Va chạm trong nút} & \textbf{Teleport (tổng / không do va chạm)} & \textbf{Xe chưa chèn cuối} \\ \hline
+D1 / 1 & 2 & 41 & 59 / 16 & 339 \\ \hline
+D1 / 2 & 0 & 53 & 79 / 26 & 101 \\ \hline
+D1 / 3 & 2 & 54 & 56 / 0 & 0 \\ \hline
+D2 / 1 & 0 & 47 & 47 / 0 & 0 \\ \hline
+D2 / 2 & 0 & 69 & 69 / 0 & 0 \\ \hline
+D2 / 3 & 1 & 63 & 91 / 27 & 51 \\ \hline
+D3 / 1 & 1 & 78 & 79 / 0 & 0 \\ \hline
+D3 / 2 & 0 & 63 & 78 / 15 & 0 \\ \hline
+D3 / 3 & 0 & 53 & 60 / 7 & 0 \\ \hline
+\end{tabular}
+\caption{B0 trên mạng F2, PROXY\_D1--PROXY\_D3 (1800~s mỗi lần chạy, kiểm tra va chạm trong nút bật); số va chạm là số đếm trong một lần chạy}
+\label{table:4.r28}
+\end{table}
+
+\textbf{Quan sát.} Quy về mỗi giờ, va chạm trên làn là 4, 0, 4, 0, 0, 2, 2, 0, 0 (trung bình 1,333, $p_{90} = 4{,}0$), còn va chạm trong nút nằm trong khoảng 82--156 ($p_{90} = 141{,}6$). Các ngưỡng đóng băng là \textbf{4 va chạm trên làn/h} và \textbf{142 va chạm trong nút/h}; cổng tạm thời ``B0 không quá 5 va chạm trên làn/h'' đạt. Không lần chạy B0 nào đủ điều kiện: các lần chạy bị loại vì teleport không do va chạm, xe chưa chèn được khi kết thúc hoặc va chạm trong nút.
+
+\textbf{Diễn giải.} Với hai làn đi thẳng mỗi nhánh, mạng đại diện bị quá tải ở mức nhu cầu đại diện 8180 xe/h; trong kiểm tra chức năng của nhóm F2, số xe chưa chèn được cuối lần chạy là 300--1200 xe ở cả B0 và B1. Đồ án giữ nguyên nhu cầu và yêu cầu không còn xe chưa chèn khi kết thúc, không sửa mạng để giảm tải; khi không có đặc tả nào đủ điều kiện, đặc tả tốt nhất được chọn theo số teleport kẹt mỗi giờ rồi theo $S$ (Mục~\ref{section:3.8}). Đây là một giới hạn của mô hình nền và phải được nêu cùng mọi kết quả hiệu chỉnh. Ngưỡng 142 va chạm trong nút/h gần như không lọc được lần chạy nào; nó chủ yếu ghi nhận rằng va chạm trong nút của mô hình làn con là rất phổ biến ngay cả ở cấu hình mặc định.
+
+\subsection{Kết quả tạm thời của các chiến dịch hiệu chỉnh}
+\label{subsection:interim}
+
+\textbf{Phạm vi và điều kiện.} Mục này báo cáo trạng thái các chiến dịch tại ngày 27/10/2026, khi chúng \emph{chưa hoàn thành}. Chiến dịch B2 (Optuna trên cấu trúc B1) đã dùng hết 36/36 lần chạy, tức 12 thử nghiệm. Hai chiến dịch P1 (LLM chỉnh tham số trên cấu trúc B1) và P2 (LLM sinh cả cấu trúc) mới hoàn thành 2 trong 3 vòng theo kế hoạch, tức 8 đặc tả với 24/36 lần chạy đã có kết quả. Vòng 3 đã được sinh đặc tả và đã bắt đầu chạy trước khi bị tạm dừng theo yêu cầu của người thực hiện; vì vậy bộ đếm ngân sách đã ghi 33 lần chạy (P1) và 27 lần chạy (P2), nhưng chưa có kết quả nào của vòng 3 được lưu và vòng này không được báo cáo ở đây. \textbf{Mọi đặc tả P1 và P2 do mô hình thay thế Claude Sonnet sinh} (\texttt{provenance.model} \texttt{claude-sonnet (stand-in)}), không phải LLM cục bộ, nên các số dưới đây không phải kết quả của phương pháp đề xuất. Mỗi đặc tả được đánh giá bằng 3 lần chạy 1800~s (PROXY\_D1, D2, D3, seed 1), trên dữ liệu đại diện \texttt{LITERATURE\_PROXY}. Để có mốc so sánh, B0 và B1 được chấm điểm theo đúng cách này trong một chiến dịch tham chiếu riêng (REF). Bảng~\ref{table:4.interim_summary} tóm tắt theo chiến dịch và Bảng~\ref{table:4.interim_specs} liệt kê từng đặc tả. Các tỷ lệ mỗi giờ là trung bình của 3 lần chạy; vì mỗi lần chạy dài 0,5~h, một sự kiện tương ứng 2 sự kiện/h trong một lần chạy.
+
+\begin{table}[H]
+\centering
+\small\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|p{1.3cm}|p{1.3cm}|p{1.8cm}|p{2.0cm}|p{1.4cm}|p{1.5cm}|p{1.4cm}|p{2.4cm}|}
+\hline
+\textbf{Chiến dịch} & \textbf{Đặc tả (lần chạy)} & \textbf{Hợp lệ (lần trả lời / mẫu)} & \textbf{$S$ nhỏ nhất / trung vị / lớn nhất} & \textbf{Va chạm làn/h} & \textbf{Va chạm tổng/h} & \textbf{Teleport kẹt/h} & \textbf{Tốt nhất (quy tắc dự phòng)} \\ \hline
+B2 & 12 (36) & -- & 1,182 / 1,329 / 1,523 & 2,0--46,0 & 90,7--168,0 & 12,0--76,7 & \texttt{B2\_\allowbreak t010}: 12,0/h; $S$ 1,374 \\ \hline
+P1 (thay thế) & 8 (24) & 8/8 / 8/8 & 1,159 / 1,188 / 1,262 & 0,0--1,3 & 93,3--146,0 & 24,0--54,0 & \texttt{P1\_\allowbreak it02\_\allowbreak s00}: 24,0/h; $S$ 1,167 \\ \hline
+P2 (thay thế) & 8 (24) & 8/11 / 8/8 & 1,047 / 1,201 / 1,299 & 6,0--21,3 & 136,7--186,0 & 7,3--30,0 & \texttt{P2\_\allowbreak it02\_\allowbreak s03}: 7,3/h; $S$ 1,084 \\ \hline
+B0 (REF) & 1 (3) & -- & 1,181 & 2,0 & 112,7 & 10,7 & -- \\ \hline
+B1 (REF) & 1 (3) & -- & 1,216 & 0,0 & 107,3 & 45,3 & -- \\ \hline
+\end{tabular}
+\caption{Tóm tắt tạm thời theo chiến dịch (PROXY\_D1--D3, seed 1, 1800~s; mọi đặc tả đều bị loại bởi tiêu chí đủ điều kiện; ``Teleport kẹt/h'' gồm teleport do kẹt và do kẹt khi nhường đường; ``Tốt nhất'' theo quy tắc dự phòng: ít teleport kẹt/h nhất, rồi $S$ nhỏ nhất)}
+\label{table:4.interim_summary}
+\end{table}
+
+\begin{table}[H]
+\centering
+\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|p{1.2cm}|p{2.6cm}|p{1.5cm}|p{1.6cm}|p{1.6cm}|p{1.3cm}|p{1.6cm}|p{1.6cm}|}
+\hline
+\textbf{Chiến dịch} & \textbf{Đặc tả} & \textbf{Va chạm làn} & \textbf{Va chạm tổng} & \textbf{Teleport kẹt} & \textbf{$S$} & \textbf{$S_{\text{sourced}}$} & \textbf{$S_{\text{assumed}}$} \\ \hline
+B2 & \texttt{B2\_t000} & 29,3 & 168,0 & 27,3 & 1,302 & 0,547 & 0,754 \\ \hline
+B2 & \texttt{B2\_t001} & 7,3 & 128,0 & 60,0 & 1,356 & 0,531 & 0,825 \\ \hline
+B2 & \texttt{B2\_t002} & 9,3 & 113,3 & 43,3 & 1,286 & 0,519 & 0,768 \\ \hline
+B2 & \texttt{B2\_t003} & 2,0 & 96,7 & 20,0 & 1,233 & 0,511 & 0,722 \\ \hline
+B2 & \texttt{B2\_t004} & 14,0 & 115,3 & 43,3 & 1,523 & 0,522 & 1,002 \\ \hline
+B2 & \texttt{B2\_t005} & 7,3 & 112,0 & 13,3 & 1,228 & 0,513 & 0,715 \\ \hline
+B2 & \texttt{B2\_t006} & 12,7 & 110,0 & 50,0 & 1,428 & 0,526 & 0,902 \\ \hline
+B2 & \texttt{B2\_t007} & 2,7 & 93,3 & 38,0 & 1,182 & 0,490 & 0,692 \\ \hline
+B2 & \texttt{B2\_t008} & 21,3 & 120,0 & 49,3 & 1,450 & 0,502 & 0,948 \\ \hline
+B2 & \texttt{B2\_t009} & 9,3 & 100,0 & 31,3 & 1,361 & 0,516 & 0,844 \\ \hline
+B2 & \texttt{B2\_t010} & 46,0 & 166,0 & 12,0 & 1,374 & 0,526 & 0,848 \\ \hline
+B2 & \texttt{B2\_t011} & 3,3 & 90,7 & 76,7 & 1,262 & 0,533 & 0,729 \\ \hline
+P1 & \texttt{P1\_it01\_s00} & 0,0 & 93,3 & 25,3 & 1,199 & 0,541 & 0,658 \\ \hline
+P1 & \texttt{P1\_it01\_s01} & 1,3 & 102,0 & 37,3 & 1,262 & 0,532 & 0,730 \\ \hline
+P1 & \texttt{P1\_it01\_s02} & 0,7 & 115,3 & 28,7 & 1,192 & 0,513 & 0,680 \\ \hline
+P1 & \texttt{P1\_it01\_s03} & 0,0 & 100,0 & 36,7 & 1,184 & 0,543 & 0,642 \\ \hline
+P1 & \texttt{P1\_it02\_s00} & 0,7 & 140,7 & 24,0 & 1,167 & 0,506 & 0,661 \\ \hline
+P1 & \texttt{P1\_it02\_s01} & 0,7 & 146,0 & 54,0 & 1,172 & 0,506 & 0,666 \\ \hline
+P1 & \texttt{P1\_it02\_s02} & 0,0 & 118,0 & 45,3 & 1,159 & 0,512 & 0,647 \\ \hline
+P1 & \texttt{P1\_it02\_s03} & 0,0 & 120,7 & 49,3 & 1,241 & 0,519 & 0,722 \\ \hline
+P2 & \texttt{P2\_it01\_s00} & 19,3 & 186,0 & 21,3 & 1,207 & 0,463 & 0,744 \\ \hline
+P2 & \texttt{P2\_it01\_s01} & 12,7 & 173,3 & 18,0 & 1,219 & 0,493 & 0,726 \\ \hline
+P2 & \texttt{P2\_it01\_s02} & 8,0 & 176,0 & 21,3 & 1,299 & 0,470 & 0,829 \\ \hline
+P2 & \texttt{P2\_it01\_s03} & 9,3 & 162,7 & 24,7 & 1,236 & 0,517 & 0,719 \\ \hline
+P2 & \texttt{P2\_it02\_s00} & 6,0 & 136,7 & 14,0 & 1,047 & 0,398 & 0,649 \\ \hline
+P2 & \texttt{P2\_it02\_s01} & 21,3 & 168,7 & 30,0 & 1,149 & 0,459 & 0,690 \\ \hline
+P2 & \texttt{P2\_it02\_s02} & 11,3 & 153,3 & 24,7 & 1,196 & 0,499 & 0,697 \\ \hline
+P2 & \texttt{P2\_it02\_s03} & 9,3 & 152,7 & 7,3 & 1,084 & 0,417 & 0,667 \\ \hline
+REF & \texttt{B0} & 2,0 & 112,7 & 10,7 & 1,181 & 0,501 & 0,680 \\ \hline
+REF & \texttt{B1\_manual} & 0,0 & 107,3 & 45,3 & 1,216 & 0,525 & 0,691 \\ \hline
+\end{tabular}
+\caption{Từng đặc tả đã đánh giá (đơn vị: va chạm/h, teleport/h; mọi đặc tả bị loại; P1, P2 do mô hình thay thế sinh). Nguồn: \texttt{report/2026-10-27/data/campaign\_specs.csv} và chiến dịch REF}
+\label{table:4.interim_specs}
+\end{table}
+
+\textbf{Quan sát.}
+\begin{itemize}
+\item Không có đặc tả nào của ba chiến dịch đủ điều kiện. Mọi đặc tả đều có teleport kẹt (ít nhất 7,3/h), trong khi tiêu chí đủ điều kiện yêu cầu 0; vì vậy đặc tả tốt nhất của mỗi chiến dịch được chọn bằng quy tắc dự phòng. B0 và B1 chấm theo cùng cách cũng bị loại.
+\item Ở B2, đặc tả tốt nhất theo quy tắc dự phòng là \texttt{B2\_t010} (12,0 teleport kẹt/h), dù nó có tỷ lệ va chạm trên làn cao nhất chiến dịch (46,0/h) và $S$ (1,374) cao hơn đặc tả có $S$ nhỏ nhất (\texttt{B2\_t007}, 1,182); quy tắc dự phòng không áp mức trần va chạm. Giá trị $S$ tốt nhất của B2 giảm từ 1,302 ở thử nghiệm đầu xuống 1,182 ở thử nghiệm thứ 8 và không giảm thêm trong 4 thử nghiệm cuối.
+\item Tám đặc tả P1 có va chạm trên làn 0,0--1,3/h, thấp hơn khoảng 2,0--46,0/h của 12 đặc tả B2 trên cùng cấu trúc, nhưng có teleport kẹt 24,0--54,0/h, cao hơn đặc tả tốt nhất của B2.
+\item P2 có $S$ nhỏ nhất (1,047) và teleport kẹt thấp nhất (7,3/h) trong các đặc tả đã đánh giá, nhưng mọi đặc tả P2 có va chạm trên làn 6,0--21,3/h, vượt ngưỡng 4/h, và va chạm tổng 136,7--186,0/h, cao hơn hai chiến dịch còn lại.
+\item B0 chấm theo cùng cách có $S = 1{,}181$ và 10,7 teleport kẹt/h. Chỉ 6/28 đặc tả có $S$ nhỏ hơn B0 (3 của P1, 3 của P2, không có đặc tả nào của B2) và chỉ 1/28 đặc tả (\texttt{P2\_it02\_s03}) có ít teleport kẹt hơn B0. Như vậy, theo chính quy tắc chọn dự phòng (teleport kẹt rồi $S$), chưa đặc tả nào của B2 và P1 tốt hơn B0; chỉ \texttt{P2\_it02\_s03} (do mô hình thay thế sinh; 7,3/h, $S = 1{,}084$) tốt hơn B0 ở cả hai tiêu chí. B1, cấu trúc xuất phát của B2 và P1, có $S = 1{,}216$, 0,0 va chạm trên làn/h và 45,3 teleport kẹt/h; số đặc tả có $S$ nhỏ hơn B1 là 1/12 ở B2, 6/8 ở P1 và 5/8 ở P2, và số đặc tả có ít teleport kẹt hơn B1 là 8/12, 5/8 và 8/8.
+\item Về tính hợp lệ: ở P1, cả 8 lần trả lời đều hợp lệ ngay lần đầu. Ở P2, vòng 1 chỉ có 1/4 đặc tả hợp lệ ở lần trả lời đầu; 3 đặc tả còn lại cùng mắc một lỗi logic (khai báo đồng thời \texttt{lcPushy} và \texttt{lcPushyGap}) và đều được sửa ở lần thử thứ hai sau khi nhận thông báo lỗi; vòng 2 có 4/4 hợp lệ ngay lần đầu. Tính theo lần trả lời, P2 có 8/11 hợp lệ; tính theo trạng thái cuối của mẫu, cả hai chiến dịch đạt 8/8.
+\end{itemize}
+
+\textbf{Diễn giải có cơ sở.} Trên mạng đại diện quá tải, quy tắc chọn dự phòng ưu tiên giảm ùn tắc chứ không ưu tiên độ tương đồng, nên ``đặc tả tốt nhất'' ở đây có thể có $S$ cao hơn hoặc va chạm nhiều hơn các đặc tả khác cùng chiến dịch, như trường hợp \texttt{B2\_t010}. Các mức $S$ của mọi phương án nằm trong khoảng hẹp (1,05--1,52) và đa số không tốt hơn B0, nên ở giai đoạn này chưa phương án nào cho thấy cải thiện rõ ràng so với cấu hình mặc định. Cơ chế phản hồi lỗi của bộ kiểm tra hợp lệ đã hoạt động đúng như thiết kế trong một trường hợp thực (lỗi \texttt{lcPushy}/\texttt{lcPushyGap} được sửa sau một lần thử).
+
+\textbf{Vì sao chưa thể so sánh.} So sánh giữa các chiến dịch ở đây \emph{không} phải kết quả cuối và không được dùng để kết luận phương án nào tốt hơn, vì: (i) P1 và P2 mới dùng 2/3 ngân sách, trong khi B2 đã dùng hết; (ii) mỗi ngày chỉ có một seed, nên chưa tách được biến động do seed; (iii) mọi đặc tả đều bị loại bởi tiêu chí đủ điều kiện và đặc tả tốt nhất được chọn theo quy tắc dự phòng; (iv) mô hình nền quá tải ở nhu cầu đại diện; (v) P1, P2 dùng mô hình thay thế chứ không phải LLM cục bộ; (vi) dữ liệu mục tiêu là dữ liệu đại diện, và các khóa có mục tiêu giả định chiếm hơn một nửa giá trị $S$ ở mọi đặc tả. Đánh giá E1, E2 trên ngày đánh giá với nhiều seed và kiểm định thống kê (Mục~\ref{subsection:planned_experiments}) là bước cần thiết trước khi đưa ra bất kỳ kết luận so sánh nào.
+
 \subsection{Các thực nghiệm dự kiến}
 \label{subsection:planned_experiments}
 
-Các thực nghiệm sau chưa được thực hiện. Trước tiên, hai ngưỡng va chạm sẽ được tính lại và cố định từ B0 trên PROXY\_D1--PROXY\_D3 với 3 seed và kiểm tra va chạm trong nút bật, trước vòng LLM đầu tiên, để ngưỡng không phụ thuộc kết quả của LLM (dự kiến). Vòng lặp LLM dự kiến chạy ba vòng, mỗi vòng sinh 4 đặc tả và chạy mỗi đặc tả với 3 seed trên các ngày hiệu chỉnh, tổng ngân sách 36 lần chạy SUMO; đặc tả không hợp lệ không tốn lần chạy vì bị bộ kiểm tra chặn trước. Phương án B2 dùng Optuna với cùng không gian tham số, cùng hàm mục tiêu và cùng ngân sách 36 lần chạy (12 thử nghiệm $\times$ 3 seed) (dự kiến). Đánh giá cuối dự kiến chạy B0, B1, B2 và P trên hai ngày đánh giá PROXY\_D4--PROXY\_D5 với 20 seed, so sánh từng cặp bằng kiểm định Mann--Whitney có hiệu chỉnh Holm và kích thước hiệu ứng Cliff's delta, kèm một lần chạy chẩn đoán 3600~s $\times$ 3 seed cho B0 và P trên PROXY\_D4. Nếu còn thời gian, đồ án dự kiến thực hiện thêm phân tích loại bỏ (ablation) bằng cách tắt lần lượt từng luật TraCI hoặc từng nhóm tham số, và kịch bản chính sách với lưu lượng rẽ trái trái phép bằng 0\%, 50\% và 100\% mức quan sát, đo độ trễ và số xung đột; kịch bản chính sách sẽ được ghi rõ là ngoại suy. Ngân sách số lần chạy, trọng số của điểm tổng và mô hình LLM vẫn chưa được chốt trong cấu hình \textbf{[TODO]}.
+Các thực nghiệm sau chưa được thực hiện. Trước tiên, hai chiến dịch P1 và P2 cần dùng hết 12 lần chạy còn lại (vòng 3, và thêm vòng nếu còn ngân sách, tối đa 5 vòng), lý tưởng là với LLM cục bộ thay cho mô hình thay thế. Sau đó, phương án H chạy Optuna với cùng ngân sách 36 lần chạy trên cấu trúc của đặc tả tốt nhất của P2. Đánh giá cuối dự kiến chạy B0, B1, B2, P1, P2 và H trên hai ngày đánh giá PROXY\_D4--PROXY\_D5 với ít nhất 20 seed; thí nghiệm E1 so sánh P1 với B2, thí nghiệm E2 so sánh B2, H và P2, so sánh từng cặp bằng kiểm định Mann--Whitney có hiệu chỉnh Holm và kích thước hiệu ứng Cliff's delta, kèm một lần chạy chẩn đoán 3600~s $\times$ 3 seed cho B0 và đặc tả tốt nhất trên PROXY\_D4. Nếu còn thời gian, đồ án dự kiến thực hiện thêm phân tích loại bỏ (ablation) bằng cách tắt lần lượt từng luật TraCI hoặc từng nhóm tham số, và kịch bản chính sách với lưu lượng rẽ trái trái phép bằng 0\%, 50\% và 100\% mức quan sát, đo độ trễ và số xung đột; kịch bản chính sách sẽ được ghi rõ là ngoại suy. Mô hình LLM cục bộ dùng cho kết quả chính thức vẫn chưa được chốt \textbf{[TODO]}.
 
 \section{Triển khai}
 
-Hệ thống chạy trên một máy Windows \textbf{[TODO: cấu hình phần cứng của máy chạy thực nghiệm (CPU, RAM, GPU)]} với SUMO 1.27.0 cài đặt sẵn và biến môi trường \texttt{SUMO\_HOME} trỏ tới thư mục cài đặt. Môi trường Python là một môi trường ảo tạo bằng Python 3.12. Gói dự án được cài ở chế độ có thể chỉnh sửa kèm nhóm phụ thuộc phát triển; \texttt{libsumo} và \texttt{sumo-data} phiên bản 1.27.0 được cài không kèm phụ thuộc; một tệp đường dẫn trong môi trường ảo đưa thư mục công cụ của SUMO vào đường dẫn tìm mô-đun để nạp \texttt{traci} và \texttt{sumolib}. Toàn bộ kiểm thử chạy bằng \texttt{pytest} từ thư mục gốc của dự án.
+Hệ thống được phát triển trên một máy Windows, với SUMO 1.27.0 cài đặt sẵn và biến môi trường \texttt{SUMO\_HOME} trỏ tới thư mục cài đặt, rồi chuyển sang một máy Linux, nơi SUMO 1.27.0 được cài dưới dạng gói Python \texttt{eclipse-sumo} trong môi trường ảo và tệp đường dẫn của môi trường ảo tự đặt \texttt{SUMO\_HOME} \textbf{[TODO: cấu hình phần cứng của hai máy (CPU, RAM, GPU)]}. Tám lần chạy B0 đã có trên Windows được chạy lại trên Linux và cho đúng từng số va chạm và teleport. Các chiến dịch B2, P1, P2 và REF chạy trên máy Linux. Môi trường Python là một môi trường ảo tạo bằng Python 3.12, dựng bằng cùng một script trên cả hai máy. Gói dự án được cài ở chế độ có thể chỉnh sửa kèm nhóm phụ thuộc phát triển; \texttt{libsumo} và \texttt{sumo-data} phiên bản 1.27.0 được cài không kèm phụ thuộc; một tệp đường dẫn trong môi trường ảo đưa thư mục công cụ của SUMO vào đường dẫn tìm mô-đun để nạp \texttt{traci} và \texttt{sumolib}. Toàn bộ kiểm thử chạy bằng \texttt{pytest} từ thư mục gốc của dự án.
 
-Quy trình tái lập gồm các lệnh mô-đun Python theo thứ tự của Bảng~\ref{table:4.2}: \texttt{thesis\_sumo.net.build} với tệp cấu hình hiện trường đại diện để dựng mạng; \texttt{thesis\_sumo.proxy.generate} để sinh năm ngày dữ liệu đại diện và tệp tuyến tương ứng; \texttt{thesis\_sumo.rules.compiler} để biên dịch một đặc tả (bắt buộc truyền tệp cấu hình hiện trường đại diện, vì cấu hình đo thực chưa có bề rộng làn); và \texttt{thesis\_sumo.sim.runner} để chạy mô phỏng, với các tham số mã đặc tả, ngày, danh sách seed, tệp cấu hình hiện trường, thời điểm kết thúc, số tiến trình song song, chế độ SSM và tùy chọn mở \texttt{sumo-gui}. Thí nghiệm vùng chờ giữa nút có script riêng với tùy chọn chỉ phân tích lại các lần chạy đã có.
+Quy trình tái lập gồm các lệnh mô-đun Python theo thứ tự của Bảng~\ref{table:4.2}: \texttt{thesis\_sumo.net.build} với tệp cấu hình hiện trường đại diện để dựng mạng; \texttt{thesis\_sumo.proxy.generate} để sinh năm ngày dữ liệu đại diện và tệp tuyến tương ứng; \texttt{thesis\_sumo.rules.compiler} để biên dịch một đặc tả (bắt buộc truyền tệp cấu hình hiện trường đại diện, vì cấu hình đo thực chưa có bề rộng làn); và \texttt{thesis\_sumo.sim.runner} để chạy mô phỏng, với các tham số mã đặc tả, ngày, danh sách seed, tệp cấu hình hiện trường, thời điểm kết thúc, số tiến trình song song, chế độ SSM và tùy chọn mở \texttt{sumo-gui}. Thí nghiệm vùng chờ giữa nút và các thí nghiệm Phase 3A--3C có script riêng. Các chiến dịch được chạy bằng \texttt{thesis\_sumo.baselines.optuna\_search} (B2, H) và \texttt{thesis\_sumo.llm.loop} (P1 với chế độ \texttt{params\_only} và đặc tả cơ sở B1, P2 với chế độ \texttt{full}), cùng ngân sách 36, cùng tệp cấu hình hiện trường đại diện và cùng mức trần va chạm B0 1,333/h; với mô hình thay thế, lệnh \texttt{loop pending} liệt kê các yêu cầu chưa có phản hồi, và chạy lại cùng lệnh sau khi đã có phản hồi sẽ tiếp tục chiến dịch. Dữ liệu của mỗi chiến dịch nằm trong \texttt{experiments/\allowbreak campaigns/\allowbreak <chiến dịch>/} (ngân sách, đặc tả, đặc tả đã biên dịch, lần chạy, trạng thái vòng lặp hoặc nghiên cứu Optuna) và nhật ký LLM nằm trong \texttt{experiments/\allowbreak llm\_logs/\allowbreak <chiến dịch>/}.
 
 Mỗi lần chạy ghi vào một thư mục riêng theo dạng \texttt{experiments/\allowbreak runs/\allowbreak <spec\_id>\_\_<day>/\allowbreak seed\_XX/}, với \texttt{spec\_id} là mã đặc tả, \texttt{day} là ngày dữ liệu và \texttt{XX} là seed; thư mục của seed bị xóa và tạo lại nếu chạy lại. Thư mục gồm tệp cấu hình \texttt{run.sumocfg} và tệp khai báo đầu ra, các đầu ra của SUMO (thông tin chuyến đi, quỹ đạo nén, chuyển làn, thống kê, va chạm, trạng thái đèn, detector), nhật ký \texttt{sumo.log}, tệp \texttt{vtypes.json} ghi các vType SUMO đã nạp, \texttt{interventions.csv} nếu có luật TraCI, \texttt{manifest.json} với các trường nêu ở Mục~\ref{subsection:package_design}, và thư mục các bảng CSV theo lược đồ quan sát. Các đầu ra thô không được đưa vào kho mã; kho mã chỉ lưu mã, cấu hình, tệp vá, mạng đã sinh, dữ liệu đại diện và các bảng kết quả nhỏ. Thời gian thực của một lần chạy B0 1800~s trên dữ liệu đại diện, khi chạy 3 lần song song, là 88--463~s.
 
