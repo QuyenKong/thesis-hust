@@ -1,13 +1,30 @@
-# Local LLM via an OpenAI-compatible API (Ollama / vLLM / LM Studio).
-# Code must not depend on a specific runtime.
+# Local LLM via an OpenAI-compatible API (Ollama / vLLM / LM Studio), or the file stand-in.
+# Code must not depend on a specific runtime (PLAN 0). thesis_sumo.llm.client.llm_config() returns the block named
+# by `active` plus the shared top-level keys.
+#
+# runtime: openai = any OpenAI-compatible server (structured output by JSON schema, fallback plain JSON + validate);
+#          file   = stand-in: requests/responses as JSON files under experiments/llm_logs/<campaign>/ (CLAUDE.md
+#                   Environment: Linux has no Ollama; a Claude Sonnet subagent answers; its specs are NOT results of
+#                   the local-LLM method).
 
-base_url: null                 # TODO_DECIDE, e.g. http://localhost:11434/v1 (Ollama)
-api_key: null                  # most local runtimes ignore it
-runtime: null                  # TODO_DECIDE: ollama | vllm | lmstudio (only selects the structured-output flavour)
-model: null                    # TODO_DECIDE: runtime-specific id of the target model (Qwen3.8-27B)
-quant: null                    # TODO_DECIDE: record for reproducibility
-temperature: null              # TODO_DECIDE
-seed: null                     # if the runtime supports it
-n_samples: null                # TODO_DECIDE: specs per iteration
-max_retries: 3
+active: standin                # ollama | standin
 prompt_version: v001
+
+ollama:                        # PROVISIONAL (plan Task 12); not run yet on any machine
+  runtime: openai
+  server: ollama               # recorded in provenance.runtime
+  base_url: http://localhost:11434/v1   # provisional: Ollama default port
+  api_key: null                # most local runtimes ignore it
+  model: qwen3.5:9b            # TODO_DECIDE: provisional (plan Task 12, fallback qwen3:8b); PLAN 0 target model is Qwen3.8-27B
+  quant: null                  # TODO_DECIDE: record for reproducibility (plan: Q4_K_M, verify with `ollama show`)
+  temperature: 0.7             # TODO_DECIDE: provisional (plan Task 12)
+  seed: 42                     # provisional; sample j uses seed + j (identical seeds would give identical samples)
+  n_samples: 4                 # TODO_DECIDE: provisional, specs per iteration (plan budget 3 rounds x 4 specs x 3 seeds)
+  max_attempts: 3              # PLAN 6.1: validate then retry, at most 3 attempts
+  timeout_s: 600
+
+standin:
+  runtime: file
+  model: "claude-sonnet (stand-in)"
+  n_samples: 4                 # same as the provisional ollama block, so the budget matches
+  max_attempts: 3

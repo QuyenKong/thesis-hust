@@ -16,7 +16,8 @@
         "prompt_version": {"type": ["string", "null"]},
         "iteration": {"type": ["integer", "null"], "minimum": 0},
         "sample_idx": {"type": ["integer", "null"], "minimum": 0},
-        "reference": {"type": ["string", "null"]}
+        "reference": {"type": ["string", "null"]},
+        "runtime": {"type": ["string", "null"], "description": "LLM runtime (llm.yaml), inserted by the harness"}
       }
     },
     "description": {"type": "string"},
@@ -57,7 +58,8 @@
       "additionalProperties": false,
       "required": ["id", "base_vclass", "share", "params"],
       "properties": {
-        "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$"},
+        "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$", "not": {"pattern": "^DEFAULT_"},
+               "description": "ids starting with DEFAULT_ are reserved: SUMO silently redefines its default vTypes (DEFAULT_VEHTYPE, ...)"},
         "base_vclass": {"enum": ["passenger", "motorcycle", "custom1", "custom2"]},
         "distribution": {"enum": ["car", "moto", "moto_violator", "car_violator"],
                          "description": "vTypeDistribution the archetype joins; default by base_vclass (car, moto, moto_violator, car_violator); custom1 may join moto, custom2 car (thesis_sumo.rules.schema.DISTRIBUTIONS_OF_VCLASS); share = share within this distribution"},

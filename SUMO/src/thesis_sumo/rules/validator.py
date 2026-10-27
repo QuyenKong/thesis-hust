@@ -4,7 +4,8 @@
 are written to be fed back to the LLM verbatim: each states the allowed range or the allowed names.
 
 Codes:
-- `schema`        the JSON structure (rules/schema/rule_spec.schema.json) is violated; other checks are skipped
+- `schema`        the JSON structure (rules/schema/rule_spec.schema.json) is violated (incl. an archetype id starting
+                  with the reserved prefix DEFAULT_); other checks are skipped
 - `unknown_attr`  an archetype param is not in rules/bounds/param_bounds.yaml (or is deliberately excluded)
 - `out_of_bounds` a param value is outside its range for the archetype's base vclass, has the wrong type, or
                   changes an attribute that is fixed at its default
@@ -26,6 +27,9 @@ Codes:
                   approach with a bollard edge (split node `<edge>.bollard`, net.apply_patches) whose upstream lane 0
                   allows the vclass; sidewalk = a sidewalk edge allowing the vclass. An archetype in moto_violator
                   drives only the illegal left (build_demand), so only wrong_lane counts for it
+- `structure_locked` (`structure_issues`, LLM loop mode params_only = P1, PLAN 7.2) the spec changes the structure
+                  of the locked base spec: archetype ids, base_vclass, distribution, the param names of an archetype
+                  or a rule, a non-numeric param value, or the rule types and their applies_to
 
 `minGapLat` is compared with the site file's lane widths via `Site.require`, so the measured site file with
 `lane_widths_m: null # TODO_MEASURE` raises MissingFieldDataError instead of validating against a default.
@@ -54,7 +58,7 @@ from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, DISTRIBUTIONS, DIS
                                       OPTIONAL_DISTRIBUTIONS, RULE_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound,
                                       load_bounds, load_excluded, load_json_schema)
 
-ISSUE_CODES = ("schema", "unknown_attr", "out_of_bounds", "share_sum", "rule_params", "logic")
+ISSUE_CODES = ("schema", "unknown_attr", "out_of_bounds", "share_sum", "rule_params", "logic", "structure_locked")
 SHARE_TOL = 1e-6
 VALIDITY_LOG_PATH = REPO_ROOT / "experiments" / "validity_log.csv"
 NET_DIR = REPO_ROOT / "scenario" / "net"
@@ -351,6 +355,48 @@ def validate(spec, site: Site, bounds: dict[str, Bound] | None = None, *, net: P
     bounds = bounds if bounds is not None else load_bounds()
     return (_archetype_issues(spec, bounds, load_excluded()) + _distribution_issues(spec)
             + _lane_width_issues(spec, site) + _rule_issues(spec) + _site_rule_issues(spec, site, net))
+
+
+def structure_issues(spec: dict, base: dict) -> list[ValidationIssue]:
+    """params_only lock (P1): `spec` may differ from `base` only in archetype `share`, numeric param values and
+    free text (rationale, description). Run after `validate` (expects a schema-valid spec)."""
+    issues = []
+    archs = {a["id"]: a for a in spec["driver_archetypes"]}
+    base_archs = {a["id"]: a for a in base["driver_archetypes"]}
+    if set(archs) != set(base_archs):
+        issues.append(_issue("driver_archetypes", "structure_locked",
+                             f"structure is locked: the archetype ids must be exactly {', '.join(base_archs)} "
+                             f"(got {', '.join(archs)}); change only share and numeric param values."))
+    for i, arch in enumerate(spec["driver_archetypes"]):
+        b = base_archs.get(arch["id"])
+        if b is None:
+            continue
+        for key, get in (("base_vclass", lambda a: a["base_vclass"]), ("distribution", distribution_of)):
+            if get(arch) != get(b):
+                issues.append(_issue(f"driver_archetypes[{i}].{key}", "structure_locked",
+                                     f"structure is locked: {arch['id']}.{key} must stay '{get(b)}'."))
+        issues += _params_locked(f"driver_archetypes[{i}].params", arch["id"], arch["params"], b["params"])
+    def rkey(r):
+        return r["rule_type"], tuple(sorted(r["applies_to"]))
+    base_rules = {rkey(r): r for r in base["traci_rules"]}
+    if sorted(map(rkey, spec["traci_rules"])) != sorted(base_rules):
+        want = "; ".join(f"{t} on {', '.join(a)}" for t, a in sorted(base_rules)) or "none"
+        issues.append(_issue("traci_rules", "structure_locked",
+                             f"structure is locked: the rules (rule_type, applies_to) must be exactly: {want}."))
+    for i, rule in enumerate(spec["traci_rules"]):
+        b = base_rules.get(rkey(rule))
+        if b is not None:
+            issues += _params_locked(f"traci_rules[{i}].params", rule["rule_type"], rule["params"], b["params"])
+    return issues
+
+
+def _params_locked(path: str, owner: str, params: dict, base: dict) -> list[ValidationIssue]:
+    if set(params) != set(base):
+        return [_issue(path, "structure_locked", f"structure is locked: {owner} must have exactly the params "
+                                                 f"{', '.join(base)} (got {', '.join(params) or 'none'}).")]
+    return [_issue(f"{path}.{k}", "structure_locked", f"structure is locked: {owner}.{k} is not numeric and must stay "
+                                                      f"{base[k]!r}.")
+            for k, v in params.items() if not (_is_number(v) and _is_number(base[k])) and v != base[k]]
 
 
 # ---------------------------------------------------------------- validity log

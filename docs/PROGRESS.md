@@ -672,6 +672,14 @@ Review lần 1 "changes requested" (ngân sách không gắn campaign/không lư
 
 **Lệnh tái tạo:** `.venv/bin/python -m pytest -q tests/test_evaluate.py` (17 test).
 
+### 2026-10-27 — Task 12: client LLM, prompt v001, phản hồi
+
+Review lần 1 "changes requested" (Critical: phát lại log cũ dán nhãn theo cấu hình hiện tại → câu trả lời stand-in có thể bị ghi là qwen; Important: `temperature`/`quant` null bị bỏ qua âm thầm) · fix round (kiểm định danh LLM khi phát lại, bắt buộc temperature/quant cho runtime openai) · ✅
+
+**Đã làm:** `llm/client.py` (`LLMClient`: backend `openai` — json_schema, lùi về JSON thường khi server từ chối; backend `file` — stand-in, `requests/`/`responses/`, `PendingResponse` để vòng lặp dừng rồi chạy tiếp; tối đa 3 lần thử, phản hồi lỗi validator; mọi lần thử ghi đầy đủ ở `experiments/llm_logs/<campaign>/`, phát lại khi chạy lại nếu cùng messages và cùng định danh LLM; harness tự chèn `spec_id`/`source`/`provenance`), `llm_schema` (tập con R18; `params_only` khóa cấu trúc → mã lỗi `structure_locked`), `llm/feedback.py` (`build_context`, `calibration_targets` chỉ D1–D3, `build_feedback`; chặn `DayDataLeak`), prompt `v001/{system,context,feedback,retry}.md`. Validator: từ chối id `DEFAULT_*`. `llm.yaml`: `active: standin` (runtime file, model "claude-sonnet (stand-in)", n_samples 4); khối `ollama` tạm (quant còn TODO_DECIDE nên chưa bật được). Chưa thử với Ollama/vLLM thật (máy Linux không có).
+
+**Lệnh tái tạo:** `.venv/bin/python -m pytest -q tests/test_llm.py` (14 test); toàn bộ 338 passed, 3 xfailed.
+
 ### Bước tiếp theo
 
 - Operator đang tính lại hai ngưỡng va chạm (lane và junction) với `check-junctions` BẬT (R28): B0 trên PROXY_D1–D3 x 3 seed rồi đóng băng và commit trước vòng 1 (R24); kèm kiểm cặp seed hold so với lag 0 (R29) và một run chẩn đoán B0 D1 với time-to-teleport `-1` (R33).

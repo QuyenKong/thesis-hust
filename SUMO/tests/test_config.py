@@ -17,6 +17,7 @@ from thesis_sumo.config import (
     load_site,
 )
 from thesis_sumo.net.apply_patches import ILLEGAL_LEFT_MODES
+from thesis_sumo.llm.client import llm_config
 
 SITE = REPO_ROOT / "config" / "site.yaml"
 PROXY = REPO_ROOT / "config" / "site.proxy.yaml"
@@ -190,4 +191,4 @@ def test_proxy_signal_phases_sum_to_cycle():
 
 def test_experiment_and_llm_load():
     assert load_experiment()["sim"]["step_length_s"] == 0.1
-    assert load_llm()["max_retries"] == 3
+    assert llm_config(load_llm())["max_attempts"] == 3
