@@ -53,6 +53,13 @@ Definitions (R = `observation.queue_range_m` from experiment.yaml, a modelling c
   was halting at `t`, but it is left out of `t_clear_start` / `t_clear_end` and does not make `t_clear_end`
   NaN; NaN `t_clear_end` with a value in `t_clear_start` therefore always means "still in the box when the
   record ends".
+- **F2 tables** (`queue_timeseries`, `space_seeking_events`, `right_turn_delay`; definitions in `schema_observed`),
+  from the fcd frames on the `QUEUE_TS_STEP_S` grid from the sim begin (the video sampling grid), never from the
+  TraCI log (`interventions.csv`), so the same rule works on video: queue = `queue_at` on each frame; lane 0's band
+  = [0, width of the stop-line edge's lane 0); a vehicle's movement = its route (as turn_counts; the sidewalk is a
+  TraCI reroute and the route file keeps the road route). `wrong_lane` lane markings = the movements of the stop-line
+  lane's connections open to `passenger` or `motorcycle` (`Geometry.lane_marks`; the proxy net is built so that they
+  equal the site's `lane_movements`, which M8 reads), the lane from `lane_or_lat_m` as in M8.
 - **traversals** (one row per stop-line crossing, same `track_id`): `movement` as in turn_counts;
   `exit_approach` = approach id of the arm the vehicle leaves by (outbound edge -> arm with the nearest
   bearing from the junction centre); `t_range_entry` = time the front crosses R upstream of the stop line,
@@ -78,11 +85,13 @@ from thesis_sumo.net.apply_patches import movement_of
 from thesis_sumo.net.build_net import approach_edges, approach_segments, sidewalk_edges, target_node, target_tls
 from thesis_sumo.schema_observed import (
     INTERVAL_S,
+    QUEUE_TS_STEP_S,
     TABLES,
     VCLASSES,
     cycle_id_at,
     green_onsets,
     normalise_state,
+    queue_at_times,
 )
 
 OBSERVED_DIR = "observed_schema"
@@ -127,6 +136,8 @@ class Geometry:
     exit_approach: dict[str, str] = field(default_factory=dict)  # outbound edge -> approach id of its arm
     stopline_from_centre: dict[str, float] = field(default_factory=dict)
     sidewalk_lanes: frozenset = frozenset()
+    lane_bounds: dict[str, np.ndarray] = field(default_factory=dict)  # approach -> cumulative stop-line lane widths
+    lane_marks: dict[str, list[set]] = field(default_factory=dict)    # approach -> movements per stop-line lane
 
     def opposing_of(self, approach: str) -> str:
         try:
@@ -222,6 +233,12 @@ def junction_geometry(net_path: Path) -> Geometry:
     missing = [a for a, links in group_links.items() if not links]
     if missing:
         raise ValueError(f"approaches {missing} have no straight link to define their signal group")
+    lane_bounds, lane_marks = {}, {}
+    for app, edge_id in inbound.items():
+        lanes = sorted(net.getEdge(edge_id).getLanes(), key=lambda ln: ln.getIndex())
+        lane_bounds[app] = np.cumsum([ln.getWidth() for ln in lanes])
+        lane_marks[app] = [{movements[(edge_id, c.getToLane().getEdge().getID())][1] for c in ln.getOutgoing()
+                            if c.allows("passenger") or c.allows("motorcycle")} for ln in lanes]
     opposing = {}
     for app in inbound:
         same_road = [o for o in inbound if o != app and o.split("_")[0] == app.split("_")[0]]
@@ -229,7 +246,8 @@ def junction_geometry(net_path: Path) -> Geometry:
             opposing[app] = same_road[0]
     return Geometry(inbound, lane_info, internal, road_width, {a: sorted(v) for a, v in group_links.items()},
                     box_lanes, opposing, movements, _exit_arms(net, node, inbound), stop_dist,
-                    frozenset(ln.getID() for sw in sidewalks for ln in net.getEdge(sw).getLanes()))
+                    frozenset(ln.getID() for sw in sidewalks for ln in net.getEdge(sw).getLanes()),
+                    lane_bounds, lane_marks)
 
 
 # ---------------------------------------------------------------- readers
@@ -469,7 +487,8 @@ def to_observed_schema(run_dir: Path) -> dict[str, pd.DataFrame]:
     for a in illegal:
         check_shared_green(ev, a, geo.opposing_of(a))
         opp_ends[a] = opposing_green_ends(ev, geo.opposing_of(a))
-    frame_times = {_rt(t) for v in list(onsets.values()) + list(opp_ends.values()) for t in v}
+    grid = [_rt(t) for t in np.arange(float(sim["begin_s"]), float(sim["end_s"]) - 1e-9, QUEUE_TS_STEP_S)]
+    frame_times = {_rt(t) for v in list(onsets.values()) + list(opp_ends.values()) for t in v} | set(grid)
     scan = scan_fcd(run_dir / "fcd.xml.gz", geo, frame_times, range_m)
     entries, exits = read_loop_crossings(run_dir / "detectors.xml")
     routes = read_route_edges(routes_path)
@@ -481,7 +500,9 @@ def to_observed_schema(run_dir: Path) -> dict[str, pd.DataFrame]:
     tables = {"signal_events": ev, "stopline_crossings": cr,
               "turn_counts": _turn_counts(cr, geo, sim["begin_s"], sim["end_s"]),
               "traversals": _traversals(cr, exits, scan, geo)}
-    tables["queue_snapshots"], tables["lateral_snapshots"] = _snapshots(geo, onsets, scan.frames, vinfo, range_m)
+    frames = _annotate(scan.frames, geo, vinfo)
+    tables["queue_snapshots"], tables["lateral_snapshots"] = _snapshots(geo, onsets, frames, range_m)
+    tables.update(_f2_tables(geo, frames, grid, cr, routes, onsets, scan.range_entry, range_m))
     box = [box_queue_rows(a, opp_ends[a], onsets[a], scan.box_rows[scan.box_rows["approach"] == a],
                           scan.box_exits) for a in illegal]
     tables["box_queue"] = (pd.concat(box, ignore_index=True) if box
@@ -552,8 +573,8 @@ def _traversals(cr: pd.DataFrame, exits: pd.DataFrame, scan: FcdScan, geo: Geome
     }, columns=TABLES["traversals"])
 
 
-def _snapshots(geo: Geometry, onsets: dict, frames: pd.DataFrame, vinfo: dict,
-               range_m: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _annotate(frames: pd.DataFrame, geo: Geometry, vinfo: dict) -> pd.DataFrame:
+    """fcd frame rows + approach, dist_m (front upstream of the stop line), lat_m, vclass, length."""
     fr = frames.copy()
     on_inbound = fr["lane"].isin(geo.lane_info).to_numpy()
     lane = fr["lane"].map(lambda ln: geo.lane_info.get(ln) or geo.internal[ln])  # (approach, length|offset, lat)
@@ -564,6 +585,10 @@ def _snapshots(geo: Geometry, onsets: dict, frames: pd.DataFrame, vinfo: dict,
     fr["lat_m"] = lane.map(lambda x: x[2]).astype(float) + fr["posLat"]
     fr["vclass"] = _schema_vclass(fr["type"], vinfo)
     fr["length"] = fr["type"].map(lambda t: vinfo[t]["length"])
+    return fr
+
+
+def _snapshots(geo: Geometry, onsets: dict, fr: pd.DataFrame, range_m: float) -> tuple[pd.DataFrame, pd.DataFrame]:
     q_rows, lat_rows = [], []
     for app, times in onsets.items():
         for k, t0 in enumerate(times):
@@ -576,3 +601,56 @@ def _snapshots(geo: Geometry, onsets: dict, frames: pd.DataFrame, vinfo: dict,
                          for r in halted.sort_values("dist_m", kind="stable").itertuples()]
     return (pd.DataFrame(q_rows, columns=TABLES["queue_snapshots"]),
             pd.DataFrame(lat_rows, columns=TABLES["lateral_snapshots"]))
+
+
+def _f2_tables(geo: Geometry, fr: pd.DataFrame, grid: list[float], cr: pd.DataFrame, routes: dict, onsets: dict,
+               range_entry: dict, range_m: float) -> dict[str, pd.DataFrame]:
+    """queue_timeseries, space_seeking_events, right_turn_delay (schema_observed; module docstring) from the annotated
+    frames on `grid` and the stop-line crossings `cr` (with movement)."""
+    g = fr[fr["t"].isin(set(grid)) & (fr["dist_m"] >= 0) & (fr["dist_m"] <= range_m)]
+    on_sw = g["lane"].isin(geo.sidewalk_lanes)
+    by = dict(iter(g[~on_sw].groupby(["t", "approach"])))
+    empty = g.iloc[:0]
+    qts = pd.DataFrame([(t, a, *queue_at(by.get((t, a), empty), range_m)) for t in grid for a in sorted(geo.inbound)],
+                       columns=TABLES["queue_timeseries"])
+
+    moves: dict[str, str | None] = {}
+
+    def movement(vid: str, app: str) -> str | None:
+        if vid not in moves:
+            edges, frm = routes.get(vid, ()), geo.inbound[app]
+            moves[vid] = geo.movements[(frm, edges[edges.index(frm) + 1])][1] if frm in edges[:-1] else None
+        return moves[vid]
+
+    g = g.assign(movement=[movement(v, a) for v, a in zip(g["track_id"], g["approach"])])
+    w0 = g["approach"].map(lambda a: geo.lane_bounds[a][0])
+    lane0 = g[~on_sw & (g["lat_m"] >= 0) & (g["lat_m"] < w0)]
+    ev = []
+    for space, sub in (("right_lane", lane0[lane0["movement"] == "s"]), ("sidewalk", g[on_sw])):
+        first = sub.sort_values("t", kind="stable").drop_duplicates("track_id")
+        ev += [(r.t, r.approach, r.track_id, r.vclass, space) for r in first.itertuples()]
+    turning = cr[cr["movement"].isin(("r", "l", "u")) & ~cr["lane"].isin(geo.sidewalk_lanes) & cr["lane_or_lat_m"].notna()]
+    for r in turning.itertuples():
+        bounds = geo.lane_bounds[r.approach]
+        lane = min(int(np.searchsorted(bounds, r.lane_or_lat_m, side="right")), len(bounds) - 1)
+        if r.movement not in geo.lane_marks[r.approach][lane]:
+            t0 = range_entry.get(r.track_id, np.nan)
+            ev.append((r.t if np.isnan(t0) else _rt(t0), r.approach, r.track_id, r.vclass, "wrong_lane"))
+    ev = pd.DataFrame(ev, columns=["t", "approach", "track_id", "vclass", "space"])
+    ev["cycle_id"], ev["queue_length_m_at_t"] = -1, np.nan
+    for a, idx in ev.groupby("approach").groups.items():
+        ev.loc[idx, "cycle_id"] = cycle_id_at(onsets[a], ev.loc[idx, "t"])
+        ev.loc[idx, "queue_length_m_at_t"] = queue_at_times(qts, a, ev.loc[idx, "t"])
+    ev = ev.sort_values(["t", "approach", "track_id", "space"], kind="stable")[TABLES["space_seeking_events"]]
+
+    blocked = set()  # right-turners in lane 0 with a straight vehicle in lane 0 ahead of them at a grid time
+    for _, grp in lane0.groupby(["t", "approach"]):
+        s = grp.loc[grp["movement"] == "s", "dist_m"]
+        if len(s):
+            blocked |= set(grp.loc[(grp["movement"] == "r") & (grp["dist_m"] > s.min()), "track_id"])
+    rt = cr[(cr["movement"] == "r") & ~cr["lane"].isin(geo.sidewalk_lanes)]
+    rtd = pd.DataFrame({"track_id": rt["track_id"], "approach": rt["approach"], "vclass": rt["vclass"],
+                        "t_enter": rt["track_id"].map(lambda v: range_entry.get(v, np.nan)).astype(float),
+                        "t_exit": rt["t"], "blocked": rt["track_id"].isin(blocked)}, columns=TABLES["right_turn_delay"])
+    return {"queue_timeseries": qts, "space_seeking_events": ev.reset_index(drop=True),
+            "right_turn_delay": rtd.reset_index(drop=True)}

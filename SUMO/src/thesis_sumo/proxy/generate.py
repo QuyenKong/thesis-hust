@@ -32,6 +32,14 @@ which the CLI normalises to mean 1 over D1-D5, `campaign_day_factors`):
   leaves early through gaps; the others leave `clear_lag` after max(opposing green end, last opposing straight
   crossing) and then one per `box_exit_headway`. Halting box waiters at a green onset of their approach are in
   that onset's lateral snapshot, as in sim.outputs.
+- F2 tables (`f2_tables`, PLAN 5.1; its own random stream, child 2 of the day's seed, so the other tables keep their
+  draws): queue_timeseries = the snapshot packing (vehicles that reached the stop line and have not crossed,
+  overshooters left out) every `QUEUE_TS_STEP_S` s. Each straight vehicle entering the range is seen in lane 0
+  (`right_lane`) or, a motorcycle on a sidewalk approach (`f2_measured_approaches`), on the sidewalk, with probability
+  target x min(queue / `choice_ramp_queue_m`, 1) at the first grid time after its range entry (one draw).
+  A right-lane rider holds lane 0 for `lane0_hold_s`; a right-turner in lane 0's band entering the range during that
+  hold is blocked until it ends: its range entry moves earlier by the wait (its stop-line crossing, and so every
+  count, is unchanged). `wrong_lane` events = the M8 wrong-lane crossings (no draw). right_turn_delay = the right turns.
 """
 
 from __future__ import annotations
@@ -50,7 +58,15 @@ import pandas as pd
 import yaml
 
 from thesis_sumo.config import REPO_ROOT, Site, load_experiment, load_site
-from thesis_sumo.schema_observed import INTERVAL_S, TABLES, VCLASSES, cycle_id_at, green_onsets
+from thesis_sumo.schema_observed import (
+    INTERVAL_S,
+    QUEUE_TS_STEP_S,
+    TABLES,
+    VCLASSES,
+    cycle_id_at,
+    green_onsets,
+    queue_at_times,
+)
 from thesis_sumo.sim.outputs import TIME_DECIMALS, queue_range_m
 
 TARGETS_PATH = REPO_ROOT / "data" / "proxy" / "targets.yaml"
@@ -281,6 +297,8 @@ class Veh:
     t_cross: float = math.nan
     t_exit: float = math.nan
     box_long: float = math.nan  # long_m_from_stopline while waiting in the box (illegal lefts)
+    over: bool = False          # overshot the stop line in its (last) queue
+    blocked: bool = False       # right-turner held behind a right-lane rider (F2)
 
 
 def _lane_lat(rng, ap: Approach, vclass: str, movement: str, p: Params) -> float:
@@ -448,6 +466,8 @@ def serve(rng, ap: Approach, vehicles: list[Veh], cyc: Cycles, p: Params, window
                 v.t_cross = max(g - rng.uniform(lead["low"], lead["high"]), v.t_reach)
         queue = [v for v in queue if math.isnan(v.t_cross)]
         over = [v.vclass == "moto" and rng.random() < p("M4_lateral.overshoot_share_moto") for v in queue]
+        for v, o in zip(queue, over):
+            v.over = o
         front = [v for v, o in zip(queue, over) if o]
         back = [v for v, o in zip(queue, over) if not o]
         rows, cum = [], 0.0
@@ -559,6 +579,81 @@ def box_queue_table(approach: str, opposing: str, ev: pd.DataFrame, tr: pd.DataF
     return pd.DataFrame(rows, columns=TABLES["box_queue"])
 
 
+def _grid(window: float) -> np.ndarray:
+    return np.round(np.arange(0.0, window - 1e-9, QUEUE_TS_STEP_S), TIME_DECIMALS)
+
+
+def queue_timeseries(ap: Approach, vehicles: list[Veh], p: Params, window: float, range_m: float,
+                     lengths: dict[str, float]) -> list[tuple]:
+    """queue_timeseries rows of one approach: at each grid time the vehicles that have reached the stop line and not
+    crossed (signal controlled, overshooters left out), packed by area over `queue_width` in arrival order (as the
+    snapshots); length capped at `range_m`, counts of the vehicles whose position is within it."""
+    vs = sorted((v for v in vehicles if not (ap.continuous_right and v.movement == "r") and not v.over),
+                key=lambda v: (v.t_reach, v.id))
+    t_reach = np.array([v.t_reach for v in vs], dtype=float)
+    t_cross = np.array([np.inf if math.isnan(v.t_cross) else v.t_cross for v in vs], dtype=float)
+    car = np.array([v.vclass == "car" for v in vs], dtype=bool)
+    area = np.where(car, p("M5_queue.car_area_m2"), p("M5_queue.moto_area_m2"))
+    length = np.where(car, lengths["car"], lengths["moto"])
+    rows = []
+    for t in _grid(window):
+        m = (t_reach <= t) & (t < t_cross)
+        a = area[m]
+        pos = np.round((np.cumsum(a) - a) / ap.queue_width, LAT_DECIMALS)
+        tail = float(np.max(pos + length[m])) if a.size else 0.0
+        inside = pos <= range_m
+        rows.append((float(t), ap.id, round(min(tail, range_m), LAT_DECIMALS), int((car[m] & inside).sum()),
+                     int((~car[m] & inside).sum())))
+    return rows
+
+
+def f2_tables(rng, aps: dict[str, Approach], vehicles: dict[str, list[Veh]], ev: pd.DataFrame, p: Params,
+              window: float, range_m: float, lengths: dict[str, float], sidewalk: set[str]) -> dict[str, pd.DataFrame]:
+    """queue_timeseries and space_seeking_events (module docstring); moves the range entry of blocked right-turners
+    (before `_tables` writes traversals and right_turn_delay)."""
+    qts = pd.DataFrame([r for a in aps for r in queue_timeseries(aps[a], vehicles[a], p, window, range_m, lengths)],
+                       columns=TABLES["queue_timeseries"])
+    ramp_m = p("M9_right_lane.choice_ramp_queue_m")
+    q_at = {(r.approach, r.t): r.queue_length_m for r in qts.itertuples()}  # grid lookup
+    rows = []
+    for a, ap in aps.items():
+        holds = []
+        for v in vehicles[a]:
+            if v.movement != "s" or not 0 <= v.t_range < window:
+                continue
+            t = _rt(math.ceil(v.t_range / QUEUE_TS_STEP_S) * QUEUE_TS_STEP_S)
+            if t >= window:
+                continue
+            ramp = min(q_at[(a, t)] / ramp_m, 1.0)
+            p_rl = p("M9_right_lane.right_lane_choice_prob")[v.vclass] * ramp
+            p_sw = p("M10_sidewalk.sidewalk_choice_prob") * ramp if v.vclass == "moto" and a in sidewalk else 0.0
+            u = rng.random()
+            if u < p_rl:
+                rows.append((t, a, v.id, v.vclass, "right_lane"))
+                holds.append((t, t + _lognormal(rng, p("M9_right_lane.lane0_hold_s"),
+                                                p.item("M9_right_lane.lane0_hold_s")["cv"])))
+            elif u < p_rl + p_sw:
+                rows.append((t, a, v.id, v.vclass, "sidewalk"))
+        if ap.continuous_right:
+            for v in vehicles[a]:
+                if v.movement == "r" and v.lat < ap.edges[1]:  # in lane 0's band
+                    ends = [e for s0, e in holds if s0 <= v.t_range < e]
+                    if ends:
+                        v.t_range, v.blocked = v.t_range - (max(ends) - v.t_range), True
+        for v in vehicles[a]:  # wrong lane: the M8 rule, at the (final) range entry
+            if v.movement in TURNING and 0 <= v.t_cross < window:
+                lane = min(int(np.searchsorted(ap.edges[1:], round(v.lat, LAT_DECIMALS), side="right")), len(ap.widths) - 1)
+                if v.movement not in ap.lane_movements[lane]:
+                    rows.append((_rt(v.t_range) if v.t_range >= 0 else _rt(v.t_cross), a, v.id, v.vclass, "wrong_lane"))
+    sse = pd.DataFrame(rows, columns=["t", "approach", "track_id", "vclass", "space"])
+    sse["cycle_id"], sse["queue_length_m_at_t"] = -1, np.nan
+    for a, idx in sse.groupby("approach").groups.items():
+        sse.loc[idx, "cycle_id"] = cycle_id_at(green_onsets(ev, a), sse.loc[idx, "t"])
+        sse.loc[idx, "queue_length_m_at_t"] = queue_at_times(qts, a, sse.loc[idx, "t"])
+    sse = sse.sort_values(["t", "approach", "track_id", "space"], kind="stable")[TABLES["space_seeking_events"]]
+    return {"queue_timeseries": qts, "space_seeking_events": sse.reset_index(drop=True)}
+
+
 def _tables(aps: dict[str, Approach], vehicles: list[Veh], snaps: dict[str, list[Snapshot]], ev: pd.DataFrame,
             illegal: dict[str, str], window: float, range_m: float, lengths: dict[str, float]) -> dict[str, pd.DataFrame]:
     seen = [v for v in vehicles if 0 <= v.t_cross < window]
@@ -609,6 +704,11 @@ def _tables(aps: dict[str, Approach], vehicles: list[Veh], snaps: dict[str, list
         "lateral_snapshots": pd.DataFrame(lat_rows, columns=TABLES["lateral_snapshots"]),
         "traversals": df[TABLES["traversals"]],
     }
+    blocked = {v.id for v in seen if v.blocked}
+    rt = df[df["movement"] == "r"]
+    tables["right_turn_delay"] = pd.DataFrame({
+        "track_id": rt["track_id"], "approach": rt["approach"], "vclass": rt["vclass"], "t_enter": rt["t_range_entry"],
+        "t_exit": rt["t_stopline"], "blocked": rt["track_id"].isin(blocked)}, columns=TABLES["right_turn_delay"])
     box_rows = [box_queue_table(a, o, ev, df) for a, o in illegal.items()]
     tables["box_queue"] = (pd.concat(box_rows, ignore_index=True) if box_rows
                            else pd.DataFrame(columns=TABLES["box_queue"]))
@@ -699,7 +799,10 @@ def generate_day(targets: dict, site: Site, day_id: str, seed: int, out_dir: Pat
                 waiting.append((t_e, n))
                 j += 1
             waiting.sort()
+    f2_rng = np.random.default_rng(np.random.SeedSequence(seed, spawn_key=(2,)))  # = SeedSequence(seed).spawn(3)[2]
+    f2 = f2_tables(f2_rng, aps, vehicles, ev, p, window, range_m, lengths, set(site.get("f2_measured_approaches") or []))
     tables = _tables(aps, [v for a in aps for v in vehicles[a]], snaps, ev, illegal, window, range_m, lengths)
+    tables.update(f2)
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, cols in TABLES.items():
         tables[name][cols].to_csv(out_dir / f"{name}.csv", index=False, lineterminator="\n")

@@ -54,6 +54,10 @@ No source gives any of these quantities for **Le Van Luong x Hoang Dao Thuy**. T
 | M7a | box exit headway | 0.5 s, cv 0.56 | assumed | lower bound 0.37 s from [T1] (3.5 m stream) |
 | M7c | crossing-road start delay per box waiter | 0.3 s / vehicle | assumed | no measurement found |
 | M8 | wrong-lane share of turning vehicles | motorcycle 0.25, car 0.05 | assumed | no measured share; weak lane discipline suggested by motorcyclist turn-signal use of only 40 % in Da Nang [T8] |
+| M9 | straight vehicle seen in lane 0 (right-lane rider) | motorcycle 0.05, car 0.02 × min(queue / 30 m, 1) per straight vehicle entering the range | assumed | no source; order of magnitude from simulation settings only (Phase 3A 20 % × p 0.3, F2-behaviours SEEK 10 % × 0.3) |
+| M9 | full-probability queue (ramp) | 30 m, linear from 0 | assumed | chosen so the short proxy queues (onset queues 2–31 m) produce events; 3A trigger 50 m, SEEK q 30 m (settings, not data) |
+| M9 | time a rider holds lane 0 (blocks right-turners behind it) | 12 s, lognormal cv 0.5 | assumed | 35–50 m of lane 0 at ~3 m/s creep (3A merge point, v_creep of the SEEK check) |
+| M10 | straight motorcycle seen on the sidewalk (LVL_W only, `f2_measured_approaches`) | 0.03 × the M9 ramp | assumed | no source; order of the SEEK check (10 % × p_sidewalk 0.3) |
 | M8 | lane markings (`lane_movements`, site.proxy.yaml) | lane 0: r, s; lane 1: s; lane 2: s, l, u (LVL_W: s, u) | assumed | OSM approach ways have no `turn:lanes`; follows the netconvert connection layout |
 
 Between-day variation of the behaviour targets is ±8–12 % (CV), **assumed** (spec 4.2), except for the
@@ -96,6 +100,23 @@ that are defined only in this file, and they must be computed the same way on bo
 - **M8**: the lane of a vehicle is found from `lat_m_at_stopline` and the cumulative lane widths. The share
   counts only **turning** vehicles (r, l, u). `illegal_l` is permitted in no lane, so it is left out.
 - **box_queue**: a vehicle is halting in the box once it has been there for `HALT_LEAD_S` = 3 s.
+- **F2 tables** (Task F2-metrics; binding definitions in `schema_observed`, simulation side in `sim.outputs`), on a
+  2 s grid (`QUEUE_TS_STEP_S`):
+  - `queue_timeseries`: the queue_snapshots definition at every grid time. The generator packs the vehicles that
+    reached the stop line and have not crossed (signal controlled, overshooters out) as in the snapshots; at onsets
+    on the grid it equals the snapshot except for vehicles carried over from an earlier cycle (within a car length).
+  - `space_seeking_events`: first sighting of a vehicle in a space within the observed range R. `right_lane` =
+    straight vehicle in lane 0's band; `sidewalk` = on the sidewalk; `wrong_lane` = the M8 rule (turning vehicle
+    crossing in a lane whose markings do not permit its movement), dated at its range entry. `opposite` is never
+    produced (R38). The generator draws right lane / sidewalk once per straight vehicle at the first grid time after
+    its range entry, with probability target × min(queue there / 30 m, 1); wrong-lane events need no draw.
+  - `right_turn_delay`: every right turn from the road, `t_enter`/`t_exit` = its range entry / stop-line crossing
+    (= traversals); `blocked` = a straight vehicle was in lane 0's band ahead of it at a grid time while it was in
+    lane 0's band within R. The generator blocks a lane-0 right-turner whose range entry falls in a rider's hold and
+    moves its range entry earlier by the remaining hold (its crossing time, hence every count and the routes, stays).
+  - M9 / M10 / F2 metrics: M9a riders per cycle, M9b delay and share of blocked right-turners (all right-turner delays
+    are already M6/approach/r), M9c / M10b queue at the choice, M10a sidewalk riders per cycle; F2 per-queue-bin
+    choice probabilities (20 m bins, censored bin ≥ R) are reported, not scored.
 - **lateral_snapshots**: at a green onset, the rows are the queue (behind the line and overshooting) plus the
   halting illegal lefts still in the box (past the stop line, at −40…−60 % of the illegal-left path,
   assumed). This matches `sim.outputs`. On the generated days, box waiters at an onset of their own approach
@@ -103,6 +124,13 @@ that are defined only in this file, and they must be computed the same way on bo
   vehicles that crossed before the onset.
 
 ## 3. What the generated days look like (D1–D5, derived, not inputs)
+
+- F2 tables (Task F2-metrics, own random stream, child 2 of the day seed): only `traversals.t_range_entry` of the
+  blocked right-turners changed in the existing tables (23–44 rows per day, up to 30 s earlier); turn counts, crossings
+  and therefore the routes are unchanged. Per day (3600 s): right-lane riders 32–56, sidewalk riders (LVL_W) 7–21,
+  wrong-lane events 388–527 (the M8 share), blocked right-turners 23–44 of 1070–1330. Over D1–D5 the moto right-lane
+  count is 200 vs 239.5 expected from the targets (−2.6 Poisson SD; 30 independent days: −2.6 %, no bias), car 23 vs
+  15.5, sidewalk within 3 SD (`tests/test_proxy.py::test_f2_choice_rates_match_targets`, 3-SD Poisson check).
 
 The raw 5-day means are compared with the **nominal** targets.yaml values at 15 % (`tests/test_proxy.py`).
 - After Task F2-net (continuous right turns excluded, which also changed the generator's random stream), three

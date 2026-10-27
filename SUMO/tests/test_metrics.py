@@ -19,6 +19,9 @@ from thesis_sumo.metrics import (
     m6_traversal,
     m7_illegal_left,
     m8_wrong_lane,
+    m9_right_lane,
+    m10_sidewalk,
+    f2_space_choice,
 )
 from thesis_sumo.metrics.common import MetricContext, MetricValue, read_tables
 from thesis_sumo.schema_observed import TABLES
@@ -49,9 +52,11 @@ def _state(ev: pd.DataFrame, app: str, t: float) -> str:
     return e["state"].iloc[-1]
 
 
-def _tables(vehicles=(), lateral=(), queue=(), box=(), counts=(), n_cycles: int = 10) -> dict[str, pd.DataFrame]:
+def _tables(vehicles=(), lateral=(), queue=(), box=(), counts=(), n_cycles: int = 10, qts=(), events=(),
+            rtd=()) -> dict[str, pd.DataFrame]:
     """vehicles: (track_id, approach, vclass, movement, t_stopline, lat, t_exit, t_range_entry);
-    lateral: (cycle_id, approach, track_id, vclass, lat_m, long_m); queue / box / counts: schema rows."""
+    lateral: (cycle_id, approach, track_id, vclass, lat_m, long_m); queue / box / counts / qts (queue_timeseries) /
+    events (space_seeking_events) / rtd (right_turn_delay): schema rows."""
     ev = _signal(n_cycles)
     tr = pd.DataFrame([(i, vc, a, mv, "X", lat, t_rng, t, t_ex) for i, a, vc, mv, t, lat, t_ex, t_rng in vehicles],
                       columns=TABLES["traversals"])
@@ -68,18 +73,21 @@ def _tables(vehicles=(), lateral=(), queue=(), box=(), counts=(), n_cycles: int 
         "queue_snapshots": pd.DataFrame(list(queue), columns=TABLES["queue_snapshots"]),
         "box_queue": pd.DataFrame(list(box), columns=TABLES["box_queue"]),
         "turn_counts": pd.DataFrame(list(counts), columns=TABLES["turn_counts"]),
+        "queue_timeseries": pd.DataFrame(list(qts), columns=TABLES["queue_timeseries"]),
+        "space_seeking_events": pd.DataFrame(list(events), columns=TABLES["space_seeking_events"]),
+        "right_turn_delay": pd.DataFrame(list(rtd), columns=TABLES["right_turn_delay"]),
     }
 
 
-def _site(continuous: bool = False) -> Site:
+def _site(continuous: bool = False, sidewalk=None) -> Site:
     lanes = [["r", "s"], ["s"], ["s", "l", "u"]]
-    return Site({"site_source": "LITERATURE_PROXY", "approaches": [
+    return Site({"site_source": "LITERATURE_PROXY", "f2_measured_approaches": sidewalk, "approaches": [
         {"id": a, "lane_widths_m": [3.5, 3.5, 3.5], "lane_movements": lanes, "continuous_right_lane": continuous}
         for a in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")]}, PROXY_SITE)
 
 
-def _ctx(window=(0.0, 1000.0), continuous: bool = False) -> MetricContext:
-    return MetricContext(window=window, queue_range_m=80.0, site=_site(continuous))
+def _ctx(window=(0.0, 1000.0), continuous: bool = False, sidewalk=None) -> MetricContext:
+    return MetricContext(window=window, queue_range_m=80.0, site=_site(continuous, sidewalk))
 
 
 def V(i, a, vc, mv, t, lat=1.0, t_exit=np.nan, t_range=np.nan):
@@ -441,6 +449,102 @@ def test_same_generator_gives_R_near_one():
     rep = distance.compare(valid, calib, ctx=ctx)
     R = np.array([m.R for m in rep.metrics.values() if m.scored])
     assert 0.6 <= float(np.median(R)) <= 1.6
+
+
+# ------------------------------------------------------------------ M9 / M10 / F2
+
+
+def _f2_tables():
+    """window [0, 1000): LVL onsets 120..960 -> complete cycles 0..6; HDT onsets 70..910 -> 0..6 (7 per approach)."""
+    events = [(130.0, 0, "LVL_W", "a", "moto", "right_lane", 10.0), (135.0, 0, "LVL_W", "b", "car", "right_lane", 30.0),
+              (500.0, 3, "LVL_W", "c", "moto", "right_lane", 50.0), (200.0, 1, "HDT_N", "d", "moto", "right_lane", 20.0),
+              (1200.0, 9, "LVL_W", "e", "moto", "right_lane", 70.0),     # outside the window and the cycles
+              (140.0, 0, "LVL_W", "f", "moto", "sidewalk", 15.0), (150.0, 0, "LVL_W", "g", "moto", "sidewalk", 25.0),
+              (380.0, 2, "LVL_W", "h", "moto", "sidewalk", 35.0),
+              (150.0, 0, "LVL_E", "i", "moto", "sidewalk", 5.0),         # LVL_E has no sidewalk: ignored
+              (160.0, 0, "LVL_W", "j", "moto", "wrong_lane", 5.0)]
+    rtd = [("r1", "LVL_W", "moto", 100.0, 110.0, False), ("r2", "LVL_W", "moto", 200.0, 230.0, True),
+           ("r3", "HDT_N", "car", np.nan, 300.0, True),                   # no range entry: dropped
+           ("r4", "LVL_W", "moto", 1100.0, 1110.0, True)]                 # exit outside the window
+    return _tables(events=events, rtd=rtd)
+
+
+def test_m9_right_lane_known():
+    out = m9_right_lane.compute(_f2_tables(), _ctx(continuous=True))
+    # LVL_W cycles 0..6: [1+1, 0, 0, 1, 0, 0, 0]; HDT_N [0, 1, 0, ...]; LVL_E, HDT_S all 0 -> 28 values, sum 4
+    pc = out["M9a/per_cycle"].values
+    assert len(pc) == 28 and sorted(pc)[-3:] == [1.0, 1.0, 2.0] and pc.sum() == 4
+    assert list(out["M9b/delay_blocked"].values) == [30.0]
+    assert out["M9b/share_blocked"].values == pytest.approx(0.5)            # r2 of r1, r2
+    assert sorted(out["M9c/queue_at_choice"].values) == [10.0, 20.0, 30.0, 50.0]
+    assert {k for k, m in out.items() if not m.scored} == {"M9c/queue_at_choice"}  # R43
+    none = m9_right_lane.compute(_f2_tables(), _ctx(continuous=False))       # no continuous right lane anywhere
+    assert none["M9a/per_cycle"].empty and none["M9c/queue_at_choice"].empty and np.isnan(none["M9b/share_blocked"].values)
+
+
+def test_m10_sidewalk_known():
+    out = m10_sidewalk.compute(_f2_tables(), _ctx(sidewalk=["LVL_W"]))
+    assert list(out["M10a/per_cycle"].values) == [2.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+    assert sorted(out["M10b/queue_at_choice"].values) == [15.0, 25.0, 35.0]
+    assert not out["M10b/queue_at_choice"].scored  # R43
+    # no sidewalk approach (measured site: f2_measured_approaches null): empty on both sides -> 0, not scored
+    rep = distance.compare([_f2_tables()], [_f2_tables(), _f2_tables()], weights={f"M{k}": 1.0 for k in range(1, 11)},
+                           ctx=_ctx())
+    for key in ("M10a/per_cycle", "M10b/queue_at_choice"):
+        assert rep.metrics[key].d == 0.0 and not rep.metrics[key].scored and rep.metrics[key].weight == 0.0
+
+
+def test_f2_choice_probability_known():
+    """Queue met at the range entry (last grid time <= t_range_entry): x1 0 m, x2/x3 25 m, x4 80 m (censored);
+    x2 took the right lane -> q0-20 0/1, q20-40 1/2, q40-60 / q60-80 undefined, ge80 0/1."""
+    qts = [(0.0, "LVL_W", 0.0, 0, 0), (100.0, "LVL_W", 25.0, 1, 5), (200.0, "LVL_W", 80.0, 3, 20)]
+    veh = [V("x1", "LVL_W", "moto", "s", 60.0, t_range=50.0), V("x2", "LVL_W", "moto", "s", 170.0, t_range=150.0),
+           V("x3", "LVL_W", "car", "s", 180.0, t_range=160.0), V("x4", "LVL_W", "moto", "s", 270.0, t_range=250.0),
+           V("x5", "LVL_W", "moto", "r", 120.0, lat=5.0, t_range=110.0)]     # turning: wrong_lane candidate
+    events = [(150.0, 0, "LVL_W", "x2", "moto", "right_lane", 25.0), (110.0, 0, "LVL_W", "x5", "moto", "wrong_lane", 25.0)]
+    out = f2_space_choice.compute(_tables(veh, qts=qts, events=events), _ctx(continuous=True))
+    p = {k.removeprefix("F2/p/right_lane/"): v.values for k, v in out.items() if k.startswith("F2/p/right_lane/")}
+    assert list(p) == ["q0-20", "q20-40", "q40-60", "q60-80", "ge80"]
+    assert p["q0-20"] == 0.0 and p["q20-40"] == 0.5 and p["ge80"] == 0.0
+    assert np.isnan(p["q40-60"]) and np.isnan(p["q60-80"])
+    assert out["F2/p/wrong_lane/q20-40"].values == 1.0
+    assert all(np.isnan(v.values) for k, v in out.items() if k.startswith("F2/p/sidewalk/"))  # no sidewalk approach
+    assert not any(v.scored for v in out.values())
+
+
+def test_f2_groups_weighted_like_the_others():
+    """R36: M9 and M10 weigh as much as any other group (weight 1, renormalised over the groups present), split over
+    their sub-metrics; F2 keys carry no weight (reported only)."""
+    keys = ["M1/moto", "M9a/per_cycle", "M9b/delay_blocked", "M9b/share_blocked", "M9c/queue_at_choice",
+            "M10a/per_cycle", "M10b/queue_at_choice"]
+    w = distance.split_weights(keys, {f"M{k}": 1.0 for k in range(1, 11)})
+    assert w["M1/moto"] == pytest.approx(1 / 3) and w["M9a/per_cycle"] == pytest.approx(1 / 9)
+    assert w["M9b/share_blocked"] == pytest.approx(1 / 18) and w["M10b/queue_at_choice"] == pytest.approx(1 / 6)
+    weights = distance.load_experiment()["score"]["weights"]
+    assert weights["M9"] == weights["M10"] == weights["M1"] == 1
+
+
+def test_f2_metrics_on_proxy_days_match_targets():
+    """Pooled over D1-D5 in the window: right-lane riders and sidewalk riders occur, the blocked share is small,
+    every blocked right-turner waited, the right-lane events never on a non-continuous approach (all are here),
+    sidewalk events only on LVL_W; F2 probabilities below the full-ramp targets."""
+    ctx = MetricContext.from_config(site=load_site(PROXY_SITE))
+    days = [distance.compute_all(read_tables(OBSERVED / f"PROXY_D{k}"), ctx) for k in range(1, 6)]
+
+    def pooled(key):
+        return np.concatenate([np.atleast_1d(d[key].values) for d in days])
+
+    assert 0.1 < np.mean(pooled("M9a/per_cycle")) < 1.0
+    assert 0.0 < np.mean(pooled("M9b/share_blocked")) < 0.1
+    assert (pooled("M9b/delay_blocked") > 0).all()
+    assert 0.0 < np.mean(pooled("M10a/per_cycle")) < 1.0
+    assert (pooled("M9c/queue_at_choice") >= 0).all()
+    p = pooled("F2/p/right_lane/q0-20")
+    assert np.nanmax(p) < 0.05
+    for d in range(1, 6):
+        ev = pd.read_csv(OBSERVED / f"PROXY_D{d}" / "space_seeking_events.csv")
+        assert set(ev.loc[ev["space"] == "sidewalk", "approach"]) == {"LVL_W"}
+        assert "opposite" not in set(ev["space"])
 
 
 # ------------------------------------------------------------------ window, config, proxy days

@@ -102,6 +102,8 @@ Nguồn: `.superpowers/sdd/2026-10-25-proxy-benchmark-loop/progress.md`, mục "
 
 - **R42 (Viktor, 2026-10-27):** trên mạng F2 (2 làn đi thẳng), B0 và B1 kẹt ở mọi run 1800 s (backlog cuối 300–1200 xe). Giữ nguyên nhu cầu proxy 8180 xe/h và `max_end_backlog: 0`; khi không spec nào đủ điều kiện, chọn spec tốt nhất theo R32 (teleport kẹt/yield trung bình mỗi giờ, rồi S); báo cáo nói rõ là mô hình nền quá tải.
 
+- **R43 (Điều phối, F2-metrics, chờ Viktor xác nhận):** M9a = số xe đi thẳng chiếm làn rẽ phải mỗi chu kỳ (PLAN ghi "đứng trên làn rẽ phải lúc chuyển xanh"; xe bò rồi nhập lại trước đoạn cọc nên chụp lúc chuyển xanh bỏ sót phần lớn). Xác suất chọn từng khoảng trống theo nhóm độ dài hàng chờ (`F2/p/...`) chỉ báo cáo. M9c và M10b (hàng chờ lúc chọn) chỉ báo cáo cho tới khi R42 được giải quyết: hàng chờ sim bị cắt ở 80 m vì quá tải còn proxy ~15 m, nên hai khóa này luôn ở mức trần `D_EMPTY`, không phân biệt được spec. Trọng số M9 = M10 = 1 như M1–M8 (R36; M1–M8 giảm còn 1/10). Target F2 (xác suất chọn, độ dài 30 m của đoạn tăng dần, thời gian giữ lane 0) đều `assumed`. `traversals.t_range_entry` của xe rẽ phải bị chặn trong PROXY_D1–D5 lùi sớm hơn (23–44 xe/ngày), các bảng khác giữ nguyên từng byte.
+
 **R10 giải thích cho Viktor (đổi quy tắc "va chạm là loại"):** Plan ban đầu nói bất kỳ run nào có va chạm đều bị loại. Nhưng ngay cả B0 (cấu hình gốc, chưa có luật LLM) cũng va chạm khoảng vài lần mỗi giờ mô phỏng (xe máy sublane, hai xe cùng làn rẽ), nên nếu giữ quy tắc đó thì gần như mọi run đều bị loại và không so sánh được gì. Quy tắc mới: manifest vẫn ghi `valid_strict` (0 teleport, 0 va chạm) và thêm số liệu chi tiết (teleport không do va chạm, va chạm theo loại, va chạm có xe bị TraCI can thiệp). Một run vẫn được tính (ELIGIBLE) khi: không có teleport ngoài va chạm; không còn xe kẹt chưa chèn được cuối run; qua cổng GEH; số va chạm ≤ max(2, p90 của B0 trên các seed dev, quy về 3600 s); và tối đa 1 va chạm liên quan xe bị TraCI can thiệp. Spec chỉ được chọn làm best nếu tỉ lệ va chạm trung bình theo seed ≤ trung bình B0 + 1 va chạm/giờ. Run bị loại vẫn tính vào budget. Báo cáo cuối công bố cả số strict lẫn số eligible, nên không giấu va chạm nào.
 
 ## Nhật ký
@@ -632,6 +634,16 @@ Implementer + review lần 1 "changes requested" (Critical: xe vỉa hè treo ~6
 **Kiểm tra (PROXY_D1, seed 1–3, 1800 s; CTRL = B1 p = 0, SEEK = B1 + p_right 0,3, p_sidewalk 0,3, q 30):** vỉa hè thực thi 8/17, 16/33, 3/25 (thất bại chủ yếu vì xe ở làn 1–2 không kịp sang lane 0 trong ~27 m vùng quyết định), từ lúc quyết định tới khi vào vỉa hè 3–25 s; right_lane 93/100, 132/143, 104/109; va chạm junction không có xu hướng theo luật; va chạm liên quan can thiệp 3–11 (CTRL 1–5); backlog cuối CTRL 352–737, SEEK 313–1240 (R42).
 
 **Lưu ý:** số R28 và run record đã commit (mạng trước F2) không so được với mạng này (cấm chuyển làn đoạn cọc, link đóng G→g, vạch dừng dịch, link 24/25, route bắt đầu xa hơn, bán kính 220 m); R28 phải tính lại trước vòng 1 (R39).
+
+### 2026-10-27 — Task F2-metrics: M9, M10, bảng quan sát F2 (PLAN 5.1–5.2)
+
+Implementer (một lần dừng vì limit, đã resume) · review "changes requested" (M9c/M10b bão hòa ở `D_EMPTY` do quá tải) → R43 chuyển hai khóa sang chỉ báo cáo · ✅
+
+**Đã làm:** `schema_observed` thêm `queue_timeseries` (bước 2 s), `space_seeking_events` (right_lane = xe đi thẳng có tâm trong dải lane 0; sidewalk; wrong_lane = quy tắc M8; `opposite` hợp lệ nhưng không bao giờ sinh — R38), `right_turn_delay` (blocked = có xe đi thẳng phía trước trong dải lane 0); phía sim chỉ dùng fcd, detector và route (không dùng `interventions.csv`), nên video cũng sinh được. Metrics `m9_right_lane` (M9a, M9b delay/share bị chặn, M9c), `m10_sidewalk` (M10a, M10b), `f2_space_choice` (báo cáo). Generator proxy sinh ba bảng bằng luồng ngẫu nhiên riêng (seed 101–105 giữ, R40); target mới `assumed`.
+
+**Lệnh tái tạo:** `.venv/bin/python -m thesis_sumo.proxy.generate`; `.venv/bin/python -m pytest -q` (307 passed, 3 xfailed).
+
+**Kiểm tra (PROXY_D1, seed 1, 1800 s):** B1 (p = 0): 0 sự kiện F2. SEEK (p_right 0,3, p_sidewalk 0,3): 66 lượt chiếm làn rẽ phải, 2 lượt vỉa hè; 207/633 xe rẽ phải bị chặn, trễ 48 s (proxy ~20 s); M9a 1,13 xe/chu kỳ (proxy 0,22–0,41). Cả hai run quá tải (R42): hàng chờ ≥ 80 m ở 64–75 % thời gian.
 
 ### Bước tiếp theo
 

@@ -401,6 +401,125 @@ def test_m8_wrong_lane_share(five_days, site):
                )
 
 
+# ------------------------------------------------------------------ F2 tables (Task F2-metrics)
+
+
+def test_f2_stream_leaves_other_tables(tmp_path, site):
+    """The F2 draws use their own stream (child 2 of the day's seed): with both choice probabilities 0 the
+    pre-F2 tables are identical, except the range entry of the right-turners the riders blocked (moved earlier)."""
+    tg = _targets()
+    tg["targets"]["M9_right_lane"]["right_lane_choice_prob"]["value"] = {"moto": 0.0, "car": 0.0}
+    tg["targets"]["M10_sidewalk"]["sidewalk_choice_prob"]["value"] = 0.0
+    generate.generate_day(_targets(), site, "PROXY_D1", 101, tmp_path / "f2", day_factors=FACTORS["PROXY_D1"])
+    generate.generate_day(tg, site, "PROXY_D1", 101, tmp_path / "none", day_factors=FACTORS["PROXY_D1"])
+    a, b = _read(tmp_path / "f2"), _read(tmp_path / "none")
+    for name in ("turn_counts", "signal_events", "stopline_crossings", "queue_snapshots", "lateral_snapshots",
+                 "box_queue", "queue_timeseries"):
+        assert a[name].equals(b[name]), name
+    blocked = set(a["right_turn_delay"].loc[a["right_turn_delay"]["blocked"], "track_id"])
+    assert blocked and not b["right_turn_delay"]["blocked"].any()
+    same = ~a["traversals"]["track_id"].isin(blocked)
+    assert a["traversals"][same].equals(b["traversals"][same])
+    ta, tb = (t["traversals"].set_index("track_id").loc[sorted(blocked), "t_range_entry"] for t in (a, b))
+    assert ((ta < tb) | ta.isna()).all()
+    assert set(b["space_seeking_events"]["space"]) == {"wrong_lane"}
+
+
+def test_f2_queue_timeseries_matches_snapshots(five_days):
+    """queue_timeseries uses the snapshot packing: at green onsets on the 2 s grid the two agree up to the vehicles
+    carried over from an earlier cycle (overshoot flag of their last queue), i.e. within a car length."""
+    gaps = []
+    for tables in five_days.values():
+        q = tables["queue_timeseries"].set_index(["approach", "t"])["queue_length_m"]
+        for r in tables["queue_snapshots"].itertuples():
+            if (r.approach, r.t_green_onset) in q.index:
+                gaps.append(abs(q[(r.approach, r.t_green_onset)] - r.queue_length_m))
+    assert len(gaps) > 100
+    assert np.median(gaps) == 0.0 and max(gaps) <= _targets()["geometry"]["car_length_m"] + 1e-6
+    for tables in five_days.values():
+        q = tables["queue_timeseries"]
+        assert list(q["t"].unique()) == [2.0 * k for k in range(1800)]
+        assert (q.groupby("t").size() == 4).all()
+
+
+def _ramp(tables, approach, t):
+    q = tables["queue_timeseries"]
+    q = q[q["approach"] == approach].set_index("t")["queue_length_m"]
+    grid = np.ceil(np.asarray(t, dtype=float) / 2.0) * 2.0
+    ramp = _t("M9_right_lane.choice_ramp_queue_m")
+    return np.minimum(q.reindex(np.round(grid, 2)).to_numpy() / ramp, 1.0)
+
+
+def _f2_rates(five_days, site) -> tuple[Counter, Counter]:
+    """(events, expected events) per (space, vclass): expected = sum over candidates of target x day factor x
+    ramp(queue at the first grid time after the range entry); candidates = straight crossings with a range entry
+    (traversals), day factors from the manifests."""
+    sidewalk = set(site["f2_measured_approaches"])
+    got, want = Counter(), Counter()
+    for tables in five_days.values():
+        f = tables["_day_factors"]
+        tr = tables["traversals"]
+        tr = tr[(tr["movement"] == "s") & tr["t_range_entry"].notna()]
+        ev = tables["space_seeking_events"]
+        for app, g in tr.groupby("approach"):
+            ramp = _ramp(tables, app, g["t_range_entry"])
+            for space, vc, key in [("right_lane", "moto", "M9_right_lane.right_lane_choice_prob"),
+                                   ("right_lane", "car", "M9_right_lane.right_lane_choice_prob"),
+                                   ("sidewalk", "moto", "M10_sidewalk.sidewalk_choice_prob")]:
+                if space == "sidewalk" and app not in sidewalk:
+                    continue
+                sel = (g["vclass"] == vc).to_numpy()
+                target = _t(key)[vc] if space == "right_lane" else _t(key)
+                want[space, vc] += target * f.get(key, 1.0) * ramp[sel].sum()
+                got[space, vc] += int(((ev["space"] == space) & ev["track_id"].isin(g.loc[sel, "track_id"])).sum())
+    return got, want
+
+
+@pytest.mark.parametrize("space,vc", [("right_lane", "moto"), ("right_lane", "car"), ("sidewalk", "moto")])
+def test_f2_choice_rates_match_targets(five_days, site, space, vc):
+    """Event counts are small (5 days: ~240 moto / ~16 car right-lane, ~60 sidewalk expected), so the check is
+    Poisson: within 3 SD of the expected count. D1-D5 give moto right-lane 200 vs 239.5 (-2.6 SD), car 23 vs 15.5;
+    not a bias: 30 independent one-day draws (seeds 201-230, day factor 1) give moto 1421 / 1459 (-2.6 %, SE ~2.6 %),
+    car 85 / 94.5. Seeds are not re-rolled (ruling R40)."""
+    got, want = _f2_rates(five_days, site)
+    assert want[space, vc] > 10
+    assert abs(got[space, vc] - want[space, vc]) <= 3 * math.sqrt(want[space, vc]), (space, vc, got, want)
+
+
+def test_f2_wrong_lane_events_are_m8(five_days, site):
+    """wrong_lane events = the turning crossings in a lane whose markings do not permit the movement (M8 rule), at
+    the range entry (or the crossing if first seen inside the range)."""
+    lanes = {a["id"]: (np.cumsum(a["lane_widths_m"]), a["lane_movements"]) for a in site["approaches"]}
+    for tables in five_days.values():
+        tr = tables["traversals"]
+        want = {}
+        for r in tr[tr["movement"].isin(["r", "l", "u"])].itertuples():
+            edges, mv = lanes[r.approach]
+            if r.movement not in mv[min(int(np.searchsorted(edges, r.lat_m_at_stopline, side="right")), len(mv) - 1)]:
+                want[r.track_id] = r.t_stopline if np.isnan(r.t_range_entry) else r.t_range_entry
+        ev = tables["space_seeking_events"]
+        ev = ev[ev["space"] == "wrong_lane"]
+        assert dict(zip(ev["track_id"], ev["t"])) == pytest.approx(want)
+
+
+def test_f2_right_turn_delay_and_blocking(five_days, site):
+    """right_turn_delay = the right-turn traversals (t_enter / t_exit = t_range_entry / t_stopline); blocked ones
+    are in lane 0's band and come after a right-lane event of their approach."""
+    w0 = {a["id"]: a["lane_widths_m"][0] for a in site["approaches"]}
+    n_blocked = 0
+    for tables in five_days.values():
+        tr, rt, ev = tables["traversals"], tables["right_turn_delay"], tables["space_seeking_events"]
+        r = tr[tr["movement"] == "r"]
+        assert list(rt["track_id"]) == list(r["track_id"])
+        assert np.allclose(rt["t_exit"], r["t_stopline"]) and np.allclose(rt["t_enter"], r["t_range_entry"], equal_nan=True)
+        b = rt[rt["blocked"]].merge(tr[["track_id", "lat_m_at_stopline"]], on="track_id")
+        assert (b["lat_m_at_stopline"] < b["approach"].map(w0)).all()
+        first = ev[ev["space"] == "right_lane"].groupby("approach")["t"].min()
+        assert (b["t_exit"].to_numpy() > b["approach"].map(first).to_numpy()).all()
+        n_blocked += len(b)
+    assert n_blocked > 50
+
+
 def test_continuous_right_turns_never_wait(five_days, site):
     """Right-turners of continuous_right_lane approaches are not signal controlled: never in a queue snapshot,
     unimpeded from the range entry to the stop line (approach speed >= 10 km/h), so they cross in red as often
@@ -416,7 +535,8 @@ def test_continuous_right_turns_never_wait(five_days, site):
         free = tr[tr["approach"].isin(cont) & (tr["movement"] == "r")]
         assert len(free)
         assert not set(free["track_id"]) & set(tables["lateral_snapshots"]["track_id"])
-        ok = free["t_range_entry"].notna()
+        blocked = tables["right_turn_delay"].loc[tables["right_turn_delay"]["blocked"], "track_id"]
+        ok = free["t_range_entry"].notna() & ~free["track_id"].isin(blocked)  # F2: blocked behind a right-lane rider
         assert ((free.loc[ok, "t_stopline"] - free.loc[ok, "t_range_entry"]) <= range_m / (10 / 3.6) + 1e-6).all()
         n_red += int(cr[cr["track_id"].isin(free["track_id"])]["signal_state_at_t"].eq("r").sum())
         assert classified(tables, ctx).equals(classified(_signalled(tables), ctx))  # free right turns never classified

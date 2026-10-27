@@ -1,4 +1,4 @@
-"""Shared pieces of the metrics M1-M8 (PLAN 5.2): the value type, the context (window, observed range, site) and
+"""Shared pieces of the metrics M1-M10 (PLAN 5.2): the value type, the context (window, observed range, site) and
 table helpers. Every metric runs unchanged on observed days (`data/observed/<day>/`) and on simulation output
 converted by `thesis_sumo.sim.outputs.to_observed_schema` (`<run_dir>/observed_schema/`).
 
@@ -156,13 +156,40 @@ def red_onset_after(tables: dict, approach: str, t: float) -> float:
     return float(e["t"].min()) if len(e) else np.inf
 
 
+def continuous_right_approaches(ctx: MetricContext) -> set[str]:
+    """Approaches with `continuous_right_lane: true` in the site file."""
+    site = ctx.require_site()
+    return {site.require(f"approaches.{i}.id") for i in range(len(site.require("approaches")))
+            if site.require(f"approaches.{i}.continuous_right_lane")}
+
+
+def sidewalk_approaches(ctx: MetricContext) -> set[str]:
+    """Approaches with a sidewalk: the site's `f2_measured_approaches` (null = none), as the net builder reads it."""
+    return set(ctx.require_site().get("f2_measured_approaches") or [])
+
+
+def complete_cycles(tables: dict, approach: str, ctx: MetricContext) -> list[int]:
+    """Cycle ids of `approach` whose onset is in the window and whose next onset is before its end (as M3)."""
+    on = onsets(tables, approach, ctx)
+    return [k for k in range(len(on) - 1) if on[k] >= ctx.window[0]]
+
+
+def events_per_cycle(tables: dict, space: str, apps, ctx: MetricContext) -> np.ndarray:
+    """space_seeking_events of `space` per complete cycle, one value per (approach in `apps`, cycle)."""
+    ev = tables["space_seeking_events"]
+    ev = ev[ev["space"] == space]
+    out = []
+    for app in sorted(set(apps) & set(approaches(tables))):
+        n = ev.loc[ev["approach"] == app, "cycle_id"].value_counts()
+        out += [int(n.get(k, 0)) for k in complete_cycles(tables, app, ctx)]
+    return np.array(out, dtype=float)
+
+
 def uncontrolled_tracks(tables: dict, ctx: MetricContext) -> set:
     """track_ids of the right turns (movement `r`) of approaches with `continuous_right_lane: true` (site file, via
     `ctx.require_site()`): that turn is not signal controlled (PLAN 0, "right turn on red is not a violation"), so
     M1-M4 leave these vehicles out (no red running / early start, no queue, no discharge), on both sides."""
-    site = ctx.require_site()
-    cont = {site.require(f"approaches.{i}.id") for i in range(len(site.require("approaches")))
-            if site.require(f"approaches.{i}.continuous_right_lane")}
+    cont = continuous_right_approaches(ctx)
     tr = tables["traversals"]
     return set(tr.loc[tr["approach"].isin(cont) & (tr["movement"] == "r"), "track_id"])
 

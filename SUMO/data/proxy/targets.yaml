@@ -381,3 +381,47 @@ targets:
       between_day_cv_evidence: assumed
       source: "no measured share found; Da Nang turn-signal use by motorcyclists only 40 % ([T8]) suggests weak lane discipline; assumed"
       evidence: assumed
+
+  # ------------------------------------------------------------------ M9 / M10 / F2: space seeking (Task F2-metrics)
+  # No literature quantifies these behaviours (PLAN 0 behaviours 6 and 7: right-lane blocking, sidewalk riding) for
+  # Hanoi or elsewhere; every value below is ASSUMED. Magnitudes are only set to the order of the Phase 3A / 3B and
+  # F2-behaviours settings (simulation experiment settings, not observations) and deliberately not equal to a spec
+  # under test. Definitions: schema_observed (F2 tables), docs/research/proxy_targets.md §2.
+  M9_right_lane:
+    right_lane_choice_prob:
+      value: {moto: 0.05, car: 0.02}
+      unit: probability that a straight vehicle entering the observed range is seen in lane 0 (the continuous right-turn lane), at a queue >= choice_ramp_queue_m
+      family: "bernoulli, probability value x min(queue_length_m at the first grid time after its range entry / choice_ramp_queue_m, 1); one draw per straight vehicle, shared with sidewalk_choice_prob"
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed (spec 4.2)"
+      between_day_cv_evidence: assumed
+      source: "assumed: no measured share found. Order of magnitude from simulation settings, not data: Phase 3A (docs/research/phase3a_right_lane_blocking.md) 20 % violators x p 0.3 = 6 % of straight vehicles at queues >= 50 m; F2-behaviours SEEK check 10 % x 0.3 = 3 %. Cars lower (assumed: harder to squeeze back before the bollards)"
+      evidence: assumed
+    choice_ramp_queue_m:
+      value: 30.0
+      unit: m of approach queue (queue_timeseries) at which the choice probabilities reach their full value; linear from 0 at no queue
+      family: deterministic
+      between_day_cv: 0.0
+      source: "assumed: shape and scale chosen so the short proxy queues (green-onset queues 2-31 m on PROXY_D1-D3) still produce events; Phase 3A triggered at 50 m, the F2-behaviours SEEK check at q = 30 m (simulation settings, not observations)"
+      evidence: assumed
+    lane0_hold_s:
+      value: 12.0
+      unit: s a right-lane rider occupies lane 0 ahead of the right-turners (from its first sighting until it merges back before the bollards)
+      family: lognormal
+      cv: 0.5
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed (spec 4.2)"
+      between_day_cv_evidence: assumed
+      source: "assumed: about 35-50 m of lane 0 (observed range minus bollard length, Phase 3A merge 0-7 m before the bollards) at a creep speed of ~3 m/s (v_creep of the F2-behaviours check), simulation settings, not observations"
+      evidence: assumed
+
+  M10_sidewalk:
+    sidewalk_choice_prob:
+      value: 0.03
+      unit: probability that a straight motorcycle entering the observed range of a sidewalk approach (site f2_measured_approaches) is seen on the sidewalk, at a queue >= choice_ramp_queue_m
+      family: "bernoulli, value x the M9 ramp (same draw as right_lane_choice_prob: right lane first, then sidewalk)"
+      between_day_cv: 0.12
+      between_day_cv_source: "assumed (spec 4.2)"
+      between_day_cv_evidence: assumed
+      source: "assumed: no measured share found. Order of magnitude from simulation settings, not data: F2-behaviours SEEK check 10 % seekers x p_sidewalk 0.3 = 3 % of motorcycles; Phase 3B (docs/research/phase3b_sidewalk.md) toy runs"
+      evidence: assumed

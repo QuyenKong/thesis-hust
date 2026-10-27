@@ -44,8 +44,10 @@ data_split:
 
 score:
   # Task 10 plan: equal weight per metric group (controller's call, open to Viktor); renormalised over the groups
-  # that have scored keys, split equally over sub-metrics (M7a/b/c) and keys (metrics.distance.split_weights)
-  weights: {M1: 1, M2: 1, M3: 1, M4: 1, M5: 1, M6: 1, M7: 1, M8: 1}
+  # that have scored keys, split equally over sub-metrics (M7a/b/c) and keys (metrics.distance.split_weights).
+  # Task F2-metrics: M9 (right-lane blocking) and M10 (sidewalk) join with weight 1 under the same rule (R36); the
+  # F2 space-choice probabilities are reported, not scored. M11 (wrong-way) is not implemented (R38)
+  weights: {M1: 1, M2: 1, M3: 1, M4: 1, M5: 1, M6: 1, M7: 1, M8: 1, M9: 1, M10: 1}
   geh_gate:
     threshold: 5
     min_share: 0.85

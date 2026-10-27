@@ -276,7 +276,17 @@ def split_case(tmp_path_factory):
     """LVL_W as the site patches build it: upstream `WU` -> `WM` (sidewalk start D, 70 m) -> bollard edge `WC` (B, 35 m)
     -> stop line, plus the custom1 sidewalk `WS` D -> C. One frame at the LVL_W green onset (t=20) and one sidewalk
     crossing; expected rows from sumolib lengths."""
-    d = tmp_path_factory.mktemp("split")
+    return _split_run(tmp_path_factory.mktemp("split"), f2=False)
+
+
+@pytest.fixture(scope="module")
+def f2_case(tmp_path_factory):
+    """split_case plus F2 traffic on grid times 22/24: a straight rider `st` in lane 0, a right-turner `rt` behind it
+    (blocked), a right-turner `rt2` ahead of it (not blocked) and a right-turner `wl` crossing from lane 1 (wrong lane)."""
+    return _split_run(tmp_path_factory.mktemp("split_f2"), f2=True)
+
+
+def _split_run(d: Path, f2: bool) -> dict:
     (d / "n.nod.xml").write_text(
         '<nodes><node id="C" x="0" y="0" type="traffic_light"/><node id="W" x="-150" y="0"/>'
         '<node id="D" x="-70" y="0" type="priority"/><node id="B" x="-35" y="0" type="priority"/>'
@@ -319,7 +329,7 @@ def split_case(tmp_path_factory):
     dists["a4"] = (0, dists["a3"][1] + 2.2 + 4.0)
     dists["a5"] = (1, dists["a4"][1] + 5.0 + 6.0)
     types = {"a1": "moto_B0", "a2": "car_B0", "a3": "moto_B0", "a4": "car_B0", "a5": "moto_B0"}
-    rows = {19.0: [], 20.0: [], 20.9: []}
+    rows = {19.0: [], 20.0: [], 20.9: [], **({21.0: [], 22.0: [], 23.0: [], 24.0: []} if f2 else {})}
     for vid, (k, dist) in dists.items():
         lane, pos = place(k, dist)
         rows[20.0].append((vid, types[vid], lane, pos, 0.2 if vid == "a1" else 0.0, 0.0))
@@ -330,6 +340,17 @@ def split_case(tmp_path_factory):
     rows[19.0].append(("s2", "viol_B0", "WU_0", net.getLane("WU_0").getLength() - (55.0 - lc - vb - lm - vd), 0.0, 5.0))
     rows[20.0].append(("s2", "viol_B0", "WS_0", sw_len - 5.0, 0.0, 5.0))
     rows[20.9].append(("s2", "viol_B0", "WS_0", sw_len - 0.4, -0.3, 5.0))
+    det = ('<instantOut id="in__WS_0" time="21.00" state="enter" vehID="s2" speed="5" length="2" type="viol_B0"/>'
+           '<instantOut id="out__CE_0" time="23.00" state="enter" vehID="s2" speed="5" length="2" type="viol_B0"/>')
+    f2_routes = ""
+    if f2:  # (t, vehicle, road lane k, distance upstream of the stop line, speed); all moving: no queue at 22/24
+        for t, vid, k, dist, sp in [(22.0, "st", 0, 10.0, 3.0), (24.0, "st", 0, 8.0, 3.0), (21.0, "rt", 0, 55.0, 5.0),
+                                    (22.0, "rt", 0, 20.0, 5.0), (24.0, "rt2", 0, 5.0, 5.0), (23.0, "wl", 1, 30.0, 5.0)]:
+            rows[t].append((vid, "moto_B0", *place(k, dist), 0.0, sp))
+        det += "".join(f'<instantOut id="in__WC_{k}" time="{t:.2f}" state="enter" vehID="{v}" speed="5" length="2" '
+                       f'type="moto_B0"/>' for v, k, t in (("rt2", 0, 25.0), ("wl", 1, 25.5), ("rt", 0, 26.0)))
+        f2_routes = "".join(f'<vehicle id="{v}" depart="0"><route edges="WU WM WC {e}"/></vehicle>'
+                            for v, e in (("st", "CE"), ("rt", "CS"), ("rt2", "CS"), ("wl", "CS")))
     run = d / "run"
     run.mkdir()
     with (run / "fcd.xml").open("w", encoding="utf-8") as f:
@@ -352,12 +373,9 @@ def split_case(tmp_path_factory):
     (run / "tls_states.xml").write_text("<tlsStates>" + "".join(
         f'<tlsState time="{t:.2f}" id="C" programID="0" phase="0" state="{state(we, ns)}"/>'
         for t, we, ns in PROGRAM) + "</tlsStates>", encoding="utf-8")
-    (run / "detectors.xml").write_text(
-        '<instantE1><instantOut id="in__WS_0" time="21.00" state="enter" vehID="s2" speed="5" length="2" '
-        'type="viol_B0"/><instantOut id="out__CE_0" time="23.00" state="enter" vehID="s2" speed="5" length="2" '
-        'type="viol_B0"/></instantE1>', encoding="utf-8")
+    (run / "detectors.xml").write_text(f"<instantE1>{det}</instantE1>", encoding="utf-8")
     routes = d / "r.rou.xml"  # the route file keeps the road route: the sidewalk is a TraCI reroute
-    routes.write_text('<routes><vehicle id="s2" depart="0"><route edges="WU WM WC CE"/></vehicle></routes>',
+    routes.write_text(f'<routes><vehicle id="s2" depart="0"><route edges="WU WM WC CE"/></vehicle>{f2_routes}</routes>',
                       encoding="utf-8")
     (run / "run.sumocfg").write_text(f'<configuration><input><net-file value="{net_path}"/>'
                                      f'<route-files value="{routes}"/></input></configuration>', encoding="utf-8")
@@ -368,6 +386,44 @@ def split_case(tmp_path_factory):
         "car_B0": {"vclass": "passenger", "length": 5.0}, "moto_B0": {"vclass": "motorcycle", "length": 2.2},
         "viol_B0": {"vclass": "custom1", "length": 2.2}}), encoding="utf-8")
     return {"tables": outputs.to_observed_schema(run), "dists": dists, "via": via_c, "lc": lc}
+
+
+def test_f2_queue_timeseries(f2_case):
+    """Every 2 s from 0 to < END_S per approach; at the onset t=20 the snapshot queue; moving traffic at 22/24 is no
+    queue; the sidewalk rider never counts."""
+    q = f2_case["tables"]["queue_timeseries"]
+    grid = [2.0 * k for k in range(int(END_S / 2) + 1) if 2.0 * k < END_S]
+    assert list(q["t"]) == [t for t in grid for _ in range(4)]
+    assert list(q["approach"].iloc[:4]) == ["HDT_N", "HDT_S", "LVL_E", "LVL_W"]
+    tail = f2_case["dists"]["a5"][1] + 2.2
+    w = q[q["approach"] == "LVL_W"].set_index("t")
+    assert _records(w.loc[[20.0]]) == [["LVL_W", pytest.approx(tail), 2, 3]]
+    assert (w.drop(index=20.0)[["queue_length_m", "n_car", "n_moto"]] == 0).all().all()
+    assert (q.loc[q["approach"] != "LVL_W", "queue_length_m"] == 0).all()
+
+
+def test_f2_space_seeking_events(f2_case):
+    """sidewalk: s1, s2 at the grid time 20 (within 50 m); right_lane: the straight st in lane 0 first seen at 22
+    (a2/a4 in lane 0 have no route: no movement, no event); wrong_lane: wl crosses from lane 1 (markings: s) as a
+    right turn, first seen inside the range -> t = its crossing 25.5; rt/rt2 turn right from lane 0 (allowed)."""
+    tail = f2_case["dists"]["a5"][1] + 2.2
+    assert _records(f2_case["tables"]["space_seeking_events"]) == [
+        [20.0, 0, "LVL_W", "s1", "moto", "sidewalk", pytest.approx(tail)],
+        [20.0, 0, "LVL_W", "s2", "moto", "sidewalk", pytest.approx(tail)],
+        [22.0, 0, "LVL_W", "st", "moto", "right_lane", 0.0],
+        [25.5, 0, "LVL_W", "wl", "moto", "wrong_lane", 0.0],
+    ]
+
+
+def test_f2_right_turn_delay(f2_case):
+    """Right turns from the road: rt2 (first seen inside the range, st behind it: not blocked), wl (lane 1, never in
+    lane 0's band) and rt: range entry between (21, 55 m) and (22, 20 m) = 21 + 5/35 s; at 22 st is 10 m ahead of it
+    in lane 0 -> blocked. The sidewalk crossing s2 (straight) is no right turn."""
+    assert _records(f2_case["tables"]["right_turn_delay"]) == [
+        ["rt2", "LVL_W", "moto", None, 25.0, False],
+        ["wl", "LVL_W", "moto", None, 25.5, False],
+        ["rt", "LVL_W", "moto", pytest.approx(21 + 5 / 35), 26.0, True],
+    ]
 
 
 def test_split_queue_chains_across_segments(split_case):

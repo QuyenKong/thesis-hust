@@ -10,10 +10,11 @@
 - d = mean over (sim run, observed day) of the distance normalised by that observed day; d_day_day = mean over
   ordered pairs (a, b), a != b, of the observed days (normalised by b); R = d / d_day_day (NaN with one observed day;
   d / R_FLOOR when the days agree exactly).
-- Weights (experiment.yaml score.weights) are per metric group M1..M8: a group's weight is split equally over its
+- Weights (experiment.yaml score.weights) are per metric group M1..M10: a group's weight is split equally over its
   sub-metrics (M7a, M7b, M7c; M1 has one) and then over their keys; only scored keys take weight (a key is unscored
   when its MetricValue says so or no observed day has events). S = sum of weight x d over the scored keys; the
-  report also splits S into the parts from keys with sourced and with assumed targets (ruling R13).
+  report also splits S into the parts from keys with sourced and with assumed targets (ruling R13). The F2 space-choice
+  keys (`F2/...`) are reported only and need no weight.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from scipy.stats import wasserstein_distance
 
 from thesis_sumo.config import REPO_ROOT, load_experiment
 from thesis_sumo.metrics import (
+    f2_space_choice,
     m1_headway,
     m2_early_start,
     m3_red_running,
@@ -37,13 +39,15 @@ from thesis_sumo.metrics import (
     m6_traversal,
     m7_illegal_left,
     m8_wrong_lane,
+    m9_right_lane,
+    m10_sidewalk,
 )
 from thesis_sumo.metrics.common import MetricContext, MetricValue
 
 D_EMPTY = 2.0    # one side has no events / undefined: worse than a share that is off by 100 %
 R_FLOOR = 0.05   # noise floor used when the observed days agree exactly
 MODULES = (m1_headway, m2_early_start, m3_red_running, m4_lateral, m5_queue, m6_traversal, m7_illegal_left,
-           m8_wrong_lane)
+           m8_wrong_lane, m9_right_lane, m10_sidewalk, f2_space_choice)
 TARGETS = REPO_ROOT / "data" / "proxy" / "targets.yaml"
 
 
