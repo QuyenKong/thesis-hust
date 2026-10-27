@@ -1,0 +1,95 @@
+{
+  "spec_id": "B2_t004",
+  "archetypes": {
+    "car_saval": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_saval",
+      "share": 0.5787105704965325
+    },
+    "car_seeker": {
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "vtype_id": "car_seeker",
+      "share": 0.4212894295034675
+    },
+    "moto_saval": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_saval",
+      "share": 0.6406924203687078
+    },
+    "moto_seeker": {
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "vtype_id": "moto_seeker",
+      "share": 0.35930757963129223
+    },
+    "moto_violator_saval": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_violator_saval",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "vtype_ids": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.4650577930836746,
+        "k": 0.4292348043770667,
+        "p_max": 0.9812919220356104,
+        "dt": 16.404845207144383
+      }
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "vtype_ids": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 3.363025861548465,
+        "p": 0.7184259236584204,
+        "v_max": 4.357062766489033
+      }
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker",
+        "car_seeker"
+      ],
+      "vtype_ids": [
+        "moto_seeker",
+        "car_seeker"
+      ],
+      "params": {
+        "q": 16.62195832060461,
+        "t_g_s": 16.00474393971626,
+        "est_noise": 0.1372549694265216,
+        "p_wrong_lane": 0.43986324113402736,
+        "p_right_lane": 0.1582593685183271,
+        "p_sidewalk": 0.07104481445049957,
+        "v_creep": 1.4039577431718089,
+        "merge_zone_m": 17.716314222075283
+      }
+    }
+  ]
+}

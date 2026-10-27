@@ -1,0 +1,123 @@
+{
+ "content": {
+  "description": "Iteration 2: the it01 specs all jam (queues 75 m, discharge headway 2-4x too long), so shorten car/moto headway parameters, raise red-running and early-start probabilities that were far too low in simulation, keep seeking and box params close to it01 s00/s03.",
+  "driver_archetypes": [
+   {
+    "id": "car_saval",
+    "base_vclass": "passenger",
+    "share": 0.92,
+    "params": {
+     "accel": 1.6,
+     "decel": 4.8,
+     "tau": 1.2,
+     "minGap": 1.0
+    },
+    "rationale": "Targets M1/car (sim 1.6 s vs obs 0.39 s), M5/length (75 m vs 13 m) and M6 approach times: all it01 specs gridlock (queues reach 80 m, teleports) because Saval tau 2.5 s and accel 1.2 give a discharge headway ~4x too long for this proxy net. tau lowered 2.5 to 1.2 s and accel raised 1.2 to 1.6 m/s2 so cars discharge faster and queues clear each cycle; minGap at its 1.0 m lower bound; decel unchanged (4.8)."
+   },
+   {
+    "id": "car_seeker",
+    "base_vclass": "custom2",
+    "distribution": "car",
+    "share": 0.08,
+    "params": {
+     "accel": 1.6,
+     "decel": 4.8,
+     "tau": 1.2,
+     "minGap": 1.0
+    },
+    "rationale": "Targets M9a/M9b (straight cars in the right-turn lane): same car-following values as car_saval (tau 1.2, accel 1.6, minGap 1.0) so M1/car stays consistent; share 0.08 keeps right-lane use rare (obs 0.33 veh/cycle)."
+   },
+   {
+    "id": "moto_saval",
+    "base_vclass": "motorcycle",
+    "share": 0.88,
+    "params": {
+     "accel": 2.5,
+     "decel": 4.6,
+     "tau": 0.6,
+     "minGap": 0.8,
+     "minGapLat": 0.3
+    },
+    "rationale": "Targets M1/moto (sim 0.82-0.96 s vs obs 0.30 s), M5/length and M5/moto_density (0.07 vs 0.045 veh/m2): tau 0.8 to 0.6 s, minGap 1.9 to 0.8 m and accel 1.1 to 2.5 m/s2 make riders discharge faster so the queue dissolves each green and stops growing; minGapLat stays at the 0.3 m bound for tight filtering (M4/overshoot_share)."
+   },
+   {
+    "id": "moto_seeker",
+    "base_vclass": "custom1",
+    "distribution": "moto",
+    "share": 0.12,
+    "params": {
+     "accel": 2.5,
+     "decel": 4.6,
+     "tau": 0.6,
+     "minGap": 0.8,
+     "minGapLat": 0.3
+    },
+    "rationale": "Targets M10a (obs 0.27 sidewalk/cycle) and M9a: riding values identical to moto_saval so M1/moto is unaffected; share 0.12 (it01 0.15 gave M9a 0.88 at p 0.1, 0.10 gave 0.10-0.13 at p 0.02-0.03), a middle value."
+   },
+   {
+    "id": "moto_violator_saval",
+    "base_vclass": "custom1",
+    "share": 1.0,
+    "params": {
+     "accel": 2.5,
+     "decel": 4.6,
+     "tau": 0.6,
+     "minGap": 0.8,
+     "minGapLat": 0.3,
+     "jmTimegapMinor": 0.7
+    },
+    "rationale": "Targets M7a/release_time (sim 15-53 s vs obs 2.6 s), M7b/clear_lag (10-30 s vs 6.7 s) and M6/junction/illegal_l: same riding values as moto_saval; jmTimegapMinor lowered 1.0 to 0.7 s so waiters accept smaller gaps and leave the box sooner after the opposing green ends. n_waiting (4-5 vs 5.5) is near target so little else is changed."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": [
+     "moto_saval",
+     "moto_seeker",
+     "moto_violator_saval"
+    ],
+    "params": {
+     "p0": 0.5,
+     "k": 0.2,
+     "p_max": 0.9,
+     "dt": 10.0
+    },
+    "rationale": "Targets M3/share/moto (sim 0.005 vs obs 0.092), M3/per_cycle (0.15 vs 4.4) and M3/var_to_mean (1.0-1.1 vs 1.31): p0 0.2 gave 0.0045 because few riders reach the stop line in red and only 60 percent of attempts execute, so p0 goes back to the Saval 0.5; k 0.2 with cap 0.9 adds swarm clustering that raises variance/mean above 1."
+   },
+   {
+    "rule_type": "early_start",
+    "applies_to": [
+     "moto_saval",
+     "moto_seeker",
+     "moto_violator_saval"
+    ],
+    "params": {
+     "t_before_green": 10.0,
+     "p": 0.6,
+     "v_max": 3.0
+    },
+    "rationale": "Targets M2/early/moto (sim 0.01 vs obs 0.13) and M2/first_delay (5-6.7 s vs 2.1 s): p 0.15-0.3 gave only 0.01 share because most attempts fail with red_ended_before_crossing; the longest window 10 s and faster creep v_max 3 m/s let creeping riders cross before green, and p 0.6 raises the share and shortens first delay."
+   },
+   {
+    "rule_type": "queue_space_seeking",
+    "applies_to": [
+     "moto_seeker",
+     "car_seeker"
+    ],
+    "params": {
+     "q": 20.0,
+     "t_g_s": 0.0,
+     "est_noise": 0.0,
+     "p_wrong_lane": 0.0,
+     "p_right_lane": 0.04,
+     "p_sidewalk": 0.08,
+     "v_creep": 3.0,
+     "merge_zone_m": 15.0
+    },
+    "rationale": "Targets M10a (it01: 0 to 0.24 vs 0.27), M9a (0.10-0.88 vs 0.33), M9b/share_blocked (0.02-0.25 vs 0.021): s00 (q 20, p_right 0.04) gave M9a 0.355 and is kept; p_sidewalk raised 0.04 to 0.08 since M10a stayed 0.21 or lower with fewer sidewalk draws. p_wrong_lane 0 (inapplicable, R27)."
+   }
+  ]
+ },
+ "reasoning": "All it01 specs gridlock (M1 and M5 and M6 far above targets), so shorten headway params (tau, minGap, accel) for cars and motos, raise red-run and early-start probabilities which were ~10x too low in sim, middle values for seeking, lower jmTimegapMinor for box release."
+}

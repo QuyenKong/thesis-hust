@@ -1,0 +1,129 @@
+{
+  "spec_id": "P1_it02_s02",
+  "source": "llm",
+  "provenance": {
+    "model": "claude-sonnet (stand-in)",
+    "prompt_version": "v001",
+    "iteration": 2,
+    "sample_idx": 2,
+    "runtime": "file"
+  },
+  "description": "Iteration 2: queues are 5x too long and discharge headways 2-3x too slow in all iteration-1 specs, so speed up car-following (tau, accel, minGap) as the main change; strengthen red running and early start, which stayed near zero; keep seeking at the s00 level that matched M9a/M10a; shorten box-waiter hold via jmTimegapMinor.",
+  "driver_archetypes": [
+    {
+      "id": "car_saval",
+      "base_vclass": "passenger",
+      "share": 0.95,
+      "params": {
+        "accel": 2.0,
+        "decel": 4.8,
+        "tau": 1.2,
+        "minGap": 1.0
+      },
+      "rationale": "Targets M1/car (sim 1.6 s vs obs 0.39 s discharge headway, R 10), M5/length (sim 74 m vs 13 m) and the M6 car approach times (sim 120-290 s vs 33-41 s): the queues are far too long because discharge is too slow, so tau is lowered 2.5 -> 1.2 s, accel raised 1.2 -> 2.0 m/s2 and minGap to its 1.0 m bound, which shortens the headway and the queue. Same values as car_saval so only the seeking rule differs; Share 0.95 leaves 0.05 for car_seeker."
+    },
+    {
+      "id": "car_seeker",
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "share": 0.05,
+      "params": {
+        "accel": 2.0,
+        "decel": 4.8,
+        "tau": 1.2,
+        "minGap": 1.0
+      },
+      "rationale": "Targets M1/car (sim 1.6 s vs obs 0.39 s discharge headway, R 10), M5/length (sim 74 m vs 13 m) and the M6 car approach times (sim 120-290 s vs 33-41 s): the queues are far too long because discharge is too slow, so tau is lowered 2.5 -> 1.2 s, accel raised 1.2 -> 2.0 m/s2 and minGap to its 1.0 m bound, which shortens the headway and the queue. Same values as car_saval so only the seeking rule differs; Share 0.05 targets M9b/share_blocked (s00 with 0.05 gave M9a 0.36 close to obs 0.33, but blocked share 0.11 vs 0.02), keeping right-lane use rare."
+    },
+    {
+      "id": "moto_saval",
+      "base_vclass": "motorcycle",
+      "share": 0.85,
+      "params": {
+        "accel": 3.0,
+        "decel": 4.6,
+        "tau": 0.5,
+        "minGap": 1.2,
+        "minGapLat": 0.3
+      },
+      "rationale": "Targets M1/moto (sim 0.82-0.96 s vs obs 0.30 s, R 19), M5/length and M6 moto approach times: tau lowered 0.8 -> 0.5 s, accel raised 1.1 -> 3.0 m/s2 (still below the SUMO motorcycle default 6) and minGap 1.9 -> 1.2 m, so riders discharge faster after green and queues shorten; minGapLat stays at 0.3 m. Share 0.85 leaves 0.15 for moto_seeker."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.15,
+      "params": {
+        "accel": 3.0,
+        "decel": 4.6,
+        "tau": 0.5,
+        "minGap": 1.2,
+        "minGapLat": 0.3
+      },
+      "rationale": "Targets M1/moto (sim 0.82-0.96 s vs obs 0.30 s, R 19), M5/length and M6 moto approach times: tau lowered 0.8 -> 0.5 s, accel raised 1.1 -> 3.0 m/s2 (still below the SUMO motorcycle default 6) and minGap 1.9 -> 1.2 m, so riders discharge faster after green and queues shorten; minGapLat stays at 0.3 m. Share 0.15 gave M10a 0.21 vs obs 0.27 in s00, so it is kept to stay near that target."
+    },
+    {
+      "id": "moto_violator_saval",
+      "base_vclass": "custom1",
+      "share": 1.0,
+      "params": {
+        "accel": 3.0,
+        "decel": 4.6,
+        "tau": 0.5,
+        "minGap": 1.2,
+        "minGapLat": 0.3,
+        "jmTimegapMinor": 0.7
+      },
+      "rationale": "Targets M7a/release_time (sim 15-53 s vs obs 2.6 s), M7b/clear_lag (10-30 s vs 6.7 s) and M6 illegal_l junction time: jmTimegapMinor lowered 1.0 -> 0.7 s so box waiters accept smaller gaps and leave sooner once the opposing stream thins; riding values as moto_saval (faster discharge, M1/moto). Share 1 is required (sole archetype of its distribution)."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.5,
+        "k": 0.1,
+        "p_max": 0.8,
+        "dt": 10.0
+      },
+      "rationale": "Targets M3/share/moto (sim 0.005 vs obs 0.092, R 17) and M3/per_cycle (0.15-0.2 vs 4.4): p0 0.1-0.2 in iteration 1 gave 5-7x too few red runners (about a third of drawn runs did not complete before red ended), so p0 is raised to the Saval 0.5; k = 0.1 with cap 0.8 adds clustering to lift M3/var_to_mean from about 1.0 toward 1.3."
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 8.0,
+        "p": 0.8,
+        "v_max": 3.0
+      },
+      "rationale": "Targets M2/early/moto (sim 0.01 vs obs 0.13, R 3) and M2/first_delay (sim 5-7 s vs 2.1 s): p 0.13-0.3 gave only 0.01 share since only front-row riders are drawn and about half did not cross before red ended, so p is raised to 0.8; t_before_green 8 s lies within the 4-10 s lead-time target and v_max 3 m/s lets the creeper cross the line before green ends the window, shortening the first delay."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker",
+        "car_seeker"
+      ],
+      "params": {
+        "q": 20.0,
+        "t_g_s": 0.0,
+        "est_noise": 0.0,
+        "p_wrong_lane": 0.0,
+        "p_right_lane": 0.03,
+        "p_sidewalk": 0.05,
+        "v_creep": 4.0,
+        "merge_zone_m": 15.0
+      },
+      "rationale": "Targets M9a (s00 0.36 vs obs 0.33 per cycle), M10a (0.21 vs 0.27) and M9b/share_blocked (0.11 vs 0.02): q = 20 m and v_creep 4 m/s as in s00, p_right_lane lowered 0.04 -> 0.03 to reduce blocked right-turners, p_sidewalk raised 0.04 -> 0.05 to lift the sidewalk count toward 0.27 per cycle. p_wrong_lane stays 0 (inapplicable on the proxy net, R27). Shorter queues from the faster car-following should also lower M10b/M9c."
+    }
+  ]
+}

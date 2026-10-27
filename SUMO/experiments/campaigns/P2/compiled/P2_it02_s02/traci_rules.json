@@ -1,0 +1,102 @@
+{
+  "spec_id": "P2_it02_s02",
+  "archetypes": {
+    "car_std": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_std",
+      "share": 0.9
+    },
+    "car_assertive": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_assertive",
+      "share": 0.1
+    },
+    "moto_std": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_std",
+      "share": 0.8
+    },
+    "moto_seeker": {
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "vtype_id": "moto_seeker",
+      "share": 0.2
+    },
+    "moto_left": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_left",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "vtype_ids": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "params": {
+        "t_before_green": 10.0,
+        "p": 0.5,
+        "v_max": 4.0
+      }
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "vtype_ids": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "params": {
+        "p0": 0.25,
+        "k": 0.1,
+        "p_max": 0.8,
+        "dt": 10.0
+      }
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "vtype_ids": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 10.0,
+        "t_w": 60.0,
+        "t_g_s": 7.0,
+        "est_noise": 0.4,
+        "p_wrong_lane": 0.0,
+        "p_right_lane": 0.01,
+        "p_sidewalk": 0.07,
+        "v_creep": 4.0,
+        "merge_zone_m": 15.0
+      }
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_left"
+      ],
+      "vtype_ids": [
+        "moto_left"
+      ],
+      "params": {
+        "release_lag_s": 2.0
+      }
+    }
+  ]
+}

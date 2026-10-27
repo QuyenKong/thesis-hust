@@ -1,0 +1,224 @@
+{
+  "spec_id": "P2_it02_s01",
+  "source": "llm",
+  "provenance": {
+    "model": "claude-sonnet (stand-in)",
+    "prompt_version": "v001",
+    "iteration": 2,
+    "sample_idx": 1,
+    "runtime": "file"
+  },
+  "description": "Second iteration: tighter car/moto following to cut discharge headway and queue (M1, M5, M6), stronger red running and early start for motorcycles (M2, M3), fewer space seekers with lower right-lane probability (M9, M10a), longer box release lag (M7a).",
+  "driver_archetypes": [
+    {
+      "id": "car_std",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.9,
+      "params": {
+        "tau": 0.7,
+        "minGap": 1.2,
+        "accel": 3.5,
+        "decel": 4.5,
+        "sigma": 0.2,
+        "impatience": 0.1,
+        "jmDriveAfterRedTime": 0.0,
+        "jmDriveRedSpeed": 3.0
+      },
+      "rationale": "M1/car headway was 0.84-0.96 s vs 0.39 s observed in all four it01 specs, and queues (M5/length 47-58 m vs 13 m) and M6 approach times followed; lower tau, minGap and sigma plus higher accel shorten the discharge headway and queue. Impatience stays low for M3/share/car and M2/early/car."
+    },
+    {
+      "id": "car_aggr",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.1,
+      "params": {
+        "tau": 0.6,
+        "minGap": 1.0,
+        "accel": 4.0,
+        "decel": 5.0,
+        "sigma": 0.2,
+        "impatience": 0.3,
+        "lcAssertive": 1.5
+      },
+      "rationale": "Small tight-following car group pushes M1/car headway further toward 0.39 s and shortens M5/length; impatience 0.3 without jmDriveAfterRedTime keeps M3/share/car near 0.003."
+    },
+    {
+      "id": "moto_std",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.6,
+      "params": {
+        "minGap": 0.5,
+        "accel": 6.0,
+        "decel": 9.0,
+        "sigma": 0.2,
+        "minGapLat": 0.35,
+        "maxSpeedLat": 1.5,
+        "latAlignment": "arbitrary",
+        "lcSublane": 3.0,
+        "lcPushy": 0.5,
+        "lcMaxSpeedLatStanding": 1.5,
+        "tau": 0.4,
+        "impatience": 0.5,
+        "jmDriveAfterRedTime": 3.0,
+        "jmDriveRedSpeed": 5.0
+      },
+      "rationale": "M1/moto headway 0.52-0.63 s vs 0.30 s observed: minimum tau 0.4, minGap 0.5, accel 6 and sigma 0.2 shorten it and cut M5/length and M5/moto_density; filtering params target M4 overshoot; jmDriveAfterRedTime 3 s lets some ride on after red for M3/share/moto."
+    },
+    {
+      "id": "moto_fast",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.2,
+      "params": {
+        "minGap": 0.5,
+        "accel": 6.0,
+        "decel": 9.0,
+        "sigma": 0.2,
+        "minGapLat": 0.35,
+        "maxSpeedLat": 2.0,
+        "latAlignment": "arbitrary",
+        "lcSublane": 4.0,
+        "lcPushy": 0.8,
+        "lcMaxSpeedLatStanding": 2.0,
+        "tau": 0.4,
+        "lcAssertive": 2.5,
+        "impatience": 0.8,
+        "jmDriveAfterRedTime": 5.0,
+        "jmDriveRedSpeed": 6.0
+      },
+      "rationale": "Aggressive riders target M3/share/moto (0.09 vs sim 0.01-0.02) and M3/per_cycle (4.4 vs 0.4-1.0) through impatience 0.8 and a 5 s drive-after-red time, and M4/overshoot_share via larger lateral speed and sublane freedom."
+    },
+    {
+      "id": "moto_slow",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.05,
+      "params": {
+        "tau": 0.8,
+        "minGap": 0.8,
+        "accel": 3.0,
+        "decel": 6.0,
+        "sigma": 0.3,
+        "speedFactor": 0.85,
+        "speedDev": 0.05,
+        "latAlignment": "center",
+        "impatience": 0.1
+      },
+      "rationale": "Smaller slow share (was 0.10-0.15) with speedFactor 0.85: M6 approach times were already 2-5x too long, so slow riders must not add congestion; they only keep the slow-rider mechanism for M6/approach moto and M4/lat_moto."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.15,
+      "params": {
+        "minGap": 0.5,
+        "accel": 6.0,
+        "decel": 9.0,
+        "sigma": 0.2,
+        "minGapLat": 0.35,
+        "maxSpeedLat": 1.8,
+        "latAlignment": "arbitrary",
+        "lcSublane": 4.0,
+        "lcPushy": 0.7,
+        "lcMaxSpeedLatStanding": 1.5,
+        "tau": 0.4,
+        "lcAssertive": 2.0,
+        "impatience": 0.6,
+        "jmDriveAfterRedTime": 4.0,
+        "jmDriveRedSpeed": 5.0
+      },
+      "rationale": "Space-seeking custom1 riders for M10a (sidewalk 0.27/cycle) and M9a (right-lane straight vehicles 0.33/cycle); share 0.15 (it01: 0.10-0.25 gave M9a 0.87-4.6 and M9b/share_blocked 0.15-0.30 vs 0.02) with a smaller right-lane probability."
+    },
+    {
+      "id": "viol_box",
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "share": 1.0,
+      "params": {
+        "tau": 0.6,
+        "minGap": 0.6,
+        "accel": 5.0,
+        "decel": 9.0,
+        "sigma": 0.4,
+        "minGapLat": 0.4,
+        "impatience": 0.5,
+        "jmTimegapMinor": 1.0,
+        "speedFactor": 0.95,
+        "speedDev": 0.1
+      },
+      "rationale": "Same parameters as it01_s03, the best box result (M7b/clear_lag 6.0 vs 6.65 s, M7a/release_time 0.36 vs 2.6 s); jmTimegapMinor 1.0 kept; release_time is raised by the rule's release lag instead of by gap parameters (jmTimegapMinor 0.6-0.8 gave negative release times)."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_std",
+        "moto_fast",
+        "moto_seeker"
+      ],
+      "params": {
+        "t_before_green": 10.0,
+        "p": 0.5,
+        "v_max": 5.0
+      },
+      "rationale": "M2/early/moto 0.13 vs sim 0.004-0.007: executed creeps were mostly 'red_ended_before_crossing' (57 of 89), so use the full 10 s window and v_max 5 m/s so the creeper crosses before green, with p 0.5 over the front row; cars excluded (M2/early/car 0.001)."
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_std",
+        "moto_fast",
+        "moto_seeker"
+      ],
+      "params": {
+        "p0": 0.3,
+        "k": 0.1,
+        "p_max": 0.7,
+        "dt": 10.0
+      },
+      "rationale": "M3/share/moto 0.09 and M3/per_cycle 4.4 were 4-10 times too low (0.01-0.02, 0.4-1.0 veh/cycle) with p0 0.04-0.15 on fewer riders; p0 0.3 on all non-slow motorcycles with k 0.1 raises the count and keeps M3/var_to_mean (it01 1.2-1.7 vs 1.31) clustered."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 15.0,
+        "t_w": 60.0,
+        "t_g_s": 7.0,
+        "est_noise": 0.3,
+        "p_wrong_lane": 0.0,
+        "p_right_lane": 0.01,
+        "p_sidewalk": 0.07,
+        "v_creep": 4.0,
+        "merge_zone_m": 15.0
+      },
+      "rationale": "M9a was 0.87-4.6 vs 0.33 veh/cycle with p_right_lane 0.03-0.1, so cut it to 0.01 and halve the seeker share; M10a: p_sidewalk 0.06 gave 0.21 vs 0.27 in it01_s00 (0.02 gave 0.03-0.09), so use 0.07; wrong lane was inapplicable (sim 0, R27) so it is set to 0."
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "viol_box"
+      ],
+      "params": {
+        "release_lag_s": 1.8
+      },
+      "rationale": "M7a/release_time 0.36 s (it01_s03) vs 2.6 s observed, M7b/clear_lag 6.0 vs 6.65 s: a longer extra hold of 1.8 s (was 1.0) moves both up toward the targets."
+    },
+    {
+      "rule_type": "slow_lane_center",
+      "applies_to": [
+        "moto_slow"
+      ],
+      "params": {
+        "lat_offset": 0.0
+      },
+      "rationale": "Slow riders stay in lane centre for M6/approach moto and M4/lat_moto; kept unchanged with a smaller share."
+    }
+  ]
+}

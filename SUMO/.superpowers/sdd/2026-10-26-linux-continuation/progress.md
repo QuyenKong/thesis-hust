@@ -42,3 +42,29 @@ null site values raise; byte-identical rebuild; custom2 defaults equal passenger
 ## Status
 - Task 10: distance.py + experiment.yaml (metric_window_s, equal group weights) — implemented, 242 passed; in review.
 - R28 Linux run: running (logs experiments/operator/task9/linux_run_PROXY_D*.txt).
+
+## Status 2026-10-27 ~12:00
+- Committed: Task 10 (94f29f4), R28 Linux (7dc93ae), F2-net (a8385e5), Phase 3 (cf4f55f), F2-behaviours (f557c2c),
+  F2-metrics (8acc85c), R28 frozen on F2 net lane 4 / junction 142 (cfd86ba), Task 11 (d24a13b), Task 12 (481ea06),
+  Task 14 code (ccb7520).
+- Rulings since: R35–R44 (see docs/PROGRESS.md). R44: each spec = 3 runs (D1–D3, seed 1); budget 36 per method.
+- Running: campaign B2 detached (nohup, `pgrep -af optuna_search`), log experiments/campaigns/B2_run.log; resumable:
+  rerun the same command (docs/PROGRESS.md Task 14 entry) if it died. experiments/campaigns/B2_aborted = first attempt
+  killed after 3 charged runs (do not use, do not commit).
+- In progress: Task 13 loop code (agent). Then: review → commit → campaigns P1 (params_only, base B1) and P2 (full)
+  with Sonnet stand-in answering `python -m thesis_sumo.llm.loop pending --campaign X` requests → H = Optuna on P2_best
+  structure → Task 15 benchmark (B0, B1, B2, P1, P2, H on D4–D5, ≥ 20 seeds, allow_validation) → LaTeX → video.
+
+## Campaign procedure (2026-10-27 ~12:40) — Task 13 committed 81a9362
+Running detached (setsid nohup): B2 (Optuna, log experiments/campaigns/B2_run.log), P1 (llm.loop params_only base
+B1, nproc 9, log P1_run.log), P2 (llm.loop full, nproc 3, log P2_run.log). Check: `pgrep -af "llm.loop|optuna_search"`,
+`cat experiments/campaigns/<c>/budget.json`, `tail experiments/campaigns/<c>_run.log`.
+When a loop process has exited: if its log ends with "LLM response(s) pending" (exit 3) → for EACH listed request
+spawn one background Agent (model sonnet) with the stand-in prompt: read ONLY that request file, reply with ONE JSON
+object valid against its `schema` (fix listed validator issues on retries), write {"content": spec, "reasoning": "..."}
+to the response path, touch nothing else. When all are answered, rerun the same loop command (same flags) detached:
+  P1: .venv/bin/python -m thesis_sumo.llm.loop --campaign P1 --mode params_only --base rules/specs/B1_manual.json --budget 36 --site config/site.proxy.yaml --b0-lane-collisions 1.333 --nproc 9
+  P2: .venv/bin/python -m thesis_sumo.llm.loop --campaign P2 --mode full --budget 36 --site config/site.proxy.yaml --b0-lane-collisions 1.333 --nproc 3
+If finished (budget/max_iter): rerun once with `--write-best rules/specs/P1_best.json` (P2_best) — no new runs.
+B2 finished → B2_best.json written by its CLI. Then H = optuna_search --structure rules/specs/P2_best.json --campaign H.
+iteration 1 validity: P1 4/4 valid first attempt; P2 1/4 first attempt (3 × lcPushy+lcPushyGap logic error), retried.

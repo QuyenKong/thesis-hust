@@ -1,0 +1,120 @@
+{
+  "spec_id": "P2_it01_s02",
+  "archetypes": {
+    "car_std": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_std",
+      "share": 0.88
+    },
+    "car_aggr": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_aggr",
+      "share": 0.12
+    },
+    "moto_std": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_std",
+      "share": 0.65
+    },
+    "moto_slow": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_slow",
+      "share": 0.1
+    },
+    "moto_seeker": {
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "vtype_id": "moto_seeker",
+      "share": 0.25
+    },
+    "moto_left_violator": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_left_violator",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "vtype_ids": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "params": {
+        "p0": 0.06,
+        "k": 0.05,
+        "p_max": 0.4,
+        "dt": 8.0
+      }
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "vtype_ids": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "params": {
+        "t_before_green": 7.0,
+        "p": 0.2,
+        "v_max": 2.5
+      }
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "vtype_ids": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 10.0,
+        "t_w": 60.0,
+        "t_g_s": 7.0,
+        "est_noise": 0.4,
+        "p_wrong_lane": 0.5,
+        "p_right_lane": 0.1,
+        "p_sidewalk": 0.1,
+        "v_creep": 4.0,
+        "merge_zone_m": 15.0
+      }
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_left_violator"
+      ],
+      "vtype_ids": [
+        "moto_left_violator"
+      ],
+      "params": {
+        "release_lag_s": 1.0
+      }
+    },
+    {
+      "rule_type": "slow_lane_center",
+      "applies_to": [
+        "moto_slow"
+      ],
+      "vtype_ids": [
+        "moto_slow"
+      ],
+      "params": {
+        "lat_offset": 0.0
+      }
+    }
+  ]
+}

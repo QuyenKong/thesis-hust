@@ -1,0 +1,129 @@
+{
+ "spec_id": "P1_it01_s00",
+ "source": "llm",
+ "provenance": {
+  "model": "claude-sonnet (stand-in)",
+  "prompt_version": "v001",
+  "iteration": 1,
+  "sample_idx": 0,
+  "runtime": "file"
+ },
+ "description": "Iteration 1: lower red-running probability toward the observed 9% moto share, switch on early start toward 13%, enable small right-lane and sidewalk seeking at short queues; car and car-following values stay at Saval.",
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.95,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Targets M1/car discharge headway (0.387 s) and M6 car approach/junction times; Saval Table 11 values kept unchanged because there is no feedback yet showing they are off. Share 0.95 so that with car_seeker 0.05 the car distribution sums to 1."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.05,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Targets M9a/M9b (straight vehicles in the right-turn lane, 0.33 veh/cycle, 2% of right-turners blocked): the observed rate is small, so the car seeker share is lowered from 0.1 to 0.05. Car-following params identical to car_saval so M1/car is unaffected."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.85,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Targets M1/moto (0.30 s discharge headway), M4/overshoot_share and M5 queue density; Saval values kept (tau 0.8 s, minGapLat at its 0.3 m lower bound allows dense filtering). Share 0.85 so that with moto_seeker 0.15 the moto distribution sums to 1."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.15,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Targets M10a (0.27 sidewalk motorcycles per cycle) and M9a (0.33 straight vehicles per cycle in the right-turn lane): the only riders allowed to seek space, so their share is raised from 0.1 to 0.15 to give enough candidates for the small p values. Params identical to moto_saval."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 1.0
+   },
+   "rationale": "Targets M7a/M7b/M6 illegal_l junction time (49 s) and release time (2.6 s). No feedback yet showing the box waiters leave too early or late, so jmTimegapMinor stays at 1.0 s; I change few things at a time. Share is 1 as the only archetype of the moto_violator distribution."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.2,
+    "k": 0.0,
+    "p_max": 0.2,
+    "dt": 10.0
+   },
+   "rationale": "Targets M3/share/moto (observed 0.092) and M3/per_cycle (4.4 veh/cycle). The Saval p = 0.5 applies to front-row riders only, while the observed share is over all motorcycles, so lowering p0 to 0.2 pulls the simulated red-running share down toward 0.09. k stays 0 until M3/var_to_mean (1.3) shows overdispersion is missing."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 7.0,
+    "p": 0.3,
+    "v_max": 2.5
+   },
+   "rationale": "Targets M2/early/moto (observed 0.130 share in the last 10 s of red) and M2/first_delay (2.1 s). Switching p from 0 to 0.3 per front-row rider creates early starters; 0.3 of front-row riders is about 0.13 of all given the front-row fraction. t_before_green 7 s is within the 4-10 s lead-time target; v_max 2.5 m/s is slow creep."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker",
+    "car_seeker"
+   ],
+   "params": {
+    "q": 20.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.0,
+    "p_right_lane": 0.04,
+    "p_sidewalk": 0.04,
+    "v_creep": 4.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Targets F2/p/right_lane (0.006-0.031 at q below 40 m), F2/p/sidewalk (0.005-0.016), M9c and M10b (choice at 12.7-13.3 m queue). q is lowered from 30 to 20 m so the draw triggers at the short observed queues; p_right_lane and p_sidewalk 0.04 each, given only 15 percent of riders are seekers, give small event rates near M9a 0.33 and M10a 0.27 per cycle. p_wrong_lane is 0 because it is inapplicable on the proxy net (R27). v_creep 4 m/s is near the proxy sidewalk speed."
+  }
+ ]
+}
