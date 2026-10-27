@@ -664,6 +664,14 @@ Lệnh: `.venv/bin/python -m thesis_sumo.sim.runner --spec B0 --day PROXY_Dk --s
 - Quy về /h: lane 4, 0, 4, 0, 0, 2, 2, 0, 0 (p90 4,0; trung bình 1,3 → cổng R17 ≤ 5/h ĐẠT); junction 82–156 (p90 141,6).
 - **Đóng băng trong `experiment.yaml`:** `max_collisions_per_hour: 4`, `max_junction_collisions_per_hour: 142`, trước vòng LLM 1, không đổi sau khi thấy kết quả LLM. Không run B0 nào ELIGIBLE (va chạm junction / teleport / backlog) → chọn spec theo R32 khi cần (R42).
 
+### 2026-10-27 — Task 11: harness đánh giá + bộ đếm ngân sách
+
+Review lần 1 "changes requested" (ngân sách không gắn campaign/không lưu → chạy lại có thể vượt 36 run; trùng `spec_id` ghi đè run trước) · fix round · re-review approved · ✅
+
+**Đã làm:** `src/thesis_sumo/evaluate.py`: `RunBudget(total, campaign)` lưu ở `experiments/campaigns/<campaign>/budget.json`, đọc lại từ đĩa và trừ dưới lock file (Windows/Linux); `evaluate_spec` (kiểm ngày → validate/compile vào thư mục campaign → đọc dữ liệu quan sát → trừ ngân sách → chạy song song → cổng G0 + `is_eligible` → `distance.compare` trên mọi run); spec hỏng không tốn run; `spec_id` trùng trong campaign bị từ chối; ngày validation bị chặn trừ khi `allow_validation=True` (chỉ benchmark); `select_best` theo R10 (trần B0 + 1/h tính trên va chạm lane, R28), không spec nào đủ điều kiện thì theo R32 (teleport kẹt/yield mỗi giờ, rồi S; bỏ qua trần, R42); spec đủ điều kiện khi mọi run đủ điều kiện. `runner.spec_json_path`: manifest băm đúng spec JSON đã dùng.
+
+**Lệnh tái tạo:** `.venv/bin/python -m pytest -q tests/test_evaluate.py` (17 test).
+
 ### Bước tiếp theo
 
 - Operator đang tính lại hai ngưỡng va chạm (lane và junction) với `check-junctions` BẬT (R28): B0 trên PROXY_D1–D3 x 3 seed rồi đóng băng và commit trước vòng 1 (R24); kèm kiểm cặp seed hold so với lag 0 (R29) và một run chẩn đoán B0 D1 với time-to-teleport `-1` (R33).

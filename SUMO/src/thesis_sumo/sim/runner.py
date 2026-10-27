@@ -357,7 +357,7 @@ def run(spec_id: str, day: str, seed: int, use_gui: bool = False, site_path: Pat
               ([f"{n_collisions} collisions"] if n_collisions else [])
     n_warn, n_err, top_warn = summarise_log(run_dir / LOG_NAME)
     spec_hash, spec_files = _dir_hash(inputs.spec_dir)
-    spec_json = SPECS_DIR / f"{spec_id}.json"
+    spec_json = spec_json_path(inputs.spec_dir, spec_id)
     git_hash, git_dirty = _git()
     opts = {el.tag: el.get("value") for sec in etree.parse(str(cfg)).getroot() for el in sec
             if isinstance(el.tag, str)}
@@ -401,6 +401,13 @@ def run(spec_id: str, day: str, seed: int, use_gui: bool = False, site_path: Pat
     manifest["observed_schema"] = {name: len(df) for name, df in tables.items()}
     _write_manifest(run_dir, manifest)
     return RunResult(run_dir, manifest)
+
+
+def spec_json_path(spec_dir: Path, spec_id: str) -> Path:
+    """The spec JSON a run used: `<spec_dir>/spec.json` (campaign-local compile, thesis_sumo.evaluate) when present,
+    else rules/specs/<spec_id>.json."""
+    local = Path(spec_dir) / "spec.json"
+    return local if local.is_file() else SPECS_DIR / f"{spec_id}.json"
 
 
 def _write_manifest(run_dir: Path, manifest: dict) -> None:
