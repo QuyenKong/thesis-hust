@@ -147,13 +147,36 @@ def _arm_edges(edges: list, far_coord, kind: str) -> dict[str, str]:
     return {k: out[k] for k in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")}
 
 
+def approach_segments(net: sumolib.net.Net, edge_id: str) -> list:
+    """The approach edge `edge_id` (ends at the stop line) and its straight upstream continuation, stop line first:
+    one edge in the base net, `[<edge>, <edge>.mid, <edge>.up]` or `[<edge>, <edge>.up]` once the site patches split
+    it (thesis_sumo.net.apply_patches)."""
+    return _straight_chain(net.getEdge(edge_id), upstream=True)
+
+
+def sidewalk_edges(net: sumolib.net.Net) -> dict[str, str]:
+    """Sidewalk edge id -> approach id: the inbound edges of the target junction that are no approach edge and start
+    at a node of an approach's segment chain (apply_patches, Phase 3B topology c)."""
+    node = target_node(target_tls(net))
+    approaches = approach_edges(net)
+    nodes = {s.getFromNode().getID(): a for a, e in approaches.items() for s in approach_segments(net, e)}
+    out = {}
+    for e in inbound_edges(node):
+        if e.getID() in approaches.values():
+            continue
+        if e.getFromNode().getID() not in nodes:
+            raise ValueError(f"inbound edge {e.getID()} is neither an approach edge nor a sidewalk of one")
+        out[e.getID()] = nodes[e.getFromNode().getID()]
+    return out
+
+
 def _straight_chain(edge, upstream: bool) -> list:
     """`edge` plus its straight (`dir="s"`) continuation away from the junction, to the cut fringe."""
     chain = [edge]
     while True:
         cur = chain[-1]
         links = cur.getIncoming() if upstream else cur.getOutgoing()
-        nxt = [e for e, conns in links.items() if any(c.getDirection() == "s" for c in conns)]
+        nxt = [e for e, conns in links.items() if not e.isSpecial() and any(c.getDirection() == "s" for c in conns)]
         if len(nxt) > 1:
             raise ValueError(f"edge {cur.getID()} has {len(nxt)} straight continuations: {[e.getID() for e in nxt]}")
         if not nxt or nxt[0] in chain:

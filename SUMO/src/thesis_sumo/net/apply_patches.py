@@ -22,11 +22,28 @@
   are `y`; everything else is `r`. The right-turn links of `continuous_right_lane` approaches are not signal
   controlled: `g` (green, yield to foes) in every phase, whatever the phase lists say (a right turn on red is
   no violation, PLAN 0).
-- Sidewalk lane (PLAN 1.4, `sidewalk.edg.xml` / `sidewalk.con.xml`) on the approaches of
-  `f2_measured_approaches` only: null or empty builds none; a listed approach needs `sidewalk_width_m`
-  (MissingFieldDataError) and then raises NotImplementedError: an extra right-edge lane shifts every lane
-  index of the approach (TLS links, lane_widths_m / lane_movements, stop-line loops, lateral positions) and
-  where it starts and merges is not in PLAN; Phase 3B tests it in its own scenario first.
+- `split.edg.xml` + `bollards.edg.xml` (Phase 3A, ruling R39): with `right_lane_separator: bollards` the approach
+  edge is split at `stop line - bollard_length_m`; the downstream part keeps the approach edge id (so every
+  stop-line lookup, TLS link and turns.con.xml entry stays valid), the upstream part is `<edge>.up`, the split node
+  `<edge>.bollard`. On the bollard edge lane 0 gets `changeLeft="emergency"` and lane 1 `changeRight="emergency"`:
+  no lane change between the continuous right-turn lane and the through lanes (`"ignoring"`, the documented
+  strongest value, is dropped silently by netconvert 1.27; no emergency vehicle exists here; Phase 3A).
+- Sidewalk (PLAN 1.4, Phase 3B topology c with priority, ruling R39) on the approaches of `f2_measured_approaches`
+  (null or empty: none): the approach is also split at `stop line - sidewalk_start_m` (node `<edge>.sidewalk_start`,
+  `<edge>.up` upstream of it, `<edge>.mid` between it and the bollard node); `sidewalk.edg.xml` adds the one-lane
+  edge `<edge>.sidewalk` from that node to the target junction (`allow="custom1"`, width `sidewalk_width_m`, speed
+  `sidewalk_speed_mps`, priority one above the approach, unnamed so it is never taken for an approach, geometry =
+  lane 0 shifted right, ending edge to edge beside lane 0 at the stop line, see SIDEWALK_JOG_M; the build checks
+  that the sidewalk links are foes of the lane-0 right turn). `sidewalk.con.xml`: `<edge>.up` lanes i -> i
+  onwards, lane 0 also -> the sidewalk; sidewalk -> lane 0 of the approach's right and straight exits. The two
+  sidewalk links are TLS links appended after the road links (pinned in signal.tll.xml, so no road link index
+  moves): right = the approach's right-turn state (`g` in every phase on a continuous right lane), straight = the
+  approach's straight state (`G` in its green: the road yields to riders at the stop line; a yielding `g` jams, 3B).
+  Use of the sidewalk is a TraCI route choice only (`queue_space_seeking`, option `sidewalk`).
+- Split positions are measured along the raw edge geometry from the stop line. Junction shapes change with the
+  patched widths and with the sidewalk node, so the build reruns netconvert (at most `SPLIT_PASSES` times), each
+  time shifting every split by the remaining error, until every realised distance (stop line to the start of the
+  segment downstream of the split) is within `SPLIT_TOL_M` of the site value; otherwise it raises.
 - `illegal_left.mode` (PLAN Phase 3 decision, `native | box_edge`): `native` = the illegal lefts wait at the
   internal junction netconvert builds on their link (no extra patch). `box_edge` (an explicit waiting edge
   with its own signal link) is not implemented: Phase 3 measured enough native capacity
@@ -44,6 +61,7 @@ from pathlib import Path
 
 import sumolib
 from lxml import etree
+from sumolib.geomhelper import move2side, polygonOffsetWithMinimumDistanceToPoint, positionAtShapeOffset
 
 from thesis_sumo.config import Site
 from thesis_sumo.net.build_net import (
@@ -62,6 +80,20 @@ RIGHT_LANE_SEPARATORS = ("none", "paint", "bollards")  # PLAN 0 site template
 DIR_TO_MOVEMENT = {"s": "s", "r": "r", "R": "r", "l": "l", "L": "l", "t": "t"}  # SUMO connection dir codes
 PRIORITY_MOVEMENTS = ("s", "r")  # green = G; other movements yield (g)
 UNCONTROLLED_STATE = "g"  # continuous right turn: green in every phase, yields to foes (PLAN 1.4)
+NO_CHANGE = "emergency"  # changeLeft/changeRight value: only vClass emergency (absent) may change (Phase 3A)
+SPLIT_TOL_M = 0.2  # realised bollard / sidewalk-start distance vs the site value
+SPLIT_PASSES = 5  # netconvert passes at most: moving a split node reshapes the junctions, so the lengths are coupled
+# Sidewalk geometry (not field data): its centre runs SIDEWALK_JOG_M further out than "beside lane 0" and jogs back
+# over the last SIDEWALK_JOG_LEN_M to end exactly beside lane 0 at the stop line. Checked on LVL_W (F2-behaviours
+# review): ending parallel at the corner without the jog (0 m) lets the sidewalk take netconvert's turnaround pairing of
+# the approach's own exit (>= 160 deg; the road U-turn then gets dir "r"); a bend that ended ~0.25 m from lane 0's end
+# overlapped lane 0 and the sidewalk links were no foes of the lane-0 right turn (junction collisions); 3-4 m moved the
+# LVL_W stop line 3.6 m. 1-2 m: links of the sidewalk and of lane 0 are foes (checked in _check_site_net), every road
+# link keeps its dir, stop lines within 0.1 m of the unpatched net for LVL_W / HDT_S (LVL_E -0.7 m, HDT_N +1.6 m:
+# scenario/net/stopline_shift.csv written by thesis_sumo.net.build).
+SIDEWALK_JOG_M, SIDEWALK_JOG_LEN_M = 2.0, 6.0
+UP, MID, SIDEWALK = ".up", ".mid", ".sidewalk"  # suffixes of the split / added edges
+BOLLARD_NODE, SIDEWALK_NODE = ".bollard", ".sidewalk_start"
 
 
 class ProxySiteWarning(UserWarning):
@@ -93,11 +125,14 @@ def site_values(site: Site) -> dict:
             "u_turn_banned": site.require(f"approaches.{i}.u_turn_banned"),
             "continuous_right_lane": site.require(f"approaches.{i}.continuous_right_lane"),
         })
+        approaches[-1]["bollard_length_m"] = approaches[-1]["sidewalk"] = None
         if approaches[-1]["continuous_right_lane"]:
             sep = approaches[-1]["right_lane_separator"] = site.require(f"approaches.{i}.right_lane_separator")
             if sep not in RIGHT_LANE_SEPARATORS:
                 raise ValueError(f"{site.path}: approaches.{i}.right_lane_separator must be one of "
                                  f"{RIGHT_LANE_SEPARATORS}, got {sep!r}")
+            if sep == "bollards":
+                approaches[-1]["bollard_length_m"] = _positive(site, f"approaches.{i}.bollard_length_m")
     exits = [{"id": site.require(f"exits.{i}.id"), "edge": site.require(f"exits.{i}.edge"),
               "lane_widths_m": site.require(f"exits.{i}.lane_widths_m")} for i in range(len(site.require("exits")))]
     vals = {
@@ -114,17 +149,16 @@ def site_values(site: Site) -> dict:
     if vals["vclass"] != vals["violators"][0]:
         raise ValueError(f"{site.path}: illegal_left.vclass {vals['vclass']!r} must be violator_classes.moto "
                          f"{vals['violators'][0]!r}")
-    sidewalk = site.get("f2_measured_approaches") or []  # null = none chosen yet: no sidewalk lane
-    for app in sidewalk:
-        ids = [a["id"] for a in approaches]
+    ids = [a["id"] for a in approaches]
+    for app in site.get("f2_measured_approaches") or []:  # null = none chosen yet: no sidewalk
         if app not in ids:
             raise ValueError(f"{site.path}: f2_measured_approaches {app!r} is not an approach id {ids}")
-        site.require(f"approaches.{ids.index(app)}.sidewalk_width_m")
-    if sidewalk:
-        raise NotImplementedError(
-            f"{site.path}: sidewalk lane on {sidewalk} (PLAN 1.4) is not implemented: an extra right-edge lane shifts "
-            f"every lane index of the approach (TLS link indices, lane_widths_m / lane_movements, stop-line loops, "
-            f"lateral positions), and its start and merge point are not in PLAN; Phase 3B tests it in its own scenario")
+        i = ids.index(app)
+        sw = approaches[i]["sidewalk"] = {k: _positive(site, f"approaches.{i}.{k}")
+                                          for k in ("sidewalk_width_m", "sidewalk_start_m", "sidewalk_speed_mps")}
+        if sw["sidewalk_start_m"] <= (approaches[i]["bollard_length_m"] or 0.0):
+            raise ValueError(f"{site.path}: approaches.{i}.sidewalk_start_m {sw['sidewalk_start_m']} must exceed "
+                             f"bollard_length_m {approaches[i]['bollard_length_m']} (the sidewalk starts upstream)")
     if vals["signal_type"] != "static":
         raise ValueError(f"{site.path}: signal.type must be 'static' (PLAN 1.1), got {vals['signal_type']!r}")
     if vals["illegal_left_mode"] not in ILLEGAL_LEFT_MODES:
@@ -139,6 +173,13 @@ def site_values(site: Site) -> dict:
         raise ValueError(f"{site.path}: illegal_left.approaches {unbanned} are not left_turn_banned; "
                          f"an illegal left needs a ban on that approach")
     return vals
+
+
+def _positive(site: Site, key: str) -> float:
+    value = site.require(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"{site.path}: {key} must be a positive number, got {value!r}")
+    return float(value)
 
 
 def _parse_movement(mv: str) -> tuple[str, str]:
@@ -229,27 +270,140 @@ def _readd(root: etree._Element, edge: str, conns: list, **perm: str) -> None:
         etree.SubElement(root, "connection", **key, **perm)
 
 
-def _signal_patch(tls_id: str, links: list, vals: dict, states: list[str]) -> etree._Element:
+def segments(a: dict) -> list[str]:
+    """Edge ids of a patched approach from upstream to the stop line (the last one keeps the approach edge id)."""
+    e = a["edge"]
+    return [e + UP] * bool(a["sidewalk"] or a["bollard_length_m"]) + [e + MID] * bool(
+        a["sidewalk"] and a["bollard_length_m"]) + [e]
+
+
+def _cuts(a: dict) -> list[tuple[str, float]]:
+    """(split node id, distance from the stop line), upstream first; cut k separates segments k and k + 1."""
+    cuts = [(a["edge"] + SIDEWALK_NODE, a["sidewalk"]["sidewalk_start_m"])] if a["sidewalk"] else []
+    return cuts + ([(a["edge"] + BOLLARD_NODE, a["bollard_length_m"])] if a["bollard_length_m"] else [])
+
+
+def _split_patch(net, vals: dict, shift: dict[str, float]) -> etree._Element:
+    """`<split>`s at the site distances (+ `shift`) upstream of the stop line, with negative positions measured from
+    the end of the raw edge geometry (which reaches into the junction)."""
+    root = etree.Element("edges")
+    for a in vals["approaches"]:
+        e = net.getEdge(a["edge"])
+        raw = e.getRawShape()
+        tail = sumolib.geomhelper.polyLength(raw) - polygonOffsetWithMinimumDistanceToPoint(e.getShape()[-1], raw)
+        segs = segments(a)
+        for k, (node, dist) in enumerate(_cuts(a)):
+            el = etree.SubElement(root, "edge", id=a["edge"] if k == 0 else segs[k])
+            etree.SubElement(el, "split", pos=f"{-(tail + dist + shift.get(node, 0.0)):.2f}", id=node,
+                             idBefore=segs[k], idAfter=segs[k + 1])
+    return root
+
+
+def _bollard_patch(vals: dict) -> etree._Element:
+    root = etree.Element("edges")
+    for a in vals["approaches"]:
+        if a["bollard_length_m"]:
+            e = etree.SubElement(root, "edge", id=a["edge"])
+            etree.SubElement(e, "lane", index="0", changeLeft=NO_CHANGE)
+            etree.SubElement(e, "lane", index="1", changeRight=NO_CHANGE)
+    return root
+
+
+def _exit_of(net, a: dict, movement: str) -> str:
+    (to,) = {c.getTo().getID() for cs in net.getEdge(a["edge"]).getOutgoing().values() for c in cs
+             if movement_of(c.getDirection()) == movement}
+    return to
+
+
+def _sidewalk_patches(net, vals: dict, node_id: str,
+                      shift: dict[str, float]) -> tuple[etree._Element, etree._Element, list[tuple]]:
+    """(sidewalk.edg.xml, sidewalk.con.xml, sidewalk TLS links as (approach, movement, from, to, fromLane, toLane));
+    the sidewalk shape starts where the (shifted) sidewalk_start split is."""
+    edges, cons, links = etree.Element("edges"), etree.Element("connections"), []
+    for a in vals["approaches"]:
+        sw = a["sidewalk"]
+        if not sw:
+            continue
+        shape = net.getEdge(a["edge"]).getLane(0).getShape()
+        start = sumolib.geomhelper.polyLength(shape) - sw["sidewalk_start_m"] - shift.get(a["edge"] + SIDEWALK_NODE, 0.0)
+        acc, pts = 0.0, [positionAtShapeOffset(shape, start)]
+        for p0, p1 in zip(shape, shape[1:]):
+            acc += math.dist(p0, p1)
+            if acc > start:
+                pts.append(p1)
+        beside = a["lane_widths_m"][0] / 2 + sw["sidewalk_width_m"] / 2  # centre offset: edge to edge with lane 0
+        end = move2side(pts[-2:], beside)[-1]  # positive = to the right
+        pts = move2side(pts, beside + SIDEWALK_JOG_M)
+        (x0, y0), (x1, y1) = pts[-2], pts[-1]
+        d = math.dist(pts[-2], pts[-1])
+        pts[-1:] = [(x1 - SIDEWALK_JOG_LEN_M * (x1 - x0) / d, y1 - SIDEWALK_JOG_LEN_M * (y1 - y0) / d), end]
+        swe = a["edge"] + SIDEWALK
+        edges.append(etree.Comment(f" {a['id']}: sidewalk (Phase 3B topology c), custom1 only "))
+        etree.SubElement(edges, "edge", id=swe, **{"from": a["edge"] + SIDEWALK_NODE}, to=node_id, numLanes="1",
+                         priority=str(net.getEdge(a["edge"]).getPriority() + 1), allow="custom1",
+                         width=f"{sw['sidewalk_width_m']:.2f}", speed=f"{sw['sidewalk_speed_mps']:.2f}",
+                         spreadType="center", shape=" ".join(f"{x:.2f},{y:.2f}" for x, y in pts))
+        up, nxt = segments(a)[0], segments(a)[1]
+        for i in range(net.getEdge(a["edge"]).getLaneNumber()):
+            etree.SubElement(cons, "connection", **{"from": up}, to=nxt, fromLane=str(i), toLane=str(i))
+        etree.SubElement(cons, "connection", **{"from": up}, to=swe, fromLane="0", toLane="0")
+        for mv in ("r", "s"):
+            to = _exit_of(net, a, mv)
+            etree.SubElement(cons, "connection", **{"from": swe}, to=to, fromLane="0", toLane="0")
+            links.append((a["id"], mv, swe, to, 0, 0))
+    return edges, cons, links
+
+
+def _signal_patch(tls_id: str, links: list[tuple], vals: dict, states: list[str]) -> etree._Element:
+    """`links[i]` = (from edge, to edge, fromLane, toLane) of TLS link index i."""
     root = etree.Element("tlLogics")
     logic = etree.SubElement(root, "tlLogic", id=tls_id, type="static", programID="0", offset="0")
     for p, state in zip(vals["phases"], states):
         etree.SubElement(logic, "phase", duration=str(p["duration_s"]), state=state, name=p["name"])
-    for i, c in enumerate(links):
-        etree.SubElement(root, "connection", **{"from": c.getFrom().getID()}, to=c.getTo().getID(),
-                         fromLane=str(c.getFromLane().getIndex()), toLane=str(c.getToLane().getIndex()),
+    for i, (frm, to, fl, tl) in enumerate(links):
+        etree.SubElement(root, "connection", **{"from": frm}, to=to, fromLane=str(fl), toLane=str(tl),
                          tl=tls_id, linkIndex=str(i))
     return root
 
 
-def _check_site_net(out: Path, links_before: list, states: list[str], vals: dict) -> None:
-    net = sumolib.net.readNet(str(out), withPrograms=True)
+def _key(c) -> tuple:
+    return c.getFrom().getID(), c.getTo().getID(), c.getFromLane().getIndex(), c.getToLane().getIndex()
+
+
+def _realised(net, vals: dict) -> dict[str, tuple[float, float]]:
+    """split node -> (site distance, distance from the stop line to the start of the segment downstream of it)."""
+    out = {}
+    for a in vals["approaches"]:
+        segs, d, start = segments(a), 0.0, {}
+        for j in range(len(segs) - 1, -1, -1):
+            d += net.getEdge(segs[j]).getLane(0).getLength()
+            start[j] = d
+            if j:
+                (c,) = [c for c in net.getEdge(segs[j - 1]).getOutgoing()[net.getEdge(segs[j])]
+                        if c.getFromLane().getIndex() == 0]
+                d += net.getLane(c.getViaLaneID()).getLength() if c.getViaLaneID() else 0.0
+        for k, (node, dist) in enumerate(_cuts(a)):
+            out[node] = (dist, start[k + 1])
+    return out
+
+
+def _check_site_net(out: Path, links_before: list[tuple], dirs_before: list[str], states: list[str],
+                    vals: dict) -> None:
+    net = sumolib.net.readNet(str(out), withPrograms=True, withInternal=True)
     approach_of = {a["edge"]: a["id"] for a in vals["approaches"]}
-    after = [(c.getFrom().getID(), c.getFromLane().getIndex(), c.getTo().getID(), c.getToLane().getIndex())
-             for c in _links(net, approach_of)]
-    before = [(c.getFrom().getID(), c.getFromLane().getIndex(), c.getTo().getID(), c.getToLane().getIndex())
-              for c in links_before]
-    if after != before:
+    approach_of.update({a["edge"] + SIDEWALK: a["id"] for a in vals["approaches"] if a["sidewalk"]})
+    after = _links(net, approach_of)
+    if [_key(c) for c in after] != links_before:
         raise RuntimeError(f"{out}: link indices changed while patching")
+    changed = [(i, d, c.getDirection()) for i, (c, d) in enumerate(zip(after, dirs_before)) if c.getDirection() != d]
+    if changed:
+        raise RuntimeError(f"{out}: link directions changed while patching (index, before, after): {changed}")
+    node = target_node(target_tls(net))
+    for sw in (c for c in after if c.getFrom().getID().endswith(SIDEWALK)):  # riders leave beside lane 0: its links
+        for road in (c for c in after if c.getFrom().getID() + SIDEWALK == sw.getFrom().getID()  # are their foes
+                     and c.getFromLane().getIndex() == 0 and movement_of(c.getDirection()) == "r"):
+            if not node.areFoes(node.getLinkIndex(sw), node.getLinkIndex(road)):
+                raise RuntimeError(f"{out}: sidewalk link {_key(sw)} is no foe of the lane-0 right turn {_key(road)}")
     (program,) = target_tls(net).getPrograms().values()
     got = [p.state for p in program.getPhases()]
     if program.getType() != "static" or got != states:
@@ -277,22 +431,51 @@ def build_site_net(site: Site, base: Path, out: Path) -> Path:
         raise ValueError(f"{site.path}: exit edges {sorted(exit_ids)} must be exactly the outbound "
                          f"edges of the target junction {sorted(outbound)}")
     links = _links(net, approach_of)
+    sw_links = _sidewalk_patches(net, vals, target_node(tls).getID(), {})[2]
     continuous = frozenset((a["id"], "r") for a in vals["approaches"] if a["continuous_right_lane"])
-    states = phase_states([(approach_of[c.getFrom().getID()], movement_of(c.getDirection())) for c in links],
-                          vals["phases"], vals["cycle_s"], continuous)
+    states = phase_states([(approach_of[c.getFrom().getID()], movement_of(c.getDirection())) for c in links]
+                          + [lk[:2] for lk in sw_links], vals["phases"], vals["cycle_s"], continuous)
+    # the closed lane-0 straight (bollards, R37: allowed for nobody) targets the exit lane of the sidewalk straight; SUMO
+    # warns on two G links into one lane ("unsafe green"), so the closed one is g (yield): no vehicle drives it
+    closed = {i for i, c in enumerate(links) if c.getFromLane().getIndex() == 0 and movement_of(c.getDirection()) == "s"
+              and any(a["edge"] == c.getFrom().getID() and a["sidewalk"] and a["bollard_length_m"]
+                      for a in vals["approaches"])}
+    states = ["".join("g" if i in closed and ch == "G" else ch for i, ch in enumerate(s)) for s in states]
+    all_links = [_key(c) for c in links] + [lk[2:] for lk in sw_links]
 
     patch_dir = out.parent / "patches" / out.name.removesuffix(".net.xml")
     files = {"lanes.edg.xml": _lane_patch(net, vals), "turns.con.xml": _turn_patch(net, vals),
-             "signal.tll.xml": _signal_patch(tls.getID(), links, vals, states)}
-    for name, root in files.items():
-        write_xml(root, patch_dir / name)
-    netconvert([
-        "-s", str(base),
-        "-e", str(patch_dir / "lanes.edg.xml"),
-        "-x", str(patch_dir / "turns.con.xml"),
-        "-i", str(patch_dir / "signal.tll.xml"),
-        "--output.street-names", "--output.original-names",
-        "-o", str(out),
-    ], out.parent / "logs" / f"netconvert_{out.name.removesuffix('.net.xml')}.log")
-    _check_site_net(out, links, states, vals)
+             "signal.tll.xml": _signal_patch(tls.getID(), all_links, vals, states)}
+    edg, con = ["lanes.edg.xml"], ["turns.con.xml"]
+    if any(_cuts(a) for a in vals["approaches"]):  # order matters: splits, then lane attributes of the parts
+        edg += ["split.edg.xml", "bollards.edg.xml"]
+        files["bollards.edg.xml"] = _bollard_patch(vals)
+    if sw_links:
+        edg.append("sidewalk.edg.xml")
+        con.append("sidewalk.con.xml")
+    shift: dict[str, float] = {}
+    for attempt in range(SPLIT_PASSES):  # each pass corrects the split positions by the previous pass's error
+        if "split.edg.xml" in edg:
+            files["split.edg.xml"] = _split_patch(net, vals, shift)
+        if sw_links:
+            files["sidewalk.edg.xml"], files["sidewalk.con.xml"], _ = _sidewalk_patches(
+                net, vals, target_node(tls).getID(), shift)
+        for name, root in files.items():
+            write_xml(root, patch_dir / name)
+        netconvert([
+            "-s", str(base),
+            "-e", ",".join(str(patch_dir / f) for f in edg),
+            "-x", ",".join(str(patch_dir / f) for f in con),
+            "-i", str(patch_dir / "signal.tll.xml"),
+            "--output.street-names", "--output.original-names",
+            "-o", str(out),
+        ], out.parent / "logs" / f"netconvert_{out.name.removesuffix('.net.xml')}.log")
+        real = _realised(sumolib.net.readNet(str(out), withInternal=True), vals)
+        if all(abs(r - d) <= SPLIT_TOL_M for d, r in real.values()):
+            break
+        if attempt == SPLIT_PASSES - 1:
+            raise RuntimeError(f"{out}: split distances from the stop line {real} (site, realised) differ by more "
+                               f"than {SPLIT_TOL_M} m after {SPLIT_PASSES} netconvert passes")
+        shift = {n: shift.get(n, 0.0) + d - r for n, (d, r) in real.items()}
+    _check_site_net(out, all_links, [c.getDirection() for c in links] + [mv for _, mv, *_ in sw_links], states, vals)
     return out

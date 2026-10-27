@@ -8,16 +8,24 @@ Codes:
 - `unknown_attr`  an archetype param is not in rules/bounds/param_bounds.yaml (or is deliberately excluded)
 - `out_of_bounds` a param value is outside its range for the archetype's base vclass, has the wrong type, or
                   changes an attribute that is fixed at its default
-- `share_sum`     the shares of one base vclass (one vTypeDistribution) do not sum to 1 (tolerance 1e-6)
-- `rule_params`   a TraCI rule's params are missing, unknown, out of range or inconsistent (p0 > p_max)
+- `share_sum`     the shares of one vTypeDistribution do not sum to 1 (tolerance 1e-6); an archetype joins the
+                  distribution of its base vclass or the one its `distribution` key names (custom1 -> moto, custom2
+                  -> car; Viktor 2026-10-27: share = share within the distribution)
+- `rule_params`   a TraCI rule's params are missing (optional ones may be), unknown, out of range or inconsistent
+                  (p0 > p_max; queue_space_seeking p_wrong_lane + p_right_lane + p_sidewalk > 1)
 - `logic`         contradictions: an attribute set on a base vclass it is not tunable for (jmTimegapMinor is
                   custom1-only, R15), minGapLat wider than the narrowest site lane, lcPushy together with
                   lcPushyGap (SUMO ignores the latter) or lcPushyGap > minGapLat, a vTypeDistribution without
-                  archetype, duplicate / reserved archetype ids, a rule applied to an unknown archetype or to one
-                  of the wrong base vclass, the same rule twice on one archetype, a wrong_lane_dodge rule on an
-                  archetype whose vclass has no usable wrong-lane dodge on this site's net (ruling R27: "rule
-                  inapplicable on this site"; `runtime.wrong_lane.usable_dodges` with the site's lane_movements and
-                  the net's connections and their vClass permissions)
+                  archetype, duplicate / reserved archetype ids, an archetype in a distribution its base vclass may
+                  not join (`schema.DISTRIBUTIONS_OF_VCLASS`), a rule applied to an unknown archetype or to one of
+                  the wrong base vclass, the same rule twice on one archetype, a queue_space_seeking rule on an
+                  archetype for which none of the options with p > 0 exists on this site's net (ruling R27: "rule
+                  inapplicable on this site"; an absent option with p > 0 is no issue: the runtime redistributes its
+                  probability, PLAN 4.5). Options per archetype: wrong_lane = `runtime.wrong_lane.usable_dodges` with
+                  the site's lane_movements and the net's connections and their vClass permissions; right_lane = an
+                  approach with a bollard edge (split node `<edge>.bollard`, net.apply_patches) whose upstream lane 0
+                  allows the vclass; sidewalk = a sidewalk edge allowing the vclass. An archetype in moto_violator
+                  drives only the illegal left (build_demand), so only wrong_lane counts for it
 
 `minGapLat` is compared with the site file's lane widths via `Site.require`, so the measured site file with
 `lane_widths_m: null # TODO_MEASURE` raises MissingFieldDataError instead of validating against a default.
@@ -40,9 +48,11 @@ import sumolib
 from jsonschema import Draft202012Validator
 
 from thesis_sumo.config import REPO_ROOT, Site, load_site
-from thesis_sumo.net.apply_patches import site_net_name
-from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, OPTIONAL_VCLASSES, RULE_VCLASSES, TRACI_RULE_PARAMS,
-                                      VCLASSES, Bound, load_bounds, load_excluded, load_json_schema)
+from thesis_sumo.net.apply_patches import BOLLARD_NODE, site_net_name
+from thesis_sumo.net.build_net import approach_edges, approach_segments, sidewalk_edges
+from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, DISTRIBUTIONS, DISTRIBUTIONS_OF_VCLASS,
+                                      OPTIONAL_DISTRIBUTIONS, RULE_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound,
+                                      load_bounds, load_excluded, load_json_schema)
 
 ISSUE_CODES = ("schema", "unknown_attr", "out_of_bounds", "share_sum", "rule_params", "logic")
 SHARE_TOL = 1e-6
@@ -135,28 +145,39 @@ def _archetype_issues(spec: dict, bounds: dict[str, Bound], excluded: dict[str, 
     return issues
 
 
+def distribution_of(arch: dict) -> str:
+    """The vTypeDistribution an archetype joins (`distribution`, default by base vclass)."""
+    return arch.get("distribution", DISTRIBUTION_OF_VCLASS[arch["base_vclass"]])
+
+
 def _distribution_issues(spec: dict) -> list[ValidationIssue]:
     issues = []
-    by_vc: dict[str, list[dict]] = defaultdict(list)
-    for arch in spec["driver_archetypes"]:
-        by_vc[arch["base_vclass"]].append(arch)
-    for vc in VCLASSES:
-        dist = DISTRIBUTION_OF_VCLASS[vc]
-        archs = by_vc.get(vc, [])
+    by_dist: dict[str, list[dict]] = defaultdict(list)
+    for i, arch in enumerate(spec["driver_archetypes"]):
+        ok = DISTRIBUTIONS_OF_VCLASS[arch["base_vclass"]]
+        if distribution_of(arch) not in ok:
+            issues.append(_issue(f"driver_archetypes[{i}].distribution", "logic",
+                                 f"an archetype with base_vclass {arch['base_vclass']} may join vTypeDistribution "
+                                 f"{' or '.join(ok)}, not '{distribution_of(arch)}'."))
+            continue
+        by_dist[distribution_of(arch)].append(arch)
+    for dist in DISTRIBUTIONS:
+        archs = by_dist.get(dist, [])
         if not archs:
-            if vc in OPTIONAL_VCLASSES:  # no demand references its distribution: leaving it out is fine
+            if dist in OPTIONAL_DISTRIBUTIONS:  # no demand references it: leaving it out is fine
                 continue
             issues.append(_issue("driver_archetypes", "logic",
-                                 f"no archetype with base_vclass {vc}: the demand uses vTypeDistribution '{dist}', "
-                                 f"which needs at least one archetype (base_vclass passenger -> 'car', motorcycle "
-                                 f"-> 'moto', custom1 -> 'moto_violator'; custom2 -> 'car_violator' is optional)."))
+                                 f"no archetype in vTypeDistribution '{dist}': the demand uses it, so it needs at "
+                                 f"least one archetype (base_vclass passenger -> 'car', motorcycle -> 'moto', custom1 "
+                                 f"-> 'moto_violator' or, with distribution 'moto', the motorcycle distribution; "
+                                 f"custom2 -> 'car_violator' (optional) or 'car')."))
             continue
         total = math.fsum(a["share"] for a in archs)
         if abs(total - 1.0) > SHARE_TOL:
             ids = ", ".join(f"{a['id']}={a['share']:g}" for a in archs)
             issues.append(_issue("driver_archetypes", "share_sum",
-                                 f"shares of base_vclass {vc} (vTypeDistribution '{dist}') sum to {round(total, 6):g}; "
-                                 f"they must sum to 1 ({ids})."))
+                                 f"shares of vTypeDistribution '{dist}' sum to {round(total, 6):g}; they must sum to "
+                                 f"1 ({ids})."))
     seen = Counter(a["id"] for a in spec["driver_archetypes"])
     for i, arch in enumerate(spec["driver_archetypes"]):
         if arch["id"] in DISTRIBUTION_OF_VCLASS.values():
@@ -204,7 +225,7 @@ def _rule_issues(spec: dict) -> list[ValidationIssue]:
         allowed = TRACI_RULE_PARAMS[rtype]
         names = ", ".join(f"{n} [{p.min:g}, {p.max:g}] {p.unit}" for n, p in allowed.items())
         for name, p in allowed.items():
-            if name not in params:
+            if name not in params and not p.optional:
                 issues.append(_issue(f"traci_rules[{i}].params", "rule_params",
                                      f"rule_type {rtype}: missing parameter '{name}' ({p.unit}, allowed "
                                      f"[{p.min:g}, {p.max:g}]). Required parameters: {names}."))
@@ -222,6 +243,13 @@ def _rule_issues(spec: dict) -> list[ValidationIssue]:
             issues.append(_issue(f"traci_rules[{i}].params.p_max", "rule_params",
                                  f"rule_type swarm_red_running: p_max = {params['p_max']:g} is below p0 = "
                                  f"{params['p0']:g}; the probability p0 + k*n is capped at p_max, so p_max >= p0."))
+        if rtype == "queue_space_seeking":
+            total = math.fsum(params[f"p_{o}"] for o in SEEK_OPTIONS if _is_number(params.get(f"p_{o}")))
+            if total > 1 + 1e-9:
+                issues.append(_issue(f"traci_rules[{i}].params", "rule_params",
+                                     f"rule_type queue_space_seeking: p_wrong_lane + p_right_lane + p_sidewalk = "
+                                     f"{total:g}; they are the probabilities of exclusive choices, so their sum must "
+                                     f"be <= 1 (the rest = the vehicle does not seek space)."))
         dups = []
         for j, aid in enumerate(rule["applies_to"]):
             path = f"traci_rules[{i}].applies_to[{j}]"
@@ -245,7 +273,9 @@ def _rule_issues(spec: dict) -> list[ValidationIssue]:
     return issues
 
 
+SEEK_OPTIONS = ("wrong_lane", "right_lane", "sidewalk")  # runtime.rules.queue_space_seeking.OPTIONS
 _DODGE_CACHE: dict[tuple, frozenset[str]] = {}
+_SPACE_CACHE: dict[str, dict[str, frozenset[str]]] = {}
 
 
 def _dodge_vclasses(net_path: str, site_key: tuple, site: Site) -> frozenset[str]:
@@ -269,30 +299,52 @@ def _compute_dodge_vclasses(net_path: str, site: Site) -> frozenset[str]:
     return frozenset(v for v in VCLASSES if usable_dodges(links, marks, v))
 
 
+def _space_vclasses(net_path: str) -> dict[str, frozenset[str]]:
+    """right_lane / sidewalk -> base vclasses for which the option exists somewhere on the net (cached per net)."""
+    if net_path not in _SPACE_CACHE:
+        net = sumolib.net.readNet(net_path)
+        right, side = set(), set()
+        for e in approach_edges(net).values():
+            segs = approach_segments(net, e)
+            if len(segs) > 1 and segs[0].getFromNode().getID() == e + BOLLARD_NODE:
+                right |= {v for v in VCLASSES if segs[-1].getLanes()[0].allows(v)}
+        for sw in sidewalk_edges(net):
+            side |= {v for v in VCLASSES if net.getEdge(sw).getLanes()[0].allows(v)}
+        _SPACE_CACHE[net_path] = {"right_lane": frozenset(right), "sidewalk": frozenset(side)}
+    return _SPACE_CACHE[net_path]
+
+
 def _site_rule_issues(spec: dict, site: Site, net: Path | None) -> list[ValidationIssue]:
-    rules = [(i, r) for i, r in enumerate(spec["traci_rules"]) if r["rule_type"] == "wrong_lane_dodge"]
+    rules = [(i, r) for i, r in enumerate(spec["traci_rules"]) if r["rule_type"] == "queue_space_seeking"]
     if not rules:
         return []
     net = Path(net) if net is not None else NET_DIR / site_net_name(site)
     site_key = json.dumps(site["approaches"], sort_keys=True, default=str)
-    ok = _dodge_vclasses(str(net), (site_key,), site)
+    ok = {"wrong_lane": _dodge_vclasses(str(net), (site_key,), site), **_space_vclasses(str(net))}
     archs = {a["id"]: a for a in spec["driver_archetypes"]}
     issues = []
     for i, rule in rules:
+        wanted = [o for o in SEEK_OPTIONS if _is_number(rule["params"].get(f"p_{o}")) and rule["params"][f"p_{o}"] > 0]
         for j, aid in enumerate(rule["applies_to"]):
-            vc = archs.get(aid, {}).get("base_vclass")
-            if vc is not None and vc not in ok:
+            arch = archs.get(aid)
+            if arch is None or not wanted:
+                continue
+            vc = arch["base_vclass"]
+            exist = [o for o in SEEK_OPTIONS
+                     if vc in ok[o] and (o == "wrong_lane" or distribution_of(arch) != "moto_violator")]
+            if not set(wanted) & set(exist):
                 issues.append(_issue(f"traci_rules[{i}].applies_to[{j}]", "logic",
-                                     f"rule_type wrong_lane_dodge is inapplicable on this site for '{aid}' "
-                                     f"(base_vclass {vc}): no approach lane has an adjacent wrong lane (markings in "
-                                     f"the site's lane_movements) with a connection that a {vc} vehicle may use for "
-                                     f"the same movement, so the rule could never execute; remove it."))
+                                     f"rule_type queue_space_seeking is inapplicable on this site for '{aid}' "
+                                     f"(base_vclass {vc}, distribution {distribution_of(arch)}): the options with "
+                                     f"p > 0 ({', '.join(wanted)}) do not exist for it here (existing: "
+                                     f"{', '.join(exist) or 'none'}), so the rule could never execute; give p > 0 to "
+                                     f"an existing option or remove the rule."))
     return issues
 
 
 def validate(spec, site: Site, bounds: dict[str, Bound] | None = None, *, net: Path | None = None) -> list[ValidationIssue]:
     """All issues of `spec` (empty = valid). Structural errors stop further checks. `net` (default: the site's net in
-    scenario/net/) is read only for a wrong_lane_dodge rule (ruling R27)."""
+    scenario/net/) is read only for a queue_space_seeking rule (ruling R27)."""
     issues = _schema_issues(spec)
     if issues:
         return issues

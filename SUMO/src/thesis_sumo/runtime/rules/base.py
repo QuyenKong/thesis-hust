@@ -28,7 +28,8 @@ type named `typeid@vehid` (same docs page), which would break vType matching and
 
 Intervention log row (`interventions.csv`): `t` = time the command was issued, `veh_id`, `rule` (rule_type),
 `action`, `executed` (SUMO's observed response, defined per rule), `reason` (why not executed, or "" when
-executed), `t_end` = time the outcome was decided.
+executed), `t_end` = time the outcome was decided, `detail` = rule-specific context at the decision ("" if none;
+queue_space_seeking: `approach=..;queue_m=..;wait_s=..`, the inputs of the later space_seeking_events table).
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ from dataclasses import dataclass, field
 from thesis_sumo.runtime.state import JunctionInfo, Step
 
 RED_LIGHT_BIT = 1 << 4
-LOG_COLUMNS = ("t", "veh_id", "rule", "action", "executed", "reason", "t_end")
+LOG_COLUMNS = ("t", "veh_id", "rule", "action", "executed", "reason", "t_end", "detail")
 
 
 class ModeNotRestoredError(RuntimeError):
@@ -56,10 +57,11 @@ class Intervention:
     executed: bool
     reason: str
     t_end: float
+    detail: str = ""
 
     def row(self) -> tuple:
         return (f"{self.t:.2f}", self.veh_id, self.rule, self.action, str(self.executed), self.reason,
-                f"{self.t_end:.2f}")
+                f"{self.t_end:.2f}", self.detail)
 
 
 @dataclass
@@ -97,6 +99,12 @@ class Commands:
         """The intervention is over (overrides undone); its window closes in `update_windows` (R30)."""
         self.owner.pop(vid, None)
         self._closing.add(vid)
+
+    def close_window(self, vid: str, t: float) -> None:
+        """Close the window of an ended intervention early, when a rule knows its effect is over before the vehicle
+        is past the junction (queue_space_seeking right_lane: merged back into a through lane)."""
+        if vid in self._closing and vid not in self.owner:
+            self._close(vid, t)
 
     def _close(self, vid: str, t: float) -> None:
         self._closing.discard(vid)
@@ -182,11 +190,12 @@ class Rule:
         a = self.active[vid]
         if not self.release(vid, t) and not executed and reason == "left_zone":
             reason = "vehicle_gone"
-        return Intervention(a.t0, vid, self.rule_type, a.action, executed, "" if executed else reason, t)
+        return Intervention(a.t0, vid, self.rule_type, a.action, executed, "" if executed else reason, t,
+                            a.data.get("detail", ""))
 
-    def record(self, vid: str, action: str, t: float, executed: bool, reason: str) -> Intervention:
+    def record(self, vid: str, action: str, t: float, executed: bool, reason: str, detail: str = "") -> Intervention:
         """A command decided in the same step (e.g. refused before it was sent): no override, no interval."""
-        return Intervention(t, vid, self.rule_type, action, executed, "" if executed else reason, t)
+        return Intervention(t, vid, self.rule_type, action, executed, "" if executed else reason, t, detail)
 
     def failed_command(self, a: Active, t: float, err: Exception) -> Intervention:
         return self.finish(a.vid, t, False, f"command_error: {err}")

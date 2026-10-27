@@ -20,7 +20,7 @@ from thesis_sumo.demand.build_demand import (
     build_demand,
     read_candidates,
 )
-from thesis_sumo.net.build_net import approach_edges, inbound_edges, target_node, target_tls
+from thesis_sumo.net.build_net import approach_edges, approach_segments
 
 NET = REPO_ROOT / "scenario" / "net" / "site.proxy.net.xml"
 B0_VTYPES = REPO_ROOT / "rules" / "compiled" / "B0" / "vtypes.add.xml"
@@ -75,18 +75,21 @@ def _vehicles(routes: Path) -> list[dict]:
 # --- tests named in the task brief -------------------------------------------------------------
 
 def test_candidate_routes_cover_all_movements(net, candidates):
-    """Every inbound -> outbound pair the net connects (for any vClass) appears exactly once."""
-    node = target_node(target_tls(net))
-    expected = {(e.getID(), to.getID()) for e in inbound_edges(node) for to in e.getOutgoing()}
+    """Every approach edge -> outbound pair the net connects (for any vClass) appears exactly once, the route starting at
+    the upstream end of the approach (bollard / sidewalk splits); the custom1-only sidewalk is no candidate route."""
+    expected = {(e, to.getID()) for e in approach_edges(net).values() for to in net.getEdge(e).getOutgoing()}
     routes = etree.parse(str(candidates)).getroot().findall("route")
-    pairs = [tuple(r.get("edges").split()) for r in routes]
+    pairs = [tuple(r.get("edges").split()[-2:]) for r in routes]
     assert Counter(pairs) == Counter(expected)  # each once, nothing else
     assert len(expected) == 16  # 4 arms x (r, s, l, u)
+    assert not any(".sidewalk" in r.get("edges") for r in routes)
 
     cands = read_candidates(candidates)
     approach_of = {e: a for a, e in approach_edges(net).items()}
     for (app, mv), edges in cands.items():
-        assert approach_of[edges[0]] == app
+        assert approach_of[edges[-2]] == app
+        assert list(edges[:-1]) == [e.getID() for e in reversed(approach_segments(net, edges[-2]))]
+        assert len(edges) >= 3  # split on the proxy net (bollards everywhere)
         assert mv in MOVEMENTS
     # LVL_W left is banned and re-added for custom1 only (Task 2) -> the illegal left movement
     assert ("LVL_W", "illegal_l") in cands and ("LVL_W", "l") not in cands

@@ -263,3 +263,136 @@ def test_queue_range_required():
     with pytest.raises(ValueError, match="queue_range_m"):
         outputs.queue_range_m({"observation": {"queue_range_m": None}})
     assert np.isclose(outputs.queue_range_m({"observation": {"queue_range_m": 80}}), 80.0)
+
+
+# ---------------------------------------------------------------- split approach + sidewalk (Phase 3A / 3B patches)
+
+SPLIT_RANGE_M = 50.0
+SW_WIDTH_M = 2.0
+
+
+@pytest.fixture(scope="module")
+def split_case(tmp_path_factory):
+    """LVL_W as the site patches build it: upstream `WU` -> `WM` (sidewalk start D, 70 m) -> bollard edge `WC` (B, 35 m)
+    -> stop line, plus the custom1 sidewalk `WS` D -> C. One frame at the LVL_W green onset (t=20) and one sidewalk
+    crossing; expected rows from sumolib lengths."""
+    d = tmp_path_factory.mktemp("split")
+    (d / "n.nod.xml").write_text(
+        '<nodes><node id="C" x="0" y="0" type="traffic_light"/><node id="W" x="-150" y="0"/>'
+        '<node id="D" x="-70" y="0" type="priority"/><node id="B" x="-35" y="0" type="priority"/>'
+        '<node id="E" x="150" y="0"/><node id="S" x="0" y="-150"/><node id="N" x="0" y="150"/></nodes>', encoding="utf-8")
+    edges = [("WU", "W", "D", "Le Van Luong"), ("WM", "D", "B", "Le Van Luong"), ("WC", "B", "C", "Le Van Luong"),
+             ("CE", "C", "E", "Le Van Luong"), ("EC", "E", "C", "Le Van Luong"), ("CW", "C", "W", "Le Van Luong"),
+             ("SC", "S", "C", "Hoang Dao Thuy"), ("CN", "C", "N", "Hoang Dao Thuy"), ("NC", "N", "C", "Hoang Dao Thuy"),
+             ("CS", "C", "S", "Hoang Dao Thuy")]
+    (d / "n.edg.xml").write_text("<edges>" + "".join(
+        f'<edge id="{i}" from="{f}" to="{t}" name="{n}" numLanes="2" speed="13.9" width="{WIDTH_M}"/>'
+        for i, f, t, n in edges) + f'<edge id="WS" from="D" to="C" numLanes="1" width="{SW_WIDTH_M}" speed="5" '
+        'allow="custom1" spreadType="center" shape="-70,-7 -14,-7 -10,-5"/></edges>', encoding="utf-8")
+    cons = [f'<connection from="{a}" to="{b}" fromLane="{i}" toLane="{i}"/>' for a, b in (("WU", "WM"), ("WM", "WC"))
+            for i in (0, 1)]
+    cons += ['<connection from="WU" to="WS" fromLane="0" toLane="0"/>', '<connection from="WS" to="CS" fromLane="0" '
+             'toLane="0"/>', '<connection from="WS" to="CE" fromLane="0" toLane="0"/>',
+             '<connection from="WC" to="CE" fromLane="0" toLane="0"/><connection from="WC" to="CE" fromLane="1" '
+             'toLane="1"/><connection from="WC" to="CS" fromLane="0" toLane="0"/>']
+    (d / "n.con.xml").write_text("<connections>" + "".join(cons) + "</connections>", encoding="utf-8")
+    net_path = d / "split.net.xml"
+    subprocess.run([sumolib.checkBinary("netconvert"), "-n", str(d / "n.nod.xml"), "-e", str(d / "n.edg.xml"),
+                    "-x", str(d / "n.con.xml"), "-o", str(net_path)], check=True, capture_output=True)
+    net = sumolib.net.readNet(str(net_path), withInternal=True)
+    lc, lm = net.getLane("WC_0").getLength(), net.getLane("WM_0").getLength()
+    (via_c,) = [c.getViaLaneID() for c in net.getLane("WM_1").getOutgoing() if c.getToLane().getID() == "WC_1"]
+    vb = net.getLane(via_c).getLength() if via_c else 0.0
+    sw_len = net.getLane("WS_0").getLength()
+
+    def place(k: int, dist: float) -> tuple[str, float]:
+        """(lane, pos) of a front bumper `dist` upstream of the stop line in road lane k (WC, B's internal lane, WM)."""
+        if dist <= lc:
+            return f"WC_{k}", lc - dist
+        if via_c and dist <= lc + vb:
+            return (via_c if k == 1 else net.getLane("WM_0").getOutgoing()[0].getViaLaneID()), lc + vb - dist
+        return f"WM_{k}", lc + vb + lm - dist
+
+    tails, dists = [], {}
+    dists["a1"], dists["a2"] = (1, 1.0), (0, 7.0)
+    dists["a3"] = (1, lc + vb / 2 if via_c else lc + 0.5)
+    dists["a4"] = (0, dists["a3"][1] + 2.2 + 4.0)
+    dists["a5"] = (1, dists["a4"][1] + 5.0 + 6.0)
+    types = {"a1": "moto_B0", "a2": "car_B0", "a3": "moto_B0", "a4": "car_B0", "a5": "moto_B0"}
+    rows = {19.0: [], 20.0: [], 20.9: []}
+    for vid, (k, dist) in dists.items():
+        lane, pos = place(k, dist)
+        rows[20.0].append((vid, types[vid], lane, pos, 0.2 if vid == "a1" else 0.0, 0.0))
+    rows[20.0].append(("s1", "viol_B0", "WS_0", sw_len - 2.0, 0.1, 0.0))      # halted on the sidewalk
+    rows[20.0].append(("f1", "car_B0", "WM_1", lc + vb + lm - 60.0, 0.0, 0.0))  # beyond the range
+    (via_d,) = [c.getViaLaneID() for c in net.getLane("WU_0").getOutgoing() if c.getToLane().getID() == "WM_0"]
+    vd = net.getLane(via_d).getLength() if via_d else 0.0  # s2 is 55 m upstream of the stop line at t=19
+    rows[19.0].append(("s2", "viol_B0", "WU_0", net.getLane("WU_0").getLength() - (55.0 - lc - vb - lm - vd), 0.0, 5.0))
+    rows[20.0].append(("s2", "viol_B0", "WS_0", sw_len - 5.0, 0.0, 5.0))
+    rows[20.9].append(("s2", "viol_B0", "WS_0", sw_len - 0.4, -0.3, 5.0))
+    run = d / "run"
+    run.mkdir()
+    with (run / "fcd.xml").open("w", encoding="utf-8") as f:
+        f.write("<fcd-export>\n")
+        for t, rs in rows.items():
+            f.write(f'  <timestep time="{t:.2f}">\n' + "".join(
+                f'    <vehicle id="{v}" x="0" y="0" angle="0" type="{ty}" speed="{sp:.2f}" pos="{pos:.3f}" lane="{ln}" '
+                f'posLat="{pl:.2f}"/>\n' for v, ty, ln, pos, pl, sp in rs) + "  </timestep>\n")
+        f.write("</fcd-export>\n")
+    tls = net.getTrafficLights()[0]
+    group = {"WC": "WE", "WS": "WE", "EC": "WE", "NC": "NS", "SC": "NS"}
+
+    def state(we, ns):
+        ch = {}
+        for il, ol, i in tls.getConnections():
+            s = we if group[il.getEdge().getID()] == "WE" else ns
+            (c,) = [c for c in il.getOutgoing() if c.getToLane() == ol]
+            ch[i] = "g" if s == "G" and c.getDirection() in ("l", "t") else s
+        return "".join(ch[i] for i in range(len(ch)))
+    (run / "tls_states.xml").write_text("<tlsStates>" + "".join(
+        f'<tlsState time="{t:.2f}" id="C" programID="0" phase="0" state="{state(we, ns)}"/>'
+        for t, we, ns in PROGRAM) + "</tlsStates>", encoding="utf-8")
+    (run / "detectors.xml").write_text(
+        '<instantE1><instantOut id="in__WS_0" time="21.00" state="enter" vehID="s2" speed="5" length="2" '
+        'type="viol_B0"/><instantOut id="out__CE_0" time="23.00" state="enter" vehID="s2" speed="5" length="2" '
+        'type="viol_B0"/></instantE1>', encoding="utf-8")
+    routes = d / "r.rou.xml"  # the route file keeps the road route: the sidewalk is a TraCI reroute
+    routes.write_text('<routes><vehicle id="s2" depart="0"><route edges="WU WM WC CE"/></vehicle></routes>',
+                      encoding="utf-8")
+    (run / "run.sumocfg").write_text(f'<configuration><input><net-file value="{net_path}"/>'
+                                     f'<route-files value="{routes}"/></input></configuration>', encoding="utf-8")
+    (run / "manifest.json").write_text(json.dumps({"config": {
+        "sim": {"begin_s": 0, "end_s": END_S, "fcd_radius_m": 200}, "observation": {"queue_range_m": SPLIT_RANGE_M}}}),
+        encoding="utf-8")
+    (run / "vtypes.json").write_text(json.dumps({
+        "car_B0": {"vclass": "passenger", "length": 5.0}, "moto_B0": {"vclass": "motorcycle", "length": 2.2},
+        "viol_B0": {"vclass": "custom1", "length": 2.2}}), encoding="utf-8")
+    return {"tables": outputs.to_observed_schema(run), "dists": dists, "via": via_c, "lc": lc}
+
+
+def test_split_queue_chains_across_segments(split_case):
+    """The queue continues from the bollard edge over the split node into the upstream segment; the sidewalk rider is
+    not part of it; the car beyond the range is not counted."""
+    assert split_case["via"], "the split node has internal lanes (as netconvert builds the proxy net)"
+    q = split_case["tables"]["queue_snapshots"]
+    (w,) = _records(q[(q["approach"] == "LVL_W") & (q["t_green_onset"] == 20.0)])
+    tail = split_case["dists"]["a5"][1] + 2.2
+    assert tail < SPLIT_RANGE_M and split_case["dists"]["a4"][1] > split_case["lc"] + 1  # past the bollard edge
+    assert w == [0, 20.0, "LVL_W", pytest.approx(tail), 2, 3, pytest.approx(tail * 2 * WIDTH_M)]
+
+
+def test_split_lateral_and_sidewalk_rows(split_case):
+    lat = split_case["tables"]["lateral_snapshots"]
+    dd = split_case["dists"]
+    assert _records(lat[lat["approach"] == "LVL_W"]) == [
+        [0, "LVL_W", "a1", "moto", pytest.approx(4.5 + 0.2), pytest.approx(1.0)],
+        [0, "LVL_W", "s1", "moto", pytest.approx(-SW_WIDTH_M / 2 + 0.1), pytest.approx(2.0)],
+        [0, "LVL_W", "a2", "car", pytest.approx(1.5), pytest.approx(7.0)],
+        [0, "LVL_W", "a3", "moto", pytest.approx(4.5), pytest.approx(dd["a3"][1])],
+        [0, "LVL_W", "a4", "car", pytest.approx(1.5), pytest.approx(dd["a4"][1])],
+        [0, "LVL_W", "a5", "moto", pytest.approx(4.5), pytest.approx(dd["a5"][1])],
+    ]
+    cr = split_case["tables"]["stopline_crossings"]
+    assert _records(cr) == [[21.0, "LVL_W", pytest.approx(-SW_WIDTH_M / 2 - 0.3), "moto", "s2", "G"]]
+    tr = split_case["tables"]["traversals"]
+    assert _records(tr) == [["s2", "moto", "LVL_W", "s", "LVL_E", pytest.approx(-1.3), pytest.approx(19.1), 21.0, 23.0]]

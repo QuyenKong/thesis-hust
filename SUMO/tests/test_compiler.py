@@ -51,13 +51,13 @@ def _vtypes(path):
 
 
 def _split_moto(spec):
-    """B1 with the motorcycle distribution split into two archetypes (0.7 / 0.3)."""
+    """B1 with its motorcycle archetype split into two (0.6 / 0.3; moto_seeker keeps 0.1)."""
     spec = copy.deepcopy(spec)
     moto = next(a for a in spec["driver_archetypes"] if a["base_vclass"] == "motorcycle")
     other = copy.deepcopy(moto)
     other.update(id="moto_slow", share=0.3)
     other["params"]["speedFactor"] = 0.8
-    moto["share"] = 0.7
+    moto["share"] = 0.6
     spec["driver_archetypes"].insert(spec["driver_archetypes"].index(moto) + 1, other)
     return spec
 
@@ -71,11 +71,19 @@ def test_snapshot_B1(compiled_b1):
     assert data == SNAPSHOT.read_bytes()
 
 
+def test_committed_B1_compiled_matches_spec(compiled_b1):
+    """The runner reads rules/compiled/B1_manual/: it must be what the current spec compiles to."""
+    committed = B1.parents[1] / "compiled" / "B1_manual"
+    assert (committed / "vtypes.add.xml").read_bytes() == compiled_b1.vtypes.read_bytes()
+    assert (committed / "traci_rules.json").read_bytes() == compiled_b1.traci_rules.read_bytes()
+
+
 def test_distribution_ids(compiled_b1, b1):
     dists = _vtypes(compiled_b1.vtypes)
     assert list(dists) == ["car", "moto", "moto_violator"]
     for arch in b1["driver_archetypes"]:
-        (vt,) = [t for t in dists[DISTRIBUTION_OF_VCLASS[arch["base_vclass"]]] if t["id"] == arch["id"]]
+        (vt,) = [t for t in dists[arch.get("distribution", DISTRIBUTION_OF_VCLASS[arch["base_vclass"]])]
+                 if t["id"] == arch["id"]]
         assert vt["vClass"] == arch["base_vclass"]
         assert vt["laneChangeModel"] == "SL2015"
         assert float(vt["probability"]) == arch["share"]
@@ -180,7 +188,8 @@ def test_fmt_value(value, text):
 def test_shares_become_probabilities(tmp_path, site, b1):
     out = compile_spec(_split_moto(b1), tmp_path, site=site)
     moto = _vtypes(out.vtypes)["moto"]
-    assert [(t["id"], t["probability"]) for t in moto] == [("moto_saval", "0.7"), ("moto_slow", "0.3")]
+    assert [(t["id"], t["probability"]) for t in moto] == [("moto_saval", "0.6"), ("moto_slow", "0.3"),
+                                                           ("moto_seeker", "0.1")]
     assert moto[1]["speedFactor"] == "0.8"
 
 
@@ -211,6 +220,36 @@ def test_vehicles_get_member_vtype_id(tmp_path, site, b1):
         assert vid.rsplit("_", 2)[0] == dist_of[tid], (vid, tid)
 
 
+def test_custom1_archetype_in_moto_distribution(tmp_path, site, b1):
+    """B1's moto_seeker (custom1, `distribution: moto`) is a member of `moto` (motorcycle defaults copied, vClass
+    custom1): straight / right motorcycles of the demand are drawn as custom1 riders that may use the custom1-only
+    sidewalk, with no TraCI type change; moto_violator keeps only its own archetype."""
+    import libsumo
+
+    out = compile_spec(b1, tmp_path, site=site)
+    root = etree.parse(str(out.vtypes)).getroot()
+    members = {d.get("id"): [(v.get("id"), v.get("vClass")) for v in d] for d in root.iter("vTypeDistribution")}
+    assert members["moto"] == [("moto_saval", "motorcycle"), ("moto_seeker", "custom1")]
+    assert members["car"] == [("car_saval", "passenger"), ("car_seeker", "custom2")]
+    assert members["moto_violator"] == [("moto_violator_saval", "custom1")]
+    seeker = next(v for v in root.iter("vType") if v.get("id") == "moto_seeker")
+    assert seeker.get("length") == "2.2" and seeker.get("guiShape") == "motorcycle"
+    assert _load(out.traci_rules)["archetypes"]["moto_seeker"]["distribution"] == "moto"
+    libsumo.start([sumolib.checkBinary("sumo"), "-n", str(PROXY_NET), "-r", str(ROUTES_D1), "-a", str(out.vtypes),
+                   "--end", "60", "--seed", "1", "--no-step-log", "true"])
+    seen = {}
+    try:
+        while libsumo.simulation.getTime() < 60:
+            libsumo.simulationStep()
+            for vid in libsumo.simulation.getDepartedIDList():
+                seen[vid] = (libsumo.vehicle.getTypeID(vid), libsumo.vehicle.getVehicleClass(vid))
+    finally:
+        libsumo.close()
+    seekers = {vid for vid, (tid, _) in seen.items() if tid == "moto_seeker"}
+    assert seekers and all(vid.startswith("moto_") and not vid.startswith("moto_violator") for vid in seekers)
+    assert {seen[v][1] for v in seekers} == {"custom1"}
+
+
 # ---------------------------------------------------------------- traci_rules.json
 
 
@@ -220,7 +259,8 @@ def test_traci_rules_json(compiled_b1, b1):
     doc = json.loads(data)
     assert doc["spec_id"] == "B1_manual"
     assert doc["archetypes"] == {
-        a["id"]: {"base_vclass": a["base_vclass"], "distribution": DISTRIBUTION_OF_VCLASS[a["base_vclass"]],
+        a["id"]: {"base_vclass": a["base_vclass"],
+                  "distribution": a.get("distribution", DISTRIBUTION_OF_VCLASS[a["base_vclass"]]),
                   "vtype_id": a["id"], "share": a["share"]} for a in b1["driver_archetypes"]}
     assert [r["rule_type"] for r in doc["rules"]] == [r["rule_type"] for r in b1["traci_rules"]]
     for got, want in zip(doc["rules"], b1["traci_rules"]):
@@ -287,9 +327,11 @@ def test_custom2_defaults_match_handwritten_B0():
 
 
 def test_car_violator_optional(tmp_path, site, b1):
-    """No custom2 archetype (B1): valid, and no car_violator distribution (nothing references it yet); with one,
-    car_violator comes after moto_violator and spec params override the passenger defaults."""
-    assert not any(a["base_vclass"] == "custom2" for a in b1["driver_archetypes"])
+    """No archetype in car_violator (B1's custom2 car_seeker is in `car`): valid, and no car_violator distribution
+    (nothing references it yet); with one, car_violator comes after moto_violator and spec params override the
+    passenger defaults."""
+    assert not any(a["base_vclass"] == "custom2" and "distribution" not in a for a in b1["driver_archetypes"])
+    assert "car_violator" not in _vtypes(compile_spec(b1, tmp_path / "b1", site=site).vtypes)
     spec = copy.deepcopy(b1)
     spec["driver_archetypes"].append({"id": "car_vio", "base_vclass": "custom2", "share": 1.0,
                                       "params": {"minGap": 1.5}})

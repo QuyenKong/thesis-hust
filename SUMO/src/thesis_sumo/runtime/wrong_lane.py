@@ -1,4 +1,5 @@
-"""Which wrong-lane dodges a junction allows (shared by the runtime rule `wrong_lane_dodge` and the validator, R27).
+"""Which wrong-lane dodges a junction allows (shared by the `wrong_lane` option of the runtime rule
+`queue_space_seeking` and the validator, R27).
 
 A dodge moves a vehicle from its lane i (whose markings permit its movement) to an adjacent lane j whose markings
 (site `approaches[].lane_movements`, the M8 definition) do not permit it. It is usable only if lane j has a

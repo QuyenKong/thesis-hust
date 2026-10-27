@@ -4,14 +4,14 @@
 
 - `rules` = the `rules` list of `rules/compiled/<spec_id>/traci_rules.json` (thesis_sumo.rules.compiler): each
   entry has `rule_type`, `vtype_ids` (the member vType ids a vehicle reports via `vehicle.getTypeID`) and `params`
-  (exactly `schema.TRACI_RULE_PARAMS[rule_type]`). One `RULE_REGISTRY` class per entry.
+  (`schema.TRACI_RULE_PARAMS[rule_type]`, optional ones may be absent). One `RULE_REGISTRY` class per entry.
 - The junction is read once through TraCI + the site file (`state.JunctionInfo`); each step one junction context
   subscription (radius `radius_m` around the target junction) and one TLS subscription feed a `state.Step` to every
   rule; vehicles outside the radius are never handled and no per-vehicle getter runs every step.
 - Randomness: each rule draws from its own `random.Random("<seed>:<index>:<rule_type>")` (fixed by the run seed;
   string seeds are hashed with SHA-512 by `random`, independent of PYTHONHASHSEED). Vehicles are visited in sorted
   id order, so libsumo and traci give the same draws and the same log.
-- `interventions.csv` (`base.LOG_COLUMNS`: t, veh_id, rule, action, executed, reason, t_end) gets one row per
+- `interventions.csv` (`base.LOG_COLUMNS`: t, veh_id, rule, action, executed, reason, t_end, detail) gets one row per
   intervention once SUMO's response decided its outcome; `summary()` -> per rule_type attempted / executed, the
   reasons of the not-executed ones and the rule's counters (manifest `interventions`); `wall_s` = time spent in
   `on_step` (manifest `controller_wall_s`).
@@ -49,9 +49,11 @@ def load_rules(path: Path) -> list[dict]:
         rtype = r.get("rule_type")
         if rtype not in RULE_REGISTRY:
             raise ValueError(f"{path}: rules[{i}].rule_type {rtype!r} not in {sorted(RULE_REGISTRY)}")
-        if set(r.get("params", {})) != set(TRACI_RULE_PARAMS[rtype]):
-            raise ValueError(f"{path}: rules[{i}] ({rtype}) params {sorted(r.get('params', {}))} != "
-                             f"{sorted(TRACI_RULE_PARAMS[rtype])}")
+        allowed = TRACI_RULE_PARAMS[rtype]
+        required = {n for n, p in allowed.items() if not p.optional}
+        if not required <= set(r.get("params", {})) <= set(allowed):
+            raise ValueError(f"{path}: rules[{i}] ({rtype}) params {sorted(r.get('params', {}))}: need "
+                             f"{sorted(required)}, may add {sorted(set(allowed) - required)}")
         if not r.get("vtype_ids"):
             raise ValueError(f"{path}: rules[{i}] ({rtype}) has no vtype_ids")
     return doc["rules"]
@@ -60,9 +62,9 @@ def load_rules(path: Path) -> list[dict]:
 class Controller:
     def __init__(self, rules: list[dict], backend, site: Site, log_path: Path, *, radius_m: float, seed: int = 0):
         types = {r["rule_type"] for r in rules}
-        self.info = JunctionInfo.build(backend, site, need_lane_movements="wrong_lane_dodge" in types,
+        self.info = JunctionInfo.build(backend, site, need_lane_movements="queue_space_seeking" in types,
                                        need_box="illegal_left_box" in types)
-        self.cmd = Commands(backend, self.info.lane_approach)
+        self.cmd = Commands(backend, self.info.approach_lanes)
         self.rules = [RULE_REGISTRY[r["rule_type"]]({k: float(v) for k, v in r["params"].items()}, r["vtype_ids"],
                                                     self.info, self.cmd, random.Random(f"{seed}:{i}:{r['rule_type']}"))
                       for i, r in enumerate(rules)]

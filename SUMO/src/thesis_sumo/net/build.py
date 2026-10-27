@@ -4,7 +4,7 @@
 
 writes into `scenario/net/` (or `--out-dir`): `base.net.xml`, `removed_nodes.csv`, `edge_table.csv`,
 `patches/base/*`, `patches/<site net stem>/*`, `site.proxy.net.xml` (proxy) or `site.net.xml`
-(measured), `diagram.svg`, and netconvert logs in `logs/`. A required null in the site file stops the
+(measured), `stopline_shift.csv` (stop line to junction centre, site net without / with the sidewalk), `diagram.svg`, and netconvert logs in `logs/`. A required null in the site file stops the
 build before anything is written.
 """
 
@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 import warnings
 from pathlib import Path
 
+import pandas as pd
 import sumolib
 
-from thesis_sumo.config import MissingFieldDataError, load_site
+from thesis_sumo.config import MissingFieldDataError, Site, load_site
 from thesis_sumo.net.apply_patches import ProxySiteWarning, build_site_net, site_net_name, site_values
 from thesis_sumo.net.build_net import NET_DIR, approach_edges, build_base, edge_table, exit_edges
 from thesis_sumo.net.diagram import draw_diagram
@@ -67,6 +69,19 @@ def main(argv: list[str] | None = None) -> int:
     with warnings.catch_warnings():  # the banner above already said it, loudly
         warnings.simplefilter("ignore", ProxySiteWarning)
         net = build_site_net(site, base, out_dir / site_net_name(site))
+    # the sidewalk edge reshapes the junction: log how far each stop line moved from the centre against the same site
+    # net without sidewalk (the bollard splits leave the junction as it is)
+    from thesis_sumo.sim.outputs import junction_geometry  # (outputs imports this package)
+    with tempfile.TemporaryDirectory() as tmp, warnings.catch_warnings():
+        warnings.simplefilter("ignore", ProxySiteWarning)
+        plain = build_site_net(Site({**site, "f2_measured_approaches": None}, site.path), base, Path(tmp) / "n.net.xml")
+        before = junction_geometry(plain).stopline_from_centre
+    after = junction_geometry(net).stopline_from_centre
+    shift = pd.DataFrame([{"approach": a, "no_sidewalk_m": round(before[a], 2), "site_m": round(after[a], 2),
+                           "shift_m": round(after[a] - before[a], 2)} for a in before])
+    shift.to_csv(out_dir / "stopline_shift.csv", index=False, lineterminator="\n")
+    print(f"Stop line distance from the junction centre, without / with the sidewalk ({out_dir / 'stopline_shift.csv'}):"
+          f"\n{shift.to_string(index=False)}")
     draw_diagram(net, out_dir / "diagram.svg", {e: a for a, e in mapping.items()},
                  (site.require("violator_classes.moto"), site.require("violator_classes.car")),
                  title=f"{site['intersection']['name']} - {net.name} ({site.source})")

@@ -6,10 +6,11 @@
 `InvalidSpecError` with the issues instead of compiling an invalid spec. Output (default
 `rules/compiled/<spec_id>/`):
 
-- `vtypes.add.xml`: one vTypeDistribution per base vclass, ids `car` (passenger), `moto` (motorcycle),
-  `moto_violator` (custom1), the ids the demand references, then `car_violator` (custom2)
-  (`schema.DISTRIBUTION_OF_VCLASS`). car_violator is optional (`schema.OPTIONAL_VCLASSES`): no demand references
-  it yet, so a spec without a custom2 archetype gets no car_violator distribution (rather than an invented
+- `vtypes.add.xml`: one vTypeDistribution each, ids `car`, `moto`, `moto_violator` (the ids the demand references),
+  then `car_violator` (`schema.DISTRIBUTIONS`); an archetype joins the one of its base vclass
+  (`schema.DISTRIBUTION_OF_VCLASS`) or the one its `distribution` names (custom1 in `moto`, custom2 in `car`,
+  `schema.DISTRIBUTIONS_OF_VCLASS`). car_violator is optional (`schema.OPTIONAL_DISTRIBUTIONS`): no demand
+  references it yet, so a spec without an archetype in it gets no car_violator distribution (rather than an invented
   default one); the validator still requires the three others. Each archetype is
   one member vType with `id` = archetype id, `probability` = share, `laneChangeModel="SL2015"`. custom1 vTypes
   first get the motorcycle defaults the hand-written B0 file copies (`CUSTOM1_MOTORCYCLE_DEFAULTS`), custom2
@@ -39,9 +40,8 @@ from pathlib import Path
 from xml.sax.saxutils import quoteattr
 
 from thesis_sumo.config import REPO_ROOT, MissingFieldDataError, Site, load_site
-from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, OPTIONAL_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound,
-                                      load_bounds)
-from thesis_sumo.rules.validator import ValidationIssue, validate
+from thesis_sumo.rules.schema import DISTRIBUTIONS, OPTIONAL_DISTRIBUTIONS, TRACI_RULE_PARAMS, Bound, load_bounds
+from thesis_sumo.rules.validator import ValidationIssue, distribution_of, validate
 
 COMPILED_DIR = REPO_ROOT / "rules" / "compiled"
 VTYPES_NAME = "vtypes.add.xml"
@@ -118,12 +118,12 @@ def render_vtypes(spec: dict, bounds: dict[str, Bound] | None = None) -> str:
              "     archetype (id = archetype id, probability = share). -->",
              '<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
              'xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">']
-    for vc in VCLASSES:
-        if vc in OPTIONAL_VCLASSES and not any(a["base_vclass"] == vc for a in spec["driver_archetypes"]):
+    for dist in DISTRIBUTIONS:
+        if dist in OPTIONAL_DISTRIBUTIONS and not any(distribution_of(a) == dist for a in spec["driver_archetypes"]):
             continue
-        lines.append(f"    <vTypeDistribution id={quoteattr(DISTRIBUTION_OF_VCLASS[vc])}>")
+        lines.append(f"    <vTypeDistribution id={quoteattr(dist)}>")
         for arch in spec["driver_archetypes"]:
-            if arch["base_vclass"] == vc:
+            if distribution_of(arch) == dist:
                 attrs = " ".join(f"{k}={quoteattr(v)}" for k, v in _vtype_attrs(arch, bounds).items())
                 lines.append(f"        <vType {attrs}/>")
         lines.append("    </vTypeDistribution>")
@@ -132,11 +132,11 @@ def render_vtypes(spec: dict, bounds: dict[str, Bound] | None = None) -> str:
 
 
 def traci_rules_doc(spec: dict) -> dict:
-    archetypes = {a["id"]: {"base_vclass": a["base_vclass"], "distribution": DISTRIBUTION_OF_VCLASS[a["base_vclass"]],
+    archetypes = {a["id"]: {"base_vclass": a["base_vclass"], "distribution": distribution_of(a),
                             "vtype_id": a["id"], "share": float(a["share"])} for a in spec["driver_archetypes"]}
     rules = [{"rule_type": r["rule_type"], "applies_to": list(r["applies_to"]),
               "vtype_ids": [archetypes[a]["vtype_id"] for a in r["applies_to"]],
-              "params": {n: float(r["params"][n]) for n in TRACI_RULE_PARAMS[r["rule_type"]]}}
+              "params": {n: float(r["params"][n]) for n in TRACI_RULE_PARAMS[r["rule_type"]] if n in r["params"]}}
              for r in spec["traci_rules"]]
     return {"spec_id": spec["spec_id"], "archetypes": archetypes, "rules": rules}
 

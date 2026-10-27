@@ -59,6 +59,8 @@
       "properties": {
         "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$"},
         "base_vclass": {"enum": ["passenger", "motorcycle", "custom1", "custom2"]},
+        "distribution": {"enum": ["car", "moto", "moto_violator", "car_violator"],
+                         "description": "vTypeDistribution the archetype joins; default by base_vclass (car, moto, moto_violator, car_violator); custom1 may join moto, custom2 car (thesis_sumo.rules.schema.DISTRIBUTIONS_OF_VCLASS); share = share within this distribution"},
         "share": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
         "params": {
           "type": "object",
@@ -73,7 +75,7 @@
       "additionalProperties": false,
       "required": ["rule_type", "applies_to", "params"],
       "properties": {
-        "rule_type": {"enum": ["early_start", "swarm_red_running", "wrong_lane_dodge", "illegal_left_box",
+        "rule_type": {"enum": ["early_start", "swarm_red_running", "queue_space_seeking", "illegal_left_box",
                                "slow_lane_center"]},
         "applies_to": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
         "params": {"type": "object", "additionalProperties": {"type": "number"}},

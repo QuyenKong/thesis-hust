@@ -94,6 +94,14 @@ Nguồn: `.superpowers/sdd/2026-10-25-proxy-benchmark-loop/progress.md`, mục "
 
 - **R37 (Viktor, 2026-10-26):** làn rẽ phải liên tục = lane 0 hiện có của 3 làn OSM (không thêm làn); làn đi thẳng còn 2. B0 quá tải trên mạng này là một phát hiện (xem nhật ký F2-net), không sửa bằng mạng. `right_lane_separator: bollards` ở mọi nhánh (Viktor quan sát, evidence `field_observation`): connection đi thẳng từ lane 0 được giữ nhưng `disallow="all"` (không ai đi thẳng từ làn rẽ phải; giữ để chỉ số link đèn không dịch). Hệ quả: hành vi 6 (chặn làn rẽ phải) không xảy ra tại vạch dừng; chỉ có thể xảy ra ở đoạn trước cọc, cần biết cọc bắt đầu từ đâu (TODO_MEASURE) — xét ở Phase 3A. Rẽ phải ở làn liên tục khi đèn đỏ không phải vi phạm: loại khỏi M1/M2/M3/M4/M7c ở cả hai phía; generator proxy cho xe rẽ phải liên tục đi không dừng.
 
+- **R38 (Viktor, 2026-10-27, Phase 3 stop):** 3C — hành vi 8 (đi ngược chiều) HOÃN: không cài vào mô hình, ghi vào hạn chế / hướng phát triển; M11 và lựa chọn `opposite` của `queue_space_seeking` không làm. 3D — giữ (a) native.
+- **R39 (Viktor, 2026-10-27):** 3A và 3B được cài vào mạng proxy với giá trị giả định (nhãn `assumed`, nguồn = thí nghiệm Phase 3A/3B), `site.yaml` để `null # TODO_MEASURE`; sau đó tính lại và đóng băng R28 trên mạng đó trước vòng 1. 3A: đoạn cọc là edge riêng cấm chuyển làn lane 0↔1 + `queue_space_seeking` lựa chọn `right_lane` (trigger theo hàng chờ, không khóa lane-change mode). 3B: topology c (edge vỉa hè riêng tới vạch dừng, link riêng, ưu tiên) + lựa chọn `sidewalk`.
+- **R40 (Viktor, 2026-10-27):** giữ nguyên PROXY_D1–D5 (seed 101–105) dù LVL_W xe máy vượt đỏ lệch +17,6 %; không chọn lại seed theo kết quả; ghi độ lệch trong báo cáo.
+
+- **R41 (Viktor, 2026-10-27, F2-behaviours):** (1) B1 mang cấu trúc F2 với mọi p = 0 (archetype vi phạm custom1 trong `moto`, custom2 trong `car`, `queue_space_seeking` p = 0) để B2/P1 trong E1 chỉnh được F2; (2) chấp nhận khóa `distribution` của archetype: PLAN 4.1 thành "tỷ trọng trong distribution"; (3) vỉa hè LVL_W bắt đầu 170 m trước vạch dừng (thiết lập 3B, assumed), nới bán kính controller/fcd (~220 m); (4) thêm trigger thứ ba của `queue_space_seeking` theo mô tả của Viktor: trước khi xanh bật, tài xế ước lượng (có sai số ngẫu nhiên) có qua kịp trong lượt xanh tới từ vị trí của mình trong hàng không; nếu không kịp thì quyết định tìm khoảng trống khác. Viktor nói tới đi ngược chiều, nhưng theo R38 hành vi đó đang hoãn, nên trigger chỉ áp dụng cho các lựa chọn hiện có.
+
+- **R42 (Viktor, 2026-10-27):** trên mạng F2 (2 làn đi thẳng), B0 và B1 kẹt ở mọi run 1800 s (backlog cuối 300–1200 xe). Giữ nguyên nhu cầu proxy 8180 xe/h và `max_end_backlog: 0`; khi không spec nào đủ điều kiện, chọn spec tốt nhất theo R32 (teleport kẹt/yield trung bình mỗi giờ, rồi S); báo cáo nói rõ là mô hình nền quá tải.
+
 **R10 giải thích cho Viktor (đổi quy tắc "va chạm là loại"):** Plan ban đầu nói bất kỳ run nào có va chạm đều bị loại. Nhưng ngay cả B0 (cấu hình gốc, chưa có luật LLM) cũng va chạm khoảng vài lần mỗi giờ mô phỏng (xe máy sublane, hai xe cùng làn rẽ), nên nếu giữ quy tắc đó thì gần như mọi run đều bị loại và không so sánh được gì. Quy tắc mới: manifest vẫn ghi `valid_strict` (0 teleport, 0 va chạm) và thêm số liệu chi tiết (teleport không do va chạm, va chạm theo loại, va chạm có xe bị TraCI can thiệp). Một run vẫn được tính (ELIGIBLE) khi: không có teleport ngoài va chạm; không còn xe kẹt chưa chèn được cuối run; qua cổng GEH; số va chạm ≤ max(2, p90 của B0 trên các seed dev, quy về 3600 s); và tối đa 1 va chạm liên quan xe bị TraCI can thiệp. Spec chỉ được chọn làm best nếu tỉ lệ va chạm trung bình theo seed ≤ trung bình B0 + 1 va chạm/giờ. Run bị loại vẫn tính vào budget. Báo cáo cuối công bố cả số strict lẫn số eligible, nên không giấu va chạm nào.
 
 ## Nhật ký
@@ -608,6 +616,22 @@ Ba thí nghiệm 3A/3B/3C chạy trên kịch bản đồ chơi riêng (mọi s�
 - **3D — chờ giữa nút:** trên mạng F2, check-junctions bật: sức chứa 13, 8, 8, 7, 10 (giống R21), 0 va chạm với xe rẽ trái trái luật, không kẹt; (a) native vẫn đứng.
 
 **Lệnh tái tạo (từ `SUMO/`):** `.venv/bin/python experiments/phase3a/right_lane_blocking.py --nproc 10`; `experiments/phase3b/sidewalk.py --nproc 11`; `experiments/phase3c/wrong_way.py --nproc 8`; `experiments/phase3/box_capacity.py --scenarios target target_modopp --seeds 1 2 3 4 5 --tag f2 --nproc 6`.
+
+### 2026-10-27 — Task F2-behaviours: đoạn cọc, vỉa hè LVL_W, `queue_space_seeking` (R39, R41)
+
+Implementer + review lần 1 "changes requested" (Critical: xe vỉa hè treo ~600 s vì lệnh giữ làn không bị hủy, chặn lane 0; Critical: cuối vỉa hè chồng lên lane 0 và link vỉa hè không là foe của rẽ phải lane 0 → 5 va chạm junction) · fix round 1 · re-review: còn B1 compiled cũ → biên dịch lại + test khớp spec · ✅
+
+**Đã làm:**
+- Mạng (proxy): mỗi nhánh tách thành `.up` (+ `.mid` ở LVL_W) và đoạn cọc dài `bollard_length_m` 30 m (assumed, thiết lập 3A) cấm chuyển làn lane 0↔1 (`changeLeft/changeRight="emergency"`); vỉa hè LVL_W (custom1, rộng 3,0 m, 5 m/s, bắt đầu 170 m trước vạch dừng — thiết lập 3B, assumed) chạy tới vạch dừng với link riêng 24/25, là foe của rẽ phải lane 0 (kiểm tra khi build). Chỉ số 24 link đường giữ nguyên. Vạch dừng dịch (`scenario/net/stopline_shift.csv`): LVL_W +0,11, LVL_E −0,70, HDT_N +1,61, HDT_S +0,10 m. `site.yaml`: khóa mới `null # TODO_MEASURE`.
+- `queue_space_seeking` thay `wrong_lane_dodge` (lựa chọn `wrong_lane`, `right_lane`, `sidewalk`; không có `opposite` — R38); 3 trigger: hàng chờ ≥ q, chờ ≥ t_w, và kiểm tra lượt xanh (t_g_s, est_noise; số xe phía trước × headway xả đo trực tiếp ở lượt xanh trước, so với thời lượng xanh sắp tới); xác suất lựa chọn không có trong mạng được phân bổ lại; không khóa lane-change mode; mỗi can thiệp ghi `detail`. Cửa sổ R30 của `right_lane` đóng khi xe đã nhập lại làn đi thẳng.
+- Archetype có khóa `distribution` (custom1 trong `moto`, custom2 trong `car`); B1 thêm `moto_seeker`/`car_seeker` share 0,1 (assumed) và `queue_space_seeking` p = 0 (không can thiệp nào thực thi). `sim.fcd_radius_m` 120 → 220 m (fcd +31–61 %).
+- Sửa lỗi có từ Task 9: runtime coi `lane.getAllowed()` rỗng là "ai cũng đi được"; không ảnh hưởng kết quả đã commit (B1 chưa dùng wrong_lane_dodge).
+
+**Lệnh tái tạo:** `.venv/bin/python -m thesis_sumo.net.build --site config/site.proxy.yaml`; `.venv/bin/python -m thesis_sumo.rules.compiler rules/specs/B1_manual.json --site config/site.proxy.yaml`; `.venv/bin/python -m pytest -q` (292 passed, 3 xfailed).
+
+**Kiểm tra (PROXY_D1, seed 1–3, 1800 s; CTRL = B1 p = 0, SEEK = B1 + p_right 0,3, p_sidewalk 0,3, q 30):** vỉa hè thực thi 8/17, 16/33, 3/25 (thất bại chủ yếu vì xe ở làn 1–2 không kịp sang lane 0 trong ~27 m vùng quyết định), từ lúc quyết định tới khi vào vỉa hè 3–25 s; right_lane 93/100, 132/143, 104/109; va chạm junction không có xu hướng theo luật; va chạm liên quan can thiệp 3–11 (CTRL 1–5); backlog cuối CTRL 352–737, SEEK 313–1240 (R42).
+
+**Lưu ý:** số R28 và run record đã commit (mạng trước F2) không so được với mạng này (cấm chuyển làn đoạn cọc, link đóng G→g, vạch dừng dịch, link 24/25, route bắt đầu xa hơn, bán kính 220 m); R28 phải tính lại trước vòng 1 (R39).
 
 ### Bước tiếp theo
 

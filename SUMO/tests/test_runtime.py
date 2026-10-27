@@ -254,35 +254,269 @@ def test_intervened_window_until_past_junction(one_lane, tmp_path):
         assert not ctl.intervened("r", seen["t_out"] + 1.0)
 
 
-# ---------------------------------------------------------------- wrong_lane_dodge
+# ---------------------------------------------------------------- queue_space_seeking
 
 
-def test_wrong_lane_dodge_fires(tmp_path):
-    """Two-lane W approach: lane 0 (r, s) queues; lane 1 is marked l/u in the site file, so it is a wrong lane for a
-    straight vehicle, but the net connects it straight on (executed); for a right-turner it has no connection to
-    its next edge (logged no_connection, no command)."""
+def _f2_net(d: Path, sidewalk: bool = False) -> Path:
+    """W approach as the site patches build it (thesis_sumo.net.apply_patches): 3 lanes, lane 0 = right turn only, split
+    into `WU` (upstream) and the 30 m bollard edge `WC` (lane 0 <-> 1 changes banned: changeLeft/changeRight
+    "emergency"); with `sidewalk`, `WU` ends at D 80 m before the stop line, `WM` runs D -> B and the custom1-only
+    sidewalk `WS` runs D -> C with its own links. Other arms one lane (CE two); netconvert's static program."""
+    d.mkdir(parents=True, exist_ok=True)
+    nodes = {"C": (0, 0, "traffic_light"), "W": (-200, 0, "priority"), "B": (-30, 0, "priority"),
+             "E": (150, 0, "priority"), "S": (0, -150, "priority"), "N": (0, 150, "priority")}
+    if sidewalk:
+        nodes["D"] = (-80, 0, "priority")
+    (d / "n.nod.xml").write_text("<nodes>" + "".join(f'<node id="{k}" x="{x}" y="{y}" type="{ty}"/>'
+                                                    for k, (x, y, ty) in nodes.items()) + "</nodes>", encoding="utf-8")
+    up_to = "D" if sidewalk else "B"
+    edges = [f'<edge id="WU" from="W" to="{up_to}" numLanes="3" speed="13.9" width="3.5"/>',
+             '<edge id="WC" from="B" to="C" numLanes="3" speed="13.9" width="3.5"><lane index="0" changeLeft="emergency"/>'
+             '<lane index="1" changeRight="emergency"/></edge>',
+             '<edge id="CE" from="C" to="E" numLanes="2" speed="13.9"/>']
+    edges += [f'<edge id="{i}" from="{f}" to="{to}" numLanes="1" speed="13.9"/>' for i, f, to in (
+        ("EC", "E", "C"), ("CW", "C", "W"), ("SC", "S", "C"), ("CN", "C", "N"), ("NC", "N", "C"), ("CS", "C", "S"))]
+    conns = ['<connection from="WC" to="CS" fromLane="0" toLane="0"/>',
+             '<connection from="WC" to="CE" fromLane="1" toLane="0"/>',
+             '<connection from="WC" to="CE" fromLane="2" toLane="1"/>']
+    if sidewalk:
+        edges += ['<edge id="WM" from="D" to="B" numLanes="3" speed="13.9" width="3.5"/>',  # sidewalk 3.0 m: narrower
+                  '<edge id="WS" from="D" to="C" numLanes="1" width="3" speed="5" allow="custom1" priority="5" '
+                  'spreadType="center" shape="-80,-12 -12,-12"/>']
+        conns += [f'<connection from="{a}" to="{b}" fromLane="{i}" toLane="{i}"/>' for a, b in (("WU", "WM"), ("WM", "WC"))
+                  for i in range(3)]
+        conns += ['<connection from="WU" to="WS" fromLane="0" toLane="0"/>',
+                  '<connection from="WS" to="CS" fromLane="0" toLane="0"/>',
+                  '<connection from="WS" to="CE" fromLane="0" toLane="0"/>']
+    else:
+        conns += [f'<connection from="WU" to="WC" fromLane="{i}" toLane="{i}"/>' for i in range(3)]
+    (d / "n.edg.xml").write_text("<edges>" + "".join(edges) + "</edges>", encoding="utf-8")
+    (d / "c.con.xml").write_text("<connections>" + "".join(conns) + "</connections>", encoding="utf-8")
+    subprocess.run([sumolib.checkBinary("netconvert"), "-n", str(d / "n.nod.xml"), "-e", str(d / "n.edg.xml"),
+                    "-x", str(d / "c.con.xml"), "--no-turnarounds", "-o", str(d / "f2.net.xml")],
+                   check=True, capture_output=True)
+    return d / "f2.net.xml"
+
+
+F2_MARKS = {"LVL_W": [["r"], ["s"], ["s"]], "LVL_E": [["r", "s", "l", "u"]], "HDT_N": [["r", "s", "l", "u"]],
+            "HDT_S": [["r", "s", "l", "u"]]}
+# a long straight queue (compliant cars, no speed gain: they never use lane 0) and straight custom1 rule riders
+F2_QUEUE = ('<flow id="q" type="car" begin="0" end="40" period="1.2" departLane="best" departSpeed="max">'
+            '<route edges="{up} CE"/></flow>'
+            '<flow id="v" type="vio" begin="20" end="44" period="2" departLane="1" departSpeed="max">'
+            '<route edges="{up} CE"/></flow>'
+            '<flow id="rt" type="car" begin="0" end="60" period="4" departLane="0" departSpeed="max">'
+            '<route edges="{up} CS"/></flow>')
+
+
+def _seek(**p) -> dict:
+    params = {"q": 20.0, "t_g_s": 0.0, "est_noise": 0.0, "p_wrong_lane": 0.0, "p_right_lane": 0.0, "p_sidewalk": 0.0,
+              "v_creep": 3.0, "merge_zone_m": 10.0}
+    return _rule("queue_space_seeking", ["vio"], **{**params, **p})
+
+
+@pytest.fixture(scope="module")
+def f2_bollard(tmp_path_factory):
+    return _f2_net(tmp_path_factory.mktemp("f2b"))
+
+
+@pytest.fixture(scope="module")
+def f2_sidewalk(tmp_path_factory):
+    return _f2_net(tmp_path_factory.mktemp("f2s"), sidewalk=True)
+
+
+def _f2_run(net, d, rule, routes, backend=None, end=90.0):
+    """Returns (controller, rows, (t, lane, route goes over the sidewalk) per vehicle and step)."""
     import libsumo
+    seen: dict[str, list] = {}
+
+    def probe(b, t, c):
+        for v in b.vehicle.getIDList():
+            seen.setdefault(v, []).append((t, b.vehicle.getLaneID(v), "WS" in b.vehicle.getRoute(v)))
+
+    d.mkdir(parents=True, exist_ok=True)
+    ctl, rows = _simulate(backend or libsumo, net, routes, [rule], _site(d, F2_MARKS), d, end, probe=probe)
+    return ctl, rows, seen
+
+
+def test_option_probabilities_redistribute():
+    from thesis_sumo.runtime.rules.queue_space_seeking import option_probabilities
+    p = {"wrong_lane": 0.2, "right_lane": 0.3, "sidewalk": 0.1}
+    assert option_probabilities(p, {"wrong_lane", "right_lane", "sidewalk"}) == p
+    got = option_probabilities(p, {"right_lane", "sidewalk"})  # wrong_lane absent: its 0.2 shared 3:1
+    assert got["wrong_lane"] == 0 and got["right_lane"] == pytest.approx(0.45) and got["sidewalk"] == pytest.approx(0.15)
+    assert option_probabilities(p, set()) == {o: 0.0 for o in p}
+    assert option_probabilities({"wrong_lane": 0.5, "right_lane": 0.0, "sidewalk": 0.0}, {"right_lane"}) == \
+        {o: 0.0 for o in p}  # no available option with p > 0: no seeking
+
+
+def test_queue_space_seeking_right_lane(f2_bollard, tmp_path):
+    """Phase 3A: above q the straight riders draw right_lane (p = 1), ride the upstream lane 0 (executed) and are
+    released `merge_zone_m` before the bollard edge; no straight vehicle is ever on the bollard edge's lane 0, and no
+    compliant straight vehicle is ever in lane 0; every draw happened with queue >= q."""
+    ctl, rows, seen = _f2_run(f2_bollard, tmp_path / "on", _seek(p_right_lane=1.0), F2_QUEUE.format(up="WU WC"))
+    assert rows and {r["action"] for r in rows} == {"right_lane"}
+    done = [r for r in rows if r["executed"] == "True"]
+    assert done, rows
+    for r in rows:
+        assert r["detail"].startswith("approach=LVL_W;") and float(r["detail"].split("queue_m=")[1].split(";")[0]) >= 20
+    for r in done:  # it really was in WU lane 0 when logged
+        assert any(lane == "WU_0" and abs(t - float(r["t_end"])) < 0.15 for t, lane, _ in seen[r["veh_id"]])
+        # the R30 window closes once it is back in a through lane after the release (not only past the junction)
+        back = [t for t, lane, _ in seen[r["veh_id"]] if t > float(r["t_end"]) and lane[-2:] in ("_1", "_2")
+                and lane[:2] in ("WU", "WC", ":B")]
+        assert back and ctl.intervened(r["veh_id"], float(r["t_end"]) + 0.05)
+        assert not ctl.intervened(r["veh_id"], back[0] + 0.15), r["veh_id"]
+    for vid, path in seen.items():
+        lanes = {lane for _, lane, _ in path}
+        if not vid.startswith("rt"):
+            assert "WC_0" not in lanes, vid  # straight: never on the bollard stretch of the right-turn lane
+        if vid.startswith("q"):
+            assert "WU_0" not in lanes, vid  # compliant: never in the right-turn lane
+    assert set(ctl.summary()["queue_space_seeking"]["counters"]) >= {"draws", "drawn_right_lane"}
+    _, none, quiet = _f2_run(f2_bollard, tmp_path / "high_q", _seek(p_right_lane=1.0, q=80.0),
+                             F2_QUEUE.format(up="WU WC"))
+    assert none == []  # the queue never reaches 80 m: no draw, no command
+    # outside activation the violators stay out of the right-turn lane without any lane-change-mode lock (Phase 3A)
+    assert not any(lane in ("WU_0", "WC_0") for vid, path in quiet.items() if vid.startswith("v") for _, lane, _ in path)
+    _, waited, _ = _f2_run(f2_bollard, tmp_path / "t_w", _seek(p_right_lane=1.0, q=80.0, t_w=5.0),
+                           F2_QUEUE.format(up="WU WC").replace('period="1.2"', 'period="1.0"'))  # riders halt upstream
+    def _num(r, key):
+        return float(r["detail"].split(key + "=")[1].split(";")[0])
+    assert waited and all(_num(r, "wait_s") >= 5.0 or _num(r, "queue_m") >= 80.0 for r in waited)
+    assert any(_num(r, "queue_m") < 80.0 for r in waited)  # some draws come from the optional wait trigger alone
+
+
+def test_queue_space_seeking_green_check(f2_bollard, tmp_path):
+    """PLAN 4.5 third trigger (Viktor): t_g_s before the next green each halted rider not yet drawn compares
+    (vehicles ahead x the discharge headway measured in the previous green) with the coming green; it draws only when
+    it expects to miss it. q is out of reach here (1000 m: runtime only, outside the spec bounds), so every draw comes
+    from the green check; t_g_s = 0 = off."""
+    routes = ('<flow id="q" type="car" begin="0" end="135" period="0.8" departLane="best" departSpeed="max">'
+              '<route edges="WU WC CE"/></flow>'
+              '<flow id="v" type="vio" begin="60" end="130" period="3" departLane="1" departSpeed="max">'
+              '<route edges="WU WC CE"/></flow>')
+    ctl, rows, _ = _f2_run(f2_bollard, tmp_path / "on", _seek(q=1000.0, t_g_s=10.0, p_right_lane=1.0), routes, end=150.0)
+    c = ctl.summary()["queue_space_seeking"]["counters"]
+    green = [r for r in rows if "trigger=green" in r["detail"]]
+    assert green == rows and c["green_check_pass"] > 0, (rows, c)  # some expect to clear the green, some do not
+    rule = ctl.rules[0]
+    assert rule.headway["LVL_W"] > 0 and {1, 2} <= rule.signalled["LVL_W"]  # toy program: lane 0 right signalled too
+    for r in green:
+        kv = dict(x.split("=") for x in r["detail"].split(";"))
+        assert float(kv["est_s"]) > float(kv["green_s"]) and float(kv["needed_s"]) == float(kv["est_s"])  # no noise
+    _, off, _ = _f2_run(f2_bollard, tmp_path / "off", _seek(q=1000.0, t_g_s=0.0, p_right_lane=1.0), routes, end=150.0)
+    assert off == []
+
+
+def test_queue_space_seeking_redistributes_absent_sidewalk(f2_bollard, tmp_path):
+    """No sidewalk on this net: p_sidewalk is shared with right_lane (all draws right_lane); with p only on the absent
+    option nothing is drawn as a space (counter no_option)."""
+    ctl, rows, _ = _f2_run(f2_bollard, tmp_path / "a", _seek(p_right_lane=0.5, p_sidewalk=0.5), F2_QUEUE.format(up="WU WC"))
+    c = ctl.summary()["queue_space_seeking"]["counters"]
+    assert rows and {r["action"] for r in rows} == {"right_lane"} and c["drawn_right_lane"] == c["draws"]
+    ctl, rows, _ = _f2_run(f2_bollard, tmp_path / "b", _seek(p_sidewalk=1.0), F2_QUEUE.format(up="WU WC"))
+    c = ctl.summary()["queue_space_seeking"]["counters"]
+    assert rows == [] and c["draws"] > 0 and c["no_option"] == c["draws"]
+
+
+def test_queue_space_seeking_sidewalk(f2_sidewalk, tmp_path):
+    """Phase 3B topology c: above q the custom1 riders are rerouted over the sidewalk while upstream of its start, ride
+    it (executed, speed <= v_creep) and cross the stop line from it; nobody else is ever on it."""
+    import libsumo
+    speeds = []
+    ctl, rows, seen = _f2_run(f2_sidewalk, tmp_path / "s", _seek(p_sidewalk=1.0, v_creep=3.0),
+                              F2_QUEUE.format(up="WU WM WC"))
+    assert rows and {r["action"] for r in rows} == {"sidewalk"}
+    done = [r["veh_id"] for r in rows if r["executed"] == "True"]
+    assert len(done) >= 3, rows
+    for vid in done:
+        lanes = [lane for _, lane, _ in seen[vid]]
+        assert "WS_0" in lanes and not any(ln.startswith(("WM_", "WC_")) for ln in lanes[lanes.index("WS_0"):])
+    for vid in done:  # review fix: the hold ends at the reroute, so the rider enters promptly and never dwells on the
+        # diverge connector (the 3.0 m sidewalk is narrower than the 3.5 m lane; a kept hold parked riders there)
+        rerouted = min(t for t, _, ws in seen[vid] if ws)
+        entered = min(t for t, ln, _ in seen[vid] if ln == "WS_0")
+        assert entered - rerouted < 15.0, (vid, rerouted, entered)
+        assert sum(1 for _, ln, _ in seen[vid] if ln.startswith(":D_")) * 0.1 < 3.0, vid
+    assert all(vid.startswith("v") for vid, path in seen.items() if any(ln == "WS_0" for _, ln, _ in path))
+    assert not any(ln == "WS_0" for vid, path in seen.items() if vid.startswith("v") and vid not in
+                   {r["veh_id"] for r in rows} for _, ln, _ in path)  # untriggered riders stay on the road
+
+
+def test_queue_space_seeking_wrong_lane(tmp_path):
+    """S_cheat on the old dodge net: LVL_W lane 1 is marked l/u but connects straight on, so it is a usable wrong lane
+    for straight riders queued in lane 0 (executed); right-turners have no usable wrong lane (not drawn: the option does
+    not exist for them, nothing else has p > 0)."""
     net = _cross(tmp_path / "net", lanes=2)
     queue = ('<flow id="q" type="car" begin="0" end="12" period="1" departLane="0" departSpeed="max">'
              '<route edges="WC CE"/></flow>')
-    dodgers = ('<vehicle id="d_s" type="rule_car" depart="14" departLane="0" departSpeed="max"><route edges="WC CE"/>'
-               '</vehicle><vehicle id="d_r" type="rule_car" depart="16" departLane="0" departSpeed="max">'
-               '<route edges="WC CS"/></vehicle>')
+    riders = ('<vehicle id="d_s" type="vio" depart="14" departLane="0" departSpeed="max"><route edges="WC CE"/>'
+              '</vehicle><vehicle id="d_r" type="vio" depart="16" departLane="0" departSpeed="max">'
+              '<route edges="WC CS"/></vehicle>')
     marks = {"LVL_W": [["r", "s"], ["l", "u"]], "LVL_E": [["r", "s"], ["s", "l", "u"]],
              "HDT_N": [["r", "s"], ["s", "l", "u"]], "HDT_S": [["r", "s"], ["s", "l", "u"]]}
     lanes = {}
-    rule = _rule("wrong_lane_dodge", ["rule_car"], q_min=30.0, v_creep=2.0)
-    ctl, rows = _simulate(libsumo, net, queue + dodgers, [rule], _site(tmp_path, marks), tmp_path, 44,
-                          probe=lambda b, t, c: lanes.update({v: b.vehicle.getLaneID(v) for v in ("d_s", "d_r")
-                                                              if v in b.vehicle.getIDList()}))
-    by = {r["veh_id"]: r for r in rows}
-    assert set(by) == {"d_s", "d_r"}
-    assert (by["d_s"]["action"], by["d_s"]["executed"]) == ("change_lane_to_1", "True")
-    assert (by["d_r"]["action"], by["d_r"]["executed"], by["d_r"]["reason"]) == \
-        ("change_lane_to_1", "False", "no_connection")
+    import libsumo
+    ctl, rows = _simulate(libsumo, net, queue + riders, [_seek(q=30.0, p_wrong_lane=1.0)], _site(tmp_path, marks),
+                          tmp_path, 44, probe=lambda b, t, c: lanes.update({v: b.vehicle.getLaneID(v) for v in
+                                                                            ("d_s", "d_r") if v in b.vehicle.getIDList()}))
+    assert [(r["veh_id"], r["action"], r["executed"]) for r in rows] == [("d_s", "wrong_lane", "True")]
     assert lanes["d_s"] == "WC_1" and lanes["d_r"] == "WC_0"
-    s = ctl.summary()["wrong_lane_dodge"]
-    assert (s["attempted"], s["executed"], s["not_executed"]) == (2, 1, {"no_connection": 1})
+    assert ctl.summary()["queue_space_seeking"]["counters"]["no_option"] == 1  # d_r
+
+
+def test_junction_info_on_proxy_net():
+    """The proxy net's split approaches and the LVL_W sidewalk as the controller sees them (TraCI only): segments from
+    the stop line upstream, chain offsets = sumolib lengths, the sidewalk lane counts for crossings but not for the
+    signal group, upstream lanes do not count for crossings."""
+    import libsumo
+    from thesis_sumo.runtime.state import JunctionInfo
+    net_path = REPO_ROOT / "scenario" / "net" / "site.proxy.net.xml"
+    site = load_site(PROXY_SITE)
+    net = sumolib.net.readNet(str(net_path), withInternal=True)
+    libsumo.start([sumolib.checkBinary("sumo"), "-n", str(net_path), "--no-step-log", "true"])
+    try:
+        info = JunctionInfo.build(libsumo, site, need_lane_movements=True)
+        from thesis_sumo.runtime.rules.base import Commands
+        from thesis_sumo.runtime.rules.queue_space_seeking import QueueSpaceSeeking
+        rule = QueueSpaceSeeking({"q": 30, "t_g_s": 7, "est_noise": 0, "p_wrong_lane": 0, "p_right_lane": 0,
+                                  "p_sidewalk": 0, "v_creep": 3, "merge_zone_m": 15}, ["x"], info,
+                                 Commands(libsumo, info.approach_lanes), random.Random(0))
+    finally:
+        libsumo.close()
+    # green check: the continuous right turn (g in every phase) and the closed lane-0 straight do not count
+    assert all(rule.signalled[a] == {1, 2} for a in info.lanes), rule.signalled
+    x = "711526326#1"
+    assert info.segments["LVL_W"] == [x, x + ".mid", x + ".up"]
+    assert info.segments["LVL_E"] == ["37876499#0", "37876499#0.up"]
+    assert info.sidewalk == {"LVL_W": x + ".sidewalk_0"}
+    assert x + ".sidewalk_0" in info.lane_approach and x + ".up_0" not in info.lane_approach
+    assert info.approach_lanes[x + ".up_0"] == "LVL_W" and info.approach_lanes[x + ".sidewalk_0"] == "LVL_W"
+    chain = info.chains["LVL_W"][1]
+    assert chain[0] == f"{x}_1" and chain[-1] == f"{x}.up_1" and all(ln.startswith(":") for ln in chain[1::2])
+    want = 0.0
+    for ln in chain:  # offset = everything downstream of the lane, from sumolib
+        assert info.lane_offset[ln] == pytest.approx(want), ln
+        want += net.getLane(ln).getLength()
+    assert len(info.group_links["LVL_W"]) == 3  # the road's straight links only (not the sidewalk's)
+    # the closed lane-0 straight (R37) is allowed for nobody, so no wrong-lane dodge exists here: runtime = validator (R27)
+    from thesis_sumo.runtime.wrong_lane import usable_dodges
+    (closed,) = [lk for lk in info.links[f"{x}_0"] if lk.direction == "s"]
+    assert closed.allowed == frozenset()
+    links = {a: info.lane_links(a) for a in info.lanes}
+    assert all(usable_dodges(links, info.lane_movements, v) == [] for v in ("custom1", "custom2", "motorcycle"))
+
+
+def test_queue_space_seeking_libsumo_traci_same(f2_sidewalk, tmp_path):
+    import libsumo
+    import traci
+    rule = _seek(p_right_lane=0.5, p_sidewalk=0.4, t_g_s=10.0, est_noise=0.5)  # green check with its noise draws
+    out = []
+    for name, backend in (("libsumo", libsumo), ("traci", traci)):
+        _f2_run(f2_sidewalk, tmp_path / name, rule, F2_QUEUE.format(up="WU WM WC"), backend=backend)
+        out.append((tmp_path / name / "interventions.csv").read_text(encoding="utf-8"))
+    assert out[0] == out[1] and "sidewalk" in out[0] and "right_lane" in out[0]
 
 
 # ---------------------------------------------------------------- illegal_left_box
@@ -396,7 +630,7 @@ def test_load_rules_rejects_malformed(tmp_path):
                  encoding="utf-8")
     with pytest.raises(ValueError, match="params"):
         load_rules(p)
-    assert set(RULE_REGISTRY) == {"early_start", "swarm_red_running", "wrong_lane_dodge", "illegal_left_box",
+    assert set(RULE_REGISTRY) == {"early_start", "swarm_red_running", "queue_space_seeking", "illegal_left_box",
                                   "slow_lane_center"}
 
 
@@ -424,7 +658,9 @@ def test_runner_runs_B1_with_controller(tmp_path):
                               REPO_ROOT / "scenario" / "demand" / "routes_SYNTHETIC.rou.xml", tmp_path / "B1_manual")
     res = runner.run("B1_manual", "SYNTHETIC", seed=1, sim_end_s=200, runs_root=tmp_path / "runs", inputs=inputs)
     m = res.manifest
-    assert set(m["interventions"]) == {"swarm_red_running", "early_start"}  # B1 has no box rule (R26)
+    assert set(m["interventions"]) == {"swarm_red_running", "early_start", "queue_space_seeking"}  # no box rule (R26)
+    seek = m["interventions"]["queue_space_seeking"]  # F2 structure with every p = 0: draws, never an intervention
+    assert seek["attempted"] == 0 and seek["counters"].get("draws", 0) == seek["counters"].get("no_seek", 0)
     for s in m["interventions"].values():
         assert s["executed"] <= s["attempted"]
     assert m["interventions_log"] == "interventions.csv"

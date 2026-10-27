@@ -15,7 +15,13 @@ Definitions (R = `observation.queue_range_m` from experiment.yaml, a modelling c
 - **Stop line** of an approach = end of each lane of its inbound edge (where `in__<lane>` loops sit,
   `sumocfg.ENTRY_OFFSET_M` before it). `dist_m` / `long_m_from_stopline` = distance of the vehicle's
   front bumper (fcd `pos`) upstream of the stop line; negative once past it (on the approach's internal
-  lanes: minus the distance travelled along the internal-lane chain of its link).
+  lanes: minus the distance travelled along the internal-lane chain of its link). An approach split by the site
+  patches (bollard edge, sidewalk start: `build_net.approach_segments`) is one approach: the lanes of its upstream
+  segments and of the short internal lanes between them count with the length of everything downstream added.
+- **Sidewalk** (`build_net.sidewalk_edges`, Phase 3B): its lane belongs to its approach (stop-line crossings, turn
+  counts, traversals, lateral snapshots with a negative lateral position: the sidewalk centre lies half its width
+  right of the roadway edge) but is no part of the road queue (`queue_snapshots` leave it out). Its movement is read
+  from the route file, which keeps the road route (the sidewalk is a TraCI reroute).
 - **Lateral position** `lat_m` / `lane_or_lat_m` / `lat_m_at_stopline` = distance of the vehicle centre from
   the right edge of the approach's roadway (lane 0's right border), positive to the left: widths of the
   lanes right of the vehicle's lane + half its lane width + fcd `posLat` (lateral offset from the lane
@@ -68,7 +74,8 @@ import sumolib
 from lxml import etree
 
 from thesis_sumo.demand.build_demand import movement_table
-from thesis_sumo.net.build_net import approach_edges, target_node, target_tls
+from thesis_sumo.net.apply_patches import movement_of
+from thesis_sumo.net.build_net import approach_edges, approach_segments, sidewalk_edges, target_node, target_tls
 from thesis_sumo.schema_observed import (
     INTERVAL_S,
     TABLES,
@@ -109,7 +116,8 @@ class Geometry:
     """What the conversion needs to know about the target junction of the net."""
 
     inbound: dict[str, str]                      # approach -> inbound edge id
-    lane_info: dict[str, tuple[str, float, float]]  # inbound lane -> (approach, length, lat of lane centre)
+    lane_info: dict[str, tuple[str, float, float]]  # approach lane -> (approach, distance from its start to the stop
+    # line, lat of lane centre): the stop-line lanes, the upstream segments and the sidewalk
     internal: dict[str, tuple[str, float, float]]   # internal lane -> (approach, offset past stop line, lat)
     road_width: dict[str, float]                 # approach -> roadway width at the stop line
     group_links: dict[str, list[int]]            # approach group -> TLS link indices (straight links)
@@ -118,6 +126,7 @@ class Geometry:
     movements: dict[tuple[str, str], tuple[str, str]] = field(default_factory=dict)
     exit_approach: dict[str, str] = field(default_factory=dict)  # outbound edge -> approach id of its arm
     stopline_from_centre: dict[str, float] = field(default_factory=dict)
+    sidewalk_lanes: frozenset = frozenset()
 
     def opposing_of(self, approach: str) -> str:
         try:
@@ -170,19 +179,38 @@ def junction_geometry(net_path: Path) -> Geometry:
     movements = movement_table(net)
     lane_info, road_width, stop_dist = {}, {}, {}
     for app, edge_id in inbound.items():
-        right = 0.0
-        for lane in sorted(net.getEdge(edge_id).getLanes(), key=lambda ln: ln.getIndex()):
-            lane_info[lane.getID()] = (app, lane.getLength(), right + lane.getWidth() / 2)
-            right += lane.getWidth()
-            stop_dist[app] = max(stop_dist.get(app, 0.0), math.dist(centre, lane.getShape()[-1]))
-        road_width[app] = right
+        offset, segs = 0.0, approach_segments(net, edge_id)
+        for k, seg in enumerate(segs):
+            right = 0.0
+            for lane in sorted(seg.getLanes(), key=lambda ln: ln.getIndex()):
+                lane_info[lane.getID()] = (app, offset + lane.getLength(), right + lane.getWidth() / 2)
+                right += lane.getWidth()
+                if k == 0:
+                    stop_dist[app] = max(stop_dist.get(app, 0.0), math.dist(centre, lane.getShape()[-1]))
+                    road_width[app] = right
+            offset += seg.getLanes()[0].getLength()
+            if k + 1 < len(segs):  # internal lanes of the split node upstream of `seg`
+                for c in segs[k + 1].getOutgoing()[seg]:
+                    if c.getViaLaneID():
+                        via = net.getLane(c.getViaLaneID())
+                        lane_info[via.getID()] = (app, offset + via.getLength(), lane_info[c.getToLane().getID()][2])
+                offset += max((net.getLane(c.getViaLaneID()).getLength() for c in segs[k + 1].getOutgoing()[seg]
+                               if c.getViaLaneID()), default=0.0)
+    sidewalks = sidewalk_edges(net)
+    for sw, app in sidewalks.items():
+        for lane in net.getEdge(sw).getLanes():
+            lane_info[lane.getID()] = (app, lane.getLength(), -lane.getWidth() / 2)
+    approach_of.update(sidewalks)
     internal, box_lanes, group_links = {}, {}, {a: [] for a in inbound}
     for in_lane, out_lane, idx in tls.getConnections():
         (conn,) = [c for c in in_lane.getOutgoing() if c.getToLane() == out_lane]
         app = approach_of[in_lane.getEdge().getID()]
-        _, mv = movements[(in_lane.getEdge().getID(), out_lane.getEdge().getID())]
-        if conn.getDirection() == "s":
-            group_links[app].append(idx)
+        if in_lane.getEdge().getID() in sidewalks:
+            mv = {"t": "u"}.get(movement_of(conn.getDirection()), movement_of(conn.getDirection()))
+        else:
+            _, mv = movements[(in_lane.getEdge().getID(), out_lane.getEdge().getID())]
+            if conn.getDirection() == "s":  # the signal group is the road's straight links
+                group_links[app].append(idx)
         offset = 0.0
         for lane in _via_chain(net, conn.getViaLaneID()):
             prev = internal.setdefault(lane.getID(), (app, offset, lane_info[in_lane.getID()][2]))
@@ -200,7 +228,8 @@ def junction_geometry(net_path: Path) -> Geometry:
         if len(same_road) == 1:
             opposing[app] = same_road[0]
     return Geometry(inbound, lane_info, internal, road_width, {a: sorted(v) for a, v in group_links.items()},
-                    box_lanes, opposing, movements, _exit_arms(net, node, inbound), stop_dist)
+                    box_lanes, opposing, movements, _exit_arms(net, node, inbound), stop_dist,
+                    frozenset(ln.getID() for sw in sidewalks for ln in net.getEdge(sw).getLanes()))
 
 
 # ---------------------------------------------------------------- readers
@@ -539,7 +568,7 @@ def _snapshots(geo: Geometry, onsets: dict, frames: pd.DataFrame, vinfo: dict,
     for app, times in onsets.items():
         for k, t0 in enumerate(times):
             at = fr[(fr["t"] == _rt(t0)) & (fr["approach"] == app)]
-            upstream = at[(at["dist_m"] >= 0) & (at["dist_m"] <= range_m)]
+            upstream = at[(at["dist_m"] >= 0) & (at["dist_m"] <= range_m) & ~at["lane"].isin(geo.sidewalk_lanes)]
             length, n_car, n_moto = queue_at(upstream, range_m)
             q_rows.append((k, float(t0), app, length, n_car, n_moto, length * geo.road_width[app]))
             halted = at[(at["speed"] < HALT_SPEED_MPS) & (at["dist_m"] <= range_m)]

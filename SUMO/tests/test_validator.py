@@ -72,7 +72,8 @@ def dodge(tmp_path_factory):
 
 
 def _arch(spec: dict, vclass: str) -> dict:
-    return next(a for a in spec["driver_archetypes"] if a["base_vclass"] == vclass)
+    """The archetype of `vclass` in its own distribution (B1 also has moto_seeker / car_seeker in moto / car)."""
+    return next(a for a in spec["driver_archetypes"] if a["base_vclass"] == vclass and "distribution" not in a)
 
 
 def _rule(spec: dict, rule_type: str) -> dict:
@@ -127,11 +128,15 @@ def test_bounds_rulings_r15():
 
 
 def test_traci_rule_params():
-    assert set(TRACI_RULE_PARAMS) == {"early_start", "swarm_red_running", "wrong_lane_dodge", "illegal_left_box",
-                                      "slow_lane_center"}
+    assert set(TRACI_RULE_PARAMS) == {"early_start", "swarm_red_running", "queue_space_seeking", "illegal_left_box",
+                                      "slow_lane_center"}  # PLAN 4.1 rule_type list (wrong_lane_dodge folded in)
     assert set(TRACI_RULE_PARAMS["early_start"]) == {"t_before_green", "p", "v_max"}
     assert set(TRACI_RULE_PARAMS["swarm_red_running"]) == {"p0", "k", "p_max", "dt"}
-    assert set(TRACI_RULE_PARAMS["wrong_lane_dodge"]) == {"q_min", "v_creep"}
+    seek = TRACI_RULE_PARAMS["queue_space_seeking"]  # PLAN 4.5; no p_opposite (R38)
+    assert set(seek) == {"q", "t_w", "t_g_s", "est_noise", "p_wrong_lane", "p_right_lane", "p_sidewalk", "v_creep",
+                         "merge_zone_m"}
+    assert [n for n, x in seek.items() if x.optional] == ["t_w"]
+    assert all(not x.optional for r, ps in TRACI_RULE_PARAMS.items() if r != "queue_space_seeking" for x in ps.values())
     assert set(TRACI_RULE_PARAMS["slow_lane_center"]) == {"lat_offset"}
     box = TRACI_RULE_PARAMS["illegal_left_box"]  # rulings R15, R25 (max_clear_into_cross_green_s dropped)
     assert set(box) == {"release_lag_s"}
@@ -140,10 +145,10 @@ def test_traci_rule_params():
         for name, p in params.items():
             assert p.min < p.max and p.unit and p.reason, (rule, name)
     assert RULE_VCLASSES["illegal_left_box"] == ("custom1",)
-    for rule in ("early_start", "swarm_red_running", "wrong_lane_dodge"):  # ruling R19: cars too
+    for rule in ("early_start", "swarm_red_running"):  # ruling R19: cars too
         assert {"passenger", "motorcycle"} <= set(RULE_VCLASSES[rule]), rule
     assert RULE_VCLASSES["slow_lane_center"] == ("motorcycle",)
-    assert "custom1" not in RULE_VCLASSES["wrong_lane_dodge"]
+    assert RULE_VCLASSES["queue_space_seeking"] == ("custom1", "custom2")  # violator classes (PLAN 0)
     assert set(DISTRIBUTION_OF_VCLASS.values()) == {"car", "moto", "moto_violator", "car_violator"}
 
 
@@ -344,12 +349,12 @@ def test_share_sum(spec, site):
     spec["driver_archetypes"].append(twin)
     issues = validate(spec, site)
     assert _codes(issues) == ["share_sum"]
-    assert "motorcycle" in issues[0]["message"] and "1.2" in issues[0]["message"]
+    assert "'moto'" in issues[0]["message"] and "1.3" in issues[0]["message"]  # + moto_seeker 0.1
 
 
 def test_share_sum_tolerance(spec, site):
     moto = _arch(spec, "motorcycle")
-    moto["share"] = 1 / 3
+    moto["share"] = 0.9 / 3  # + moto_seeker 0.1
     for k in range(2):
         twin = copy.deepcopy(moto)
         twin["id"] = f"moto_{k}"
@@ -358,7 +363,7 @@ def test_share_sum_tolerance(spec, site):
 
 
 def test_missing_distribution(spec, site):
-    spec["driver_archetypes"] = [a for a in spec["driver_archetypes"] if a["base_vclass"] != "custom1"]
+    spec["driver_archetypes"] = [a for a in spec["driver_archetypes"] if a is not _arch(spec, "custom1")]
     spec["traci_rules"] = [r for r in spec["traci_rules"] if r["rule_type"] != "illegal_left_box"]
     for r in spec["traci_rules"]:
         r["applies_to"] = [a for a in r["applies_to"] if any(x["id"] == a for x in spec["driver_archetypes"])]
@@ -436,7 +441,8 @@ def test_rule_applies_to_unknown_archetype(spec, site):
     assert _codes(issues) == ["logic"] and "ghost" in issues[0]["message"]
 
 
-EXTRA_RULES = {"wrong_lane_dodge": {"q_min": 20, "v_creep": 2}, "slow_lane_center": {"lat_offset": 0.0}}
+SEEK = {"q": 20, "t_g_s": 7, "est_noise": 0.3, "p_wrong_lane": 0.5, "p_right_lane": 0.0, "p_sidewalk": 0.0, "v_creep": 2, "merge_zone_m": 10}
+EXTRA_RULES = {"queue_space_seeking": SEEK, "slow_lane_center": {"lat_offset": 0.0}}
 
 
 def test_rule_wrong_vclass(spec, site, dodge):
@@ -444,11 +450,11 @@ def test_rule_wrong_vclass(spec, site, dodge):
     spec["traci_rules"].append({"rule_type": "illegal_left_box", "applies_to": [moto_id],  # B1 has none (R26)
                                 "params": {"release_lag_s": 0.0}, "rationale": "test"})
     issues = validate(spec, site)
-    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]")]
+    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[3].applies_to[0]")]
     assert "custom1" in issues[0]["message"] and moto_id in issues[0]["message"]
     dodge_site, dodge_net = dodge
-    for rule_type, vclass in (("wrong_lane_dodge", "custom1"), ("slow_lane_center", "passenger"),
-                              ("slow_lane_center", "custom1")):
+    for rule_type, vclass in (("queue_space_seeking", "motorcycle"), ("queue_space_seeking", "passenger"),
+                              ("slow_lane_center", "passenger"), ("slow_lane_center", "custom1")):
         spec = json.loads(B1.read_text(encoding="utf-8"))
         spec["traci_rules"].append({"rule_type": rule_type, "applies_to": [_arch(spec, vclass)["id"]],
                                     "params": EXTRA_RULES[rule_type], "rationale": "test"})
@@ -458,44 +464,96 @@ def test_rule_wrong_vclass(spec, site, dodge):
 
 
 def test_car_rules_allowed(spec, dodge):
-    """Ruling R19: early start, red running and lane dodging apply to car archetypes too (M2/M3/M8 car targets);
-    checked on a net where the dodge is usable (R27)."""
+    """Ruling R19: early start and red running apply to car archetypes too (M2/M3 car targets); queue_space_seeking to
+    the violator archetypes (here the custom1 one; on this net its wrong_lane option exists, R27)."""
     site, net = dodge
     car_id, moto_id = _arch(spec, "passenger")["id"], _arch(spec, "motorcycle")["id"]
     for rule_type in ("early_start", "swarm_red_running"):
         _rule(spec, rule_type)["applies_to"].append(car_id)
-    spec["traci_rules"].append({"rule_type": "wrong_lane_dodge", "applies_to": [car_id, moto_id],
-                                "params": EXTRA_RULES["wrong_lane_dodge"], "rationale": "test"})
+    _with_seek(spec, [_arch(spec, "custom1")["id"]])
     spec["traci_rules"].append({"rule_type": "slow_lane_center", "applies_to": [moto_id],
                                 "params": EXTRA_RULES["slow_lane_center"], "rationale": "test"})
     assert validate(spec, site, net=net) == []
 
 
-def _with_dodge(spec: dict, *vclasses: str) -> dict:
-    spec["traci_rules"].append({"rule_type": "wrong_lane_dodge", "applies_to": [_arch(spec, v)["id"] for v in vclasses],
-                                "params": EXTRA_RULES["wrong_lane_dodge"], "rationale": "test"})
+def _with_seek(spec: dict, ids: list[str], **params) -> dict:
+    """B1's queue_space_seeking rule (traci_rules[2], every p = 0) applied to `ids` with test params."""
+    rule = _rule(spec, "queue_space_seeking")
+    rule["applies_to"], rule["params"] = ids, {**SEEK, **params}
     return spec
 
 
-def test_wrong_lane_dodge_inapplicable_on_proxy_site(spec, site):
-    """Ruling R27: on the proxy net the lane markings equal the connections, so no wrong lane has a connection for
-    the same movement: the rule could never execute and the validator says so."""
-    issues = validate(_with_dodge(spec, "passenger", "motorcycle"), site)
-    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]"),
-                                                       ("logic", "traci_rules[2].applies_to[1]")]
-    assert all("inapplicable on this site" in i["message"] for i in issues)
+def _sidewalk_rider(spec: dict) -> str:
+    """B1's custom1 archetype in the `moto` distribution (straight / right riders that may seek space)."""
+    rider = next(a for a in spec["driver_archetypes"] if a["id"] == "moto_seeker")
+    assert rider["base_vclass"] == "custom1" and rider["distribution"] == "moto"
+    return rider["id"]
 
 
-def test_wrong_lane_dodge_checks_vclass_permission(spec, tmp_path):
-    """The usable connection (LVL_W lane 1 straight on) allows motorcycles only: the rule is inapplicable for the car
-    archetype and fine for the motorcycle one."""
+def test_violator_archetype_in_compliant_distribution(spec, site):
+    """custom1 may join `moto` and custom2 `car` (schema.DISTRIBUTIONS_OF_VCLASS); shares sum per distribution."""
+    rid = _sidewalk_rider(spec)
+    assert validate(spec, site) == []
+    _arch(spec, "motorcycle")["share"] = 1.0
+    assert _codes(validate(spec, site)) == ["share_sum"]
+    for vclass, dist in (("custom1", "car"), ("passenger", "moto"), ("motorcycle", "moto_violator")):
+        bad = json.loads(B1.read_text(encoding="utf-8"))
+        _arch(bad, vclass)["distribution"] = dist
+        issues = [i for i in validate(bad, site) if i["code"] == "logic"]
+        assert issues and issues[0]["path"].endswith(".distribution") and dist in issues[0]["message"], (vclass, dist)
+    assert rid == "moto_seeker"
+
+
+def test_queue_space_seeking_redistribution_is_valid(spec, site):
+    """PLAN 4.5: an option with p > 0 that does not exist on the site (wrong_lane on the proxy net, R27) is no issue
+    as long as another option with p > 0 exists: the runtime redistributes its probability."""
+    rid = _sidewalk_rider(spec)
+    assert validate(_with_seek(spec, [rid], p_wrong_lane=0.3, p_right_lane=0.2, p_sidewalk=0.1), site) == []
+    spec = json.loads(B1.read_text(encoding="utf-8"))
+    rid = _sidewalk_rider(spec)
+    assert validate(_with_seek(spec, [rid], p_wrong_lane=0.0, p_right_lane=0.0, p_sidewalk=0.0, t_w=60), site) == []
+
+
+def test_queue_space_seeking_inapplicable_on_proxy_site(spec, site):
+    """Ruling R27: wrong_lane is the only option with p > 0 and it does not exist on the proxy net; a custom1
+    archetype in moto_violator drives only the illegal left, so right_lane / sidewalk do not exist for it either."""
+    vio = _arch(spec, "custom1")["id"]
+    issues = validate(_with_seek(spec, [vio], p_wrong_lane=0.5, p_right_lane=0.3, p_sidewalk=0.2), site)
+    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]")]
+    assert "inapplicable on this site" in issues[0]["message"] and "existing: none" in issues[0]["message"]
+    spec = json.loads(B1.read_text(encoding="utf-8"))
+    rid = _sidewalk_rider(spec)
+    issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5), site)
+    assert _codes(issues) == ["logic"] and "existing: right_lane, sidewalk" in issues[0]["message"]
+
+
+def test_queue_space_seeking_params_checked(spec, site):
+    rid = _sidewalk_rider(spec)
+    issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5, p_right_lane=0.4, p_sidewalk=0.3), site)
+    assert _codes(issues) == ["rule_params"] and "<= 1" in issues[0]["message"]
+    for name, value in (("q", 100), ("q", 1), ("t_w", 500), ("merge_zone_m", 50), ("v_creep", 9), ("p_sidewalk", -0.1),
+                        ("t_g_s", 30), ("est_noise", 2)):
+        bad = json.loads(B1.read_text(encoding="utf-8"))
+        r = _sidewalk_rider(bad)
+        issues = validate(_with_seek(bad, [r], p_right_lane=0.2, **{name: value}), site)
+        assert [(i["code"], i["path"]) for i in issues] == [("rule_params", f"traci_rules[2].params.{name}")], name
+    bad = json.loads(B1.read_text(encoding="utf-8"))
+    r = _sidewalk_rider(bad)
+    rule = _with_seek(bad, [r], p_right_lane=0.2)["traci_rules"][-1]
+    del rule["params"]["merge_zone_m"]  # only t_w may be left out
+    assert [i["path"] for i in validate(bad, site)] == ["traci_rules[2].params"]
+
+
+def test_queue_space_seeking_checks_vclass_permission(spec, tmp_path):
+    """The usable wrong-lane connection (LVL_W lane 1 straight on) allows custom1 only: the rule is inapplicable for
+    the custom2 archetype and fine for the custom1 one."""
     conns = ('<connection from="WC" to="CS" fromLane="0" toLane="0"/><connection from="WC" to="CE" fromLane="0" '
-             'toLane="0"/><connection from="WC" to="CE" fromLane="1" toLane="1" allow="motorcycle"/>'
+             'toLane="0"/><connection from="WC" to="CE" fromLane="1" toLane="1" allow="custom1"/>'
              '<connection from="WC" to="CN" fromLane="1" toLane="1"/>')
     site, net = _dodge_net(tmp_path, conns)
-    issues = validate(_with_dodge(spec, "passenger", "motorcycle"), site, net=net)
-    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]")]
-    assert "inapplicable on this site" in issues[0]["message"] and "passenger" in issues[0]["message"]
+    issues = validate(_with_seek(spec, [_arch(spec, "custom1")["id"], "car_seeker"]), site, net=net)
+    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[1]")]
+    assert "inapplicable on this site" in issues[0]["message"] and "custom2" in issues[0]["message"]
 
 
 @pytest.mark.parametrize("vclass", ["passenger", "motorcycle"])

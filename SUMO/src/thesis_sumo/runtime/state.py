@@ -8,6 +8,15 @@ controller works on any net whose site file names the inbound edges (`approaches
   `thesis_sumo.sim.outputs.junction_geometry` (the signal state of an approach is the state of these links,
   `schema_observed.normalise_state`);
 - stop line of an inbound lane = its end; `dist` = lane length - lanePosition (front bumper);
+- segments of an approach (site patches, `thesis_sumo.net.apply_patches`): the inbound edge plus its straight
+  upstream continuation (`<edge>.mid`, `<edge>.up`), found by walking `junction.getIncomingEdges` upstream; `chains`
+  = per lane index the lanes from the stop line upstream incl. the short internal lanes of the split nodes, each with
+  `lane_offset` (distance from its end to the stop line), so `dist` and the queue continue across the split;
+  `lanes` / `lane_approach` stay the stop-line lanes (+ sidewalk lanes, see below) so that stop-line crossings
+  keep their meaning; `approach_lanes` = every lane of an approach (the intervention windows, R30);
+- sidewalk of an approach (Phase 3B topology c): an inbound edge of the junction that is no site approach edge and
+  starts at a segment node; its lane is in `lane_approach` (a rider crossing its stop line is a crossing) but not in
+  `lanes` or the signal group;
 - box of an illegal-left approach (site `illegal_left.approaches`, its left links): the internal-lane chain of the
   left link (as `outputs.junction_geometry.box_lanes`); `hold_lanes` = the chain lanes before the last one, i.e. the
   lanes that end at the internal junction where the left-turners wait (proxy net: `:<junction>_16_0`). A vehicle on
@@ -40,6 +49,14 @@ VEH_VARS = (tc.VAR_LANE_ID, tc.VAR_LANEPOSITION, tc.VAR_SPEED, tc.VAR_TYPE, tc.V
 TLS_VARS = (tc.TL_RED_YELLOW_GREEN_STATE, tc.TL_CURRENT_PHASE, tc.TL_NEXT_SWITCH)
 
 
+def allowed_classes(backend, lane: str) -> frozenset[str] | None:
+    """vClasses allowed on `lane`; None = no restriction. SUMO 1.27 `lane.getAllowed` lists the classes, and is empty
+    for a lane nobody may use (the closed lane-0 straight, `disallow="all"`, R37), so an empty list counts as
+    unrestricted only when `getDisallowed` is empty too."""
+    allowed = frozenset(backend.lane.getAllowed(lane))
+    return allowed if allowed or backend.lane.getDisallowed(lane) else None
+
+
 @dataclass(frozen=True)
 class Link:
     to_lane: str
@@ -65,6 +82,11 @@ class JunctionInfo:
     hold_lanes: dict[str, list[str]] = field(default_factory=dict)  # illegal-left approach -> chain before waiting point
     lane_movements: dict[str, list[list[str]]] = field(default_factory=dict)  # approach -> per lane index
     vtype_length: dict[str, float] = field(default_factory=dict)  # vType id -> length (filled by StepReader)
+    segments: dict[str, list[str]] = field(default_factory=dict)  # approach -> edges, stop line first
+    chains: dict[str, list[list[str]]] = field(default_factory=dict)  # approach -> per lane index, stop line first
+    lane_offset: dict[str, float] = field(default_factory=dict)  # approach lane -> distance of its end to the stop line
+    sidewalk: dict[str, str] = field(default_factory=dict)  # approach -> sidewalk lane
+    approach_lanes: dict[str, str] = field(default_factory=dict)  # every lane of an approach (all segments) -> approach
 
     @classmethod
     def build(cls, backend, site: Site, *, need_lane_movements: bool = False,
@@ -82,7 +104,7 @@ class JunctionInfo:
                 lane_approach[lane] = app
                 lane_length[lane] = backend.lane.getLength(lane)
                 links[lane] = [Link(lk[0], backend.lane.getEdgeID(lk[0]), lk[4], lk[6],
-                                    frozenset(backend.lane.getAllowed(lk[4])) or None if lk[4] else None)
+                                    allowed_classes(backend, lk[4]) if lk[4] else None)
                                for lk in backend.lane.getLinks(lane)]
         if len(junctions) != 1:
             raise ValueError(f"site approaches end at {len(junctions)} junctions {sorted(junctions)}, expected 1")
@@ -90,7 +112,7 @@ class JunctionInfo:
         group_links = {a: [] for a in approach_edge}
         for idx, conns in enumerate(backend.trafficlight.getControlledLinks(tls_id)):
             for in_lane, out_lane, _via in conns:
-                if in_lane in lane_approach:
+                if in_lane in lane_approach:  # road stop-line lanes only (sidewalks are added below)
                     if any(lk.to_lane == out_lane and lk.direction == "s" for lk in links[in_lane]):
                         group_links[lane_approach[in_lane]].append(idx)
         missing = [a for a, v in group_links.items() if not v]
@@ -104,6 +126,7 @@ class JunctionInfo:
             same = [o for o in approach_edge if o != app and o.split("_")[0] == app.split("_")[0]]
             if len(same) == 1:
                 info.opposing[app] = same[0]
+        info._build_segments(backend)
         if need_lane_movements:
             for i, a in enumerate(site["approaches"]):
                 mv = site.require(f"approaches.{i}.lane_movements")
@@ -114,6 +137,50 @@ class JunctionInfo:
         if need_box:
             info._build_box(backend, site)
         return info
+
+    def _build_segments(self, backend) -> None:
+        for app, edge in self.approach_edge.items():
+            segs = [edge]
+            while True:
+                ups = [e for e in backend.junction.getIncomingEdges(backend.edge.getFromJunction(segs[-1]))
+                       if not e.startswith(":") and e not in segs
+                       and any(backend.lane.getEdgeID(lk[0]) == segs[-1] and lk[6] == "s"
+                               for lk in backend.lane.getLinks(f"{e}_0"))]
+                if len(ups) > 1:
+                    raise ValueError(f"approach {app}: edge {segs[-1]} has several upstream continuations {ups}")
+                if not ups:
+                    break
+                segs.append(ups[0])
+            self.segments[app] = segs
+            self.chains[app] = []
+            for k, lane in enumerate(self.lanes[app]):
+                chain, offset = [lane], 0.0
+                self.lane_offset[lane] = 0.0
+                for up in segs[1:]:
+                    up_lane = f"{up}_{k}"
+                    (via,) = [lk[4] for lk in backend.lane.getLinks(up_lane) if lk[0] == chain[-1]] or [""]
+                    for ln in ([via] if via else []) + [up_lane]:
+                        offset += self.lane_length[chain[-1]]
+                        self.lane_length[ln] = backend.lane.getLength(ln)
+                        self.lane_offset[ln] = offset
+                        chain.append(ln)
+                self.chains[app].append(chain)
+                for ln in chain:
+                    self.approach_lanes[ln] = app
+        starts = {backend.edge.getFromJunction(s): a for a, segs in self.segments.items() for s in segs}
+        for e in backend.junction.getIncomingEdges(self.junction_id):
+            if e.startswith(":") or e in self.approach_edge.values():
+                continue
+            if backend.edge.getFromJunction(e) not in starts:
+                raise ValueError(f"inbound edge {e} is neither a site approach nor a sidewalk of one")
+            app, lane = starts[backend.edge.getFromJunction(e)], f"{e}_0"
+            self.sidewalk[app] = lane
+            self.lane_approach[lane] = self.approach_lanes[lane] = app
+            self.lane_length[lane] = backend.lane.getLength(lane)
+            self.lane_offset[lane] = 0.0
+            self.links[lane] = [Link(lk[0], backend.lane.getEdgeID(lk[0]), lk[4], lk[6],
+                                     allowed_classes(backend, lk[4]) if lk[4] else None)
+                                for lk in backend.lane.getLinks(lane)]
 
     @staticmethod
     def _tls_of(backend, inbound: set[str]) -> str:
@@ -197,8 +264,9 @@ class Step:
     info: JunctionInfo
 
     def dist(self, vid: str) -> float:
+        """Front bumper upstream of the stop line, across the segments of a split approach."""
         v = self.vehicles[vid]
-        return self.info.lane_length[v.lane] - v.pos
+        return self.info.lane_offset.get(v.lane, 0.0) + self.info.lane_length[v.lane] - v.pos
 
     def front_row(self, app: str) -> list[str]:
         """Vehicles on the approach's inbound lanes whose front is within FRONT_ROW_M of the stop line."""
@@ -210,18 +278,20 @@ class Step:
                 out.append(vid)
         return sorted(out)
 
-    def queue_length(self, lane: str) -> float:
-        """Queue on an inbound lane from the stop line: halting vehicles chained by JAM_GAP_M (outputs.queue_at,
-        without the range cap); the tail is the farthest rear bumper (vType length)."""
+    def queue_length(self, lanes) -> float:
+        """Queue from the stop line along `lanes` (an inbound lane, or a `JunctionInfo.chains` lane list, stop line
+        first): halting vehicles chained by JAM_GAP_M (outputs.queue_at, without the range cap); the tail is the
+        farthest rear bumper (vType length)."""
         tail = 0.0
-        for vid in self.by_lane.get(lane, ()):
-            v = self.vehicles[vid]
-            if v.speed >= HALT_SPEED_MPS:
-                continue
-            d = self.info.lane_length[lane] - v.pos
-            if d > tail + JAM_GAP_M:
-                break
-            tail = max(tail, d + self.info.vtype_length[v.vtype])
+        for lane in [lanes] if isinstance(lanes, str) else lanes:
+            for vid in self.by_lane.get(lane, ()):
+                v = self.vehicles[vid]
+                if v.speed >= HALT_SPEED_MPS:
+                    continue
+                d = self.dist(vid)
+                if d > tail + JAM_GAP_M:
+                    return tail
+                tail = max(tail, d + self.info.vtype_length[v.vtype])
         return tail
 
     def time_to_green(self, app: str) -> float:

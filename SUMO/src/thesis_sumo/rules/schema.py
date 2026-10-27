@@ -4,12 +4,20 @@
   A row's `min/max/default` apply to every base vclass unless `by_vclass` overrides them; use
   `Bound.for_vclass(vclass)`.
 - `TRACI_RULE_PARAMS`: per `rule_type` the parameters the runtime rules (Task 9) read, each with its range. All
-  parameters of a rule are required in a spec (no defaults: the LLM / Optuna fills every one).
+  parameters of a rule are required in a spec (no defaults: the LLM / Optuna fills every one), except those marked
+  `optional` (queue_space_seeking `t_w`: absent = no waiting-time trigger).
 - `RULE_VCLASSES`: which archetype base vclasses a rule may be applied to.
 - `DISTRIBUTION_OF_VCLASS`: archetype base vclass -> vTypeDistribution id referenced by the demand
   (`thesis_sumo.demand.build_demand.VEHICLE_TYPES`). `OPTIONAL_VCLASSES`: base vclasses whose distribution no
   demand references yet (custom2 = car_violator, Task F2-net): a spec may leave them out, and then the compiler
   writes no distribution for them.
+- `DISTRIBUTIONS_OF_VCLASS`: the distributions an archetype of a base vclass may join (archetype key `distribution`,
+  default `DISTRIBUTION_OF_VCLASS`). A violator archetype (custom1 / custom2, PLAN 0) may join the compliant
+  distribution of its kind (`moto` / `car`): its riders then drive the legal movements of the demand but may use the
+  violator-only space of `queue_space_seeking` (the custom1-only sidewalk; the demand gives custom1 only the illegal
+  left, so this is how a straight motorcycle can reach the sidewalk without a TraCI type change, which would copy
+  the vType to `typeid@vehid`). The share is then a share of that distribution: PLAN 4.1's `share` is "the share
+  within the distribution" (Viktor accepted the `distribution` key, 2026-10-27, F2-behaviours fix round 1).
 """
 
 from __future__ import annotations
@@ -32,6 +40,10 @@ DISTRIBUTION_OF_VCLASS = {"passenger": "car", "motorcycle": "moto", "custom1": "
                           "custom2": "car_violator"}
 # car_violator (PLAN 2.1) is used only by the F2 rules that come after Phase 3; no demand references it yet
 OPTIONAL_VCLASSES = ("custom2",)
+DISTRIBUTIONS_OF_VCLASS = {"passenger": ("car",), "motorcycle": ("moto",), "custom1": ("moto_violator", "moto"),
+                           "custom2": ("car_violator", "car")}
+DISTRIBUTIONS = ("car", "moto", "moto_violator", "car_violator")  # compiler order
+OPTIONAL_DISTRIBUTIONS = ("car_violator",)
 BEHAVIOR_GROUPS = ("patience", "swarm_pressure", "early_start", "encroachment", "f_risk", "S_cheat", "I_slow",
                    "illegal_left_box")
 MODELS = ("vType", "carFollow", "LC", "junction")
@@ -78,6 +90,7 @@ class RuleParam:
     max: float
     unit: str
     reason: str
+    optional: bool = False
 
 
 # Ranges are modelling choices (evidence assumed unless stated). Units: s, m, m/s, probability "-", 1/veh.
@@ -98,10 +111,34 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
         "dt": RuleParam(1.0, 30.0, "s", "look-back window for counting red runners; assumed, at most a quarter "
                         "of the 120 s proxy cycle"),
     },
-    "wrong_lane_dodge": {
-        "q_min": RuleParam(5.0, 80.0, "m", "queue length on the correct lane that triggers the dodge; 80 m = "
-                           "experiment.yaml observation.queue_range_m (queues beyond it are not observed)"),
-        "v_creep": RuleParam(0.5, 5.0, "m/s", "speed cap while advancing on the wrong lane; assumed"),
+    # PLAN 4.5 (behaviours 5-7; option `opposite` deferred, ruling R38): one draw per vehicle when the trigger first
+    # holds, over the options that exist for it, the p_* of absent options redistributed proportionally
+    "queue_space_seeking": {
+        "q": RuleParam(5.0, 80.0, "m", "queue length on the vehicle's correct lanes (lane_movements) that triggers the "
+                       "draw; 80 m = experiment.yaml observation.queue_range_m (queues beyond it are not observed); "
+                       "Phase 3A used 50 m (setting)"),
+        "t_w": RuleParam(5.0, 120.0, "s", "optional: the draw is also triggered once the vehicle has halted this long "
+                         "on its approach (within the controller radius); 120 s = one proxy cycle; assumed",
+                         optional=True),
+        "t_g_s": RuleParam(0.0, 20.0, "s", "green check (PLAN 4.5 'đèn sắp xanh', Viktor 2026-10-27): this many seconds "
+                           "before its approach's next green each queued vehicle not yet drawn estimates whether it "
+                           "clears the stop line in that green (vehicles ahead x the approach's discharge headway of "
+                           "the previous green, measured live) and draws if not; 0 = off. Viktor's example 7 s; 20 s "
+                           "assumed upper bound (twice the 10 s early-start window, data/proxy/targets.yaml)"),
+        "est_noise": RuleParam(0.0, 1.0, "-", "sigma of the multiplicative lognormal error of that estimate (median "
+                               "unbiased); 1 = a factor e ~ 2.7 at one sigma; assumed"),
+        "p_wrong_lane": RuleParam(0.0, 1.0, "-", "probability of the wrong_lane option (S_cheat: an adjacent lane whose "
+                                  "markings do not permit the movement but which connects to the vehicle's next "
+                                  "edge); inapplicable on the proxy net (ruling R27), so it is redistributed"),
+        "p_right_lane": RuleParam(0.0, 1.0, "-", "probability of the right_lane option (behaviour 6, straight vehicles "
+                                  "ride the continuous right-turn lane upstream of the bollards, Phase 3A)"),
+        "p_sidewalk": RuleParam(0.0, 1.0, "-", "probability of the sidewalk option (behaviour 7, custom1 only, Phase "
+                                "3B); p_wrong_lane + p_right_lane + p_sidewalk <= 1"),
+        "v_creep": RuleParam(0.5, 5.0, "m/s", "speed cap while in the alternative space (PLAN 4.5 'tốc độ <= v_creep'); "
+                             "5 m/s = the proxy sidewalk speed (Phase 3B setting); assumed"),
+        "merge_zone_m": RuleParam(3.0, 20.0, "m", "right_lane: the lane-0 request ends this far upstream of the bollard "
+                                  "edge and SL2015 merges the vehicle back (Phase 3A: 'a few metres to ~20 m', 15 m "
+                                  "tested); assumed"),
     },
     "illegal_left_box": {  # rulings R15, R25: the rule only holds, never pushes through foes
         "release_lag_s": RuleParam(0.0, 4.0, "s", "extra hold added to SUMO's native release of box waiters "
@@ -115,15 +152,17 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
     },
 }
 
-# Ruling R19: early start, red running and lane dodging are observed for cars too (targets M2/M3/M8 have car
-# values), so these rules apply to passenger and motorcycle archetypes; custom1 (moto_violator, the illegal-left
-# riders) keeps early_start and swarm_red_running (they queue at the LVL_W stop line like other motorcycles). custom1
-# vehicles drive only the illegal left (thesis_sumo.demand.build_demand), so a lane dodge is undefined for them.
-# The slow-rider rule is a motorcycle behaviour (PLAN 0, I_slow); the box rule is defined for custom1 only.
+# Ruling R19: early start and red running are observed for cars too (targets M2/M3 have car values), so these rules
+# apply to passenger and motorcycle archetypes; custom1 (moto_violator, the illegal-left riders) keeps early_start
+# and swarm_red_running (they queue at the LVL_W stop line like other motorcycles). queue_space_seeking (PLAN 4.5,
+# which replaces the former wrong_lane_dodge) is a violator behaviour: custom1 (all three options) and custom2
+# (wrong_lane, right_lane; the sidewalk is custom1 only), PLAN 0 violator_classes; such archetypes reach the demand's
+# legal movements through `distribution` moto / car. The slow-rider rule is a motorcycle behaviour (PLAN 0, I_slow);
+# the box rule is defined for custom1 only.
 RULE_VCLASSES: dict[str, tuple[str, ...]] = {
     "early_start": ("passenger", "motorcycle", "custom1"),
     "swarm_red_running": ("passenger", "motorcycle", "custom1"),
-    "wrong_lane_dodge": ("passenger", "motorcycle"),
+    "queue_space_seeking": ("custom1", "custom2"),
     "illegal_left_box": ("custom1",),
     "slow_lane_center": ("motorcycle",),
 }
