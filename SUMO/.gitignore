@@ -11,6 +11,13 @@ experiments/runs/**
 !experiments/runs/**/
 !experiments/runs/**/manifest.json
 !experiments/runs/**/collisions.xml
+# campaigns (thesis_sumo.evaluate / baselines.optuna_search): runs as above; budget.json, study.journal,
+# convergence.csv, validity_log.csv and compiled/<spec_id>/ stay tracked; pickled EvalResults are local only
+experiments/campaigns/*/runs/**
+!experiments/campaigns/*/runs/**/
+!experiments/campaigns/*/runs/**/manifest.json
+!experiments/campaigns/*/runs/**/collisions.xml
+experiments/campaigns/*/optuna_results/*.pkl
 # validator outcomes (thesis_sumo.rules.validator.ValidityLog), runtime output
 experiments/validity_log.csv
 

@@ -194,7 +194,7 @@ def _distribution_issues(spec: dict) -> list[ValidationIssue]:
     return issues
 
 
-def _narrowest_lane(site: Site) -> tuple[float, str, int]:
+def narrowest_lane(site: Site) -> tuple[float, str, int]:
     best = None
     for i, appr in enumerate(site.require("approaches")):
         for j, w in enumerate(site.require(f"approaches.{i}.lane_widths_m")):
@@ -205,13 +205,16 @@ def _narrowest_lane(site: Site) -> tuple[float, str, int]:
     return best
 
 
+_narrowest_lane = narrowest_lane  # former private name
+
+
 def _lane_width_issues(spec: dict, site: Site) -> list[ValidationIssue]:
     issues, narrowest = [], None
     for i, arch in enumerate(spec["driver_archetypes"]):
         v = arch["params"].get("minGapLat")
         if not _is_number(v):
             continue
-        narrowest = narrowest or _narrowest_lane(site)
+        narrowest = narrowest or narrowest_lane(site)
         w, appr, lane = narrowest
         if v > w:
             issues.append(_issue(f"driver_archetypes[{i}].params.minGapLat", "logic",
