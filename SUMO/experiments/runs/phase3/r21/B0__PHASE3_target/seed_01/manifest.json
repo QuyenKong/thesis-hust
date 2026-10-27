@@ -1,0 +1,150 @@
+{
+  "run_id": "B0__PHASE3_target",
+  "spec_id": "B0",
+  "day": "PHASE3_target",
+  "seed": 1,
+  "git_hash": "ac325b4b93f6a2d184502582bb9f0972d2175b7d",
+  "git_dirty": true,
+  "sumo_version": "SUMO 1.27.0",
+  "backend": "libsumo",
+  "gui": false,
+  "spec_dir": "rules/compiled/B0",
+  "spec_hash": "f93f71f1b79c68df9b19c4786bf7885edf082c43c4471a423652131232630a36",
+  "spec_files": {
+    "vtypes.add.xml": "3e82eec8193d19ff67d4d57aabf6aa917c88216cfe36cdbfb14ec98da36dd30b"
+  },
+  "spec_json_hash": "cace0ee1527700f80b90048a70a40952f10f6339e265b4f2ccf114921a134559",
+  "net": "scenario/net/site.proxy.net.xml",
+  "net_hash": "e30b10340a9ae4c92687ab4e94ce8ab4f641393646071c98fd29aafe572b4485",
+  "routes": "experiments/runs/phase3/r21/routes/target_seed01.rou.xml",
+  "routes_hash": "7d0a04c8109913fa8c034da341fd107814815990c546255128372208cb5300d1",
+  "site_path": "config/site.proxy.yaml",
+  "site_hash": "7551cc81d47bf682cd69443004dcb9c4f555c2dbb714e1460abcdcf5c3b442af",
+  "site_source": "LITERATURE_PROXY",
+  "config": {
+    "sim": {
+      "begin_s": 0,
+      "end_s": 900.0,
+      "step_length_s": 0.1,
+      "lateral_resolution_m": 0.4,
+      "fcd_radius_m": 120,
+      "device_rerouting": false,
+      "ssm": {
+        "mode": "off"
+      },
+      "aggregate_warnings": 20
+    },
+    "seeds": {
+      "dev": [
+        1,
+        2,
+        3
+      ],
+      "benchmark_n": 20
+    },
+    "observation": {
+      "queue_range_m": 80
+    },
+    "backend": "libsumo",
+    "budget": {
+      "sumo_runs": null
+    },
+    "data_split": {
+      "calibration_days": [
+        "PROXY_D1",
+        "PROXY_D2",
+        "PROXY_D3"
+      ],
+      "validation_days": [
+        "PROXY_D4",
+        "PROXY_D5"
+      ]
+    },
+    "score": {
+      "weights": null,
+      "geh_gate": {
+        "threshold": 5,
+        "min_share": 0.85
+      }
+    },
+    "validity": {
+      "max_noncollision_teleports": 0,
+      "max_end_backlog": 0,
+      "max_collisions_per_hour": 3,
+      "max_intervened_collisions": 1
+    }
+  },
+  "sumo_options": {
+    "net-file": "D:\\hust-master\\Thesis\\SUMO\\scenario\\net\\site.proxy.net.xml",
+    "route-files": "D:\\hust-master\\Thesis\\SUMO\\experiments\\runs\\phase3\\r21\\routes\\target_seed01.rou.xml",
+    "additional-files": "D:\\hust-master\\Thesis\\SUMO\\rules\\compiled\\B0\\vtypes.add.xml,D:\\hust-master\\Thesis\\SUMO\\experiments\\runs\\phase3\\r21\\B0__PHASE3_target\\seed_01\\outputs.add.xml",
+    "fcd-output": "fcd.xml.gz",
+    "fcd-output.attributes": "x,y,angle,type,speed,pos,lane,posLat,speedLat,acceleration",
+    "fcd-output.filter-shapes": "fcd_zone",
+    "tripinfo-output": "tripinfo.xml",
+    "lanechange-output": "lanechange.xml",
+    "collision-output": "collisions.xml",
+    "statistic-output": "statistics.xml",
+    "begin": "0",
+    "end": "900.0",
+    "step-length": "0.1",
+    "lateral-resolution": "0.4",
+    "device.rerouting.probability": "0",
+    "aggregate-warnings": "20",
+    "no-step-log": "true",
+    "seed": "1"
+  },
+  "ssm_n_explicit": 0,
+  "wall_time_s": 69.54,
+  "n_teleports": 0,
+  "n_teleports_noncollision": 0,
+  "teleports": {
+    "total": 0.0,
+    "jam": 0.0,
+    "yield": 0.0,
+    "wrongLane": 0.0
+  },
+  "n_collisions": 0,
+  "collisions": {
+    "statistics": 0,
+    "collision_output_records": 0
+  },
+  "collisions_by_class": {
+    "rear_end": 0,
+    "lateral": 0,
+    "junction": 0,
+    "other": 0
+  },
+  "n_collisions_intervened": 0,
+  "interventions": null,
+  "interventions_log": null,
+  "controller_wall_s": null,
+  "safety": {
+    "collisions": 0.0,
+    "emergencyStops": 0.0,
+    "emergencyBraking": 0.0
+  },
+  "insertion_backlog": 0,
+  "insertion_backlog_max": 1,
+  "vehicles": {
+    "loaded": 1863.0,
+    "inserted": 1862.0,
+    "running": 169.0,
+    "waiting": 0.0
+  },
+  "n_warnings": 0,
+  "n_errors": 0,
+  "warnings_top": {},
+  "valid_strict": true,
+  "valid": true,
+  "invalid_reasons": [],
+  "observed_schema": {
+    "signal_events": 88,
+    "stopline_crossings": 1756,
+    "turn_counts": 31,
+    "traversals": 1756,
+    "queue_snapshots": 28,
+    "lateral_snapshots": 884,
+    "box_queue": 7
+  }
+}

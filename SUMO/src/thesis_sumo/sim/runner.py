@@ -51,7 +51,7 @@ import sumolib
 from lxml import etree
 
 from thesis_sumo.config import REPO_ROOT, Site, load_experiment, load_site
-from thesis_sumo.net.apply_patches import site_net_name
+from thesis_sumo.net.apply_patches import gui_highlight_name, site_net_name
 from thesis_sumo.runtime.controller import LOG_NAME as INTERVENTIONS_LOG
 from thesis_sumo.runtime.controller import make_controller
 from thesis_sumo.sim.outputs import VTYPES_JSON, to_observed_schema
@@ -340,7 +340,9 @@ def run(spec_id: str, day: str, seed: int, use_gui: bool = False, site_path: Pat
         controller_factory = partial(make_controller, seed=int(seed), radius_m=float(exp["sim"]["fcd_radius_m"]))
 
     t0 = time.perf_counter()
-    cfg = write_sumocfg(run_dir, inputs.net, inputs.routes, [inputs.vtypes], seed, exp)
+    # sumo-gui also draws the continuous right-turn lanes in yellow (display only, never in a batch run)
+    gui_add = [p for p in [inputs.net.with_name(gui_highlight_name(inputs.site))] if use_gui and p.is_file()]
+    cfg = write_sumocfg(run_dir, inputs.net, inputs.routes, [inputs.vtypes, *gui_add], seed, exp)
     sim = _simulate(cfg, float(exp["sim"]["end_s"]), backend_name, use_gui, controller_factory, inputs)
     wall = time.perf_counter() - t0
 

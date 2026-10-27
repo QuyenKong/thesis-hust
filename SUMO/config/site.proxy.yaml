@@ -36,12 +36,12 @@ approaches:
     lane_widths_m: [3.5, 3.5, 3.5]
     lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m; BRT lane >= 3.50 m); lane count [S3] OSM, [S4] VietnamFinance 2026"
     lane_widths_m_evidence: literature
-    lane_movements: [[r], [s], [s, u]]
+    lane_movements: [[r], [s], [s, l, u]]
     lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
-    left_turn_banned: true
-    left_turn_banned_source: "assumed: no source found on turn bans at LVL x HDT [S3][S9]; Hanoi bans left turns at nearby arterial junctions [S9][S10]; inbound AM-peak LVL approach chosen as the focus approach"
-    left_turn_banned_evidence: assumed
+    left_turn_banned: false
+    left_turn_banned_source: "Viktor, 2026-10-28 (field): the only left-turn bans at the junction are Hoang Minh Giam (HDT_N) -> LVL and Nguyen Tuan (HDT_S) -> LVL; LVL -> Nguyen Tuan and LVL -> Hoang Minh Giam are permitted and signal controlled (protected left arrow, both LVL lefts together, LVL straight red meanwhile)"
+    left_turn_banned_evidence: field_observation
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
@@ -73,8 +73,8 @@ approaches:
     lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
     left_turn_banned: false
-    left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
-    left_turn_banned_evidence: assumed
+    left_turn_banned_source: "Viktor, 2026-10-28 (field): the only left-turn bans at the junction are Hoang Minh Giam (HDT_N) -> LVL and Nguyen Tuan (HDT_S) -> LVL; LVL -> Nguyen Tuan and LVL -> Hoang Minh Giam are permitted and signal controlled (protected left arrow, both LVL lefts together, LVL straight red meanwhile)"
+    left_turn_banned_evidence: field_observation
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
@@ -84,9 +84,15 @@ approaches:
     right_lane_separator: bollards
     right_lane_separator_source: "Viktor, 2026-10-26 (answer to the F2-net question): the continuous right-turn lane is separated from the through lanes by bollards / a hard separator, so nobody goes straight from it (none | paint | bollards)"
     right_lane_separator_evidence: field_observation
-    sidewalk_width_m: null         # no source: kept null (the sidewalk lane is built only on f2_measured_approaches)
-    sidewalk_start_m: null         # not an f2_measured_approaches approach: no sidewalk lane
-    sidewalk_speed_mps: null       # not an f2_measured_approaches approach: no sidewalk lane
+    sidewalk_width_m: 3.0
+    sidewalk_width_m_source: "assumed: same as LVL_W (Phase 3B setting, docs/research/phase3b_sidewalk.md); Viktor 2026-10-28 (field): riders also use the sidewalk on LVL_E to turn right into Hoang Minh Giam; usable width unknown (TODO_MEASURE)"
+    sidewalk_width_m_evidence: assumed
+    sidewalk_start_m: 170
+    sidewalk_start_m_source: "assumed: same as LVL_W (Phase 3B setting); where riders get on at LVL_E is unknown (TODO_MEASURE)"
+    sidewalk_start_m_evidence: assumed
+    sidewalk_speed_mps: 5.0
+    sidewalk_speed_mps_source: "assumed: same as LVL_W (Phase 3B setting); riding speed unknown (TODO_MEASURE)"
+    sidewalk_speed_mps_evidence: assumed
     bollard_length_m: 30
     bollard_length_m_source: "assumed: modelling setting of the Phase 3A experiment (docs/research/phase3a_right_lane_blocking.md, experiments/phase3a/right_lane_blocking.py: L = 30 m and 60 m tested; 30 m taken, the shorter one); no source on the bollard length at LVL x HDT (TODO_MEASURE in site.yaml)"
     bollard_length_m_evidence: assumed
@@ -96,12 +102,12 @@ approaches:
     lane_widths_m: [3.5, 3.5, 3.5]
     lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
     lane_widths_m_evidence: literature
-    lane_movements: [[r], [s], [s, l, u]]
-    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
+    lane_movements: [[r], [s], [s, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (U-turn from lane 2, straight from lanes 1-2; the left is banned, so in no lane); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
-    left_turn_banned: false
-    left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
-    left_turn_banned_evidence: assumed
+    left_turn_banned: true
+    left_turn_banned_source: "Viktor, 2026-10-28 (field): the only left-turn bans at the junction are Hoang Minh Giam (HDT_N) -> LVL and Nguyen Tuan (HDT_S) -> LVL; LVL -> Nguyen Tuan and LVL -> Hoang Minh Giam are permitted and signal controlled (protected left arrow, both LVL lefts together, LVL straight red meanwhile)"
+    left_turn_banned_evidence: field_observation
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
@@ -123,12 +129,12 @@ approaches:
     lane_widths_m: [3.5, 3.5, 3.5]
     lane_widths_m_source: "[S1] TCVN 13592:2022 cl. 9.2.3 Table 10 (main street 3.50 m); HDT taken as main street (OSM highway=primary, maxspeed 60) [S3]; lane count [S3]"
     lane_widths_m_evidence: literature
-    lane_movements: [[r], [s], [s, l, u]]
-    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (left and U-turn from lane 2, straight from lanes 1-2); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
+    lane_movements: [[r], [s], [s, u]]
+    lane_movements_source: "assumed: lane markings at LVL x HDT unknown (OSM approach ways have no turn:lanes tag [S3]); follows the netconvert connection layout of site.proxy.net.xml (U-turn from lane 2, straight from lanes 1-2; the left is banned, so in no lane); lane 0 = the continuous right-turn lane (continuous_right_lane, PLAN 0), right turn only"
     lane_movements_evidence: assumed
-    left_turn_banned: false
-    left_turn_banned_source: "assumed: OSM has l-connections and no restriction relation at this junction [S3]; no ban found in news"
-    left_turn_banned_evidence: assumed
+    left_turn_banned: true
+    left_turn_banned_source: "Viktor, 2026-10-28 (field): the only left-turn bans at the junction are Hoang Minh Giam (HDT_N) -> LVL and Nguyen Tuan (HDT_S) -> LVL; LVL -> Nguyen Tuan and LVL -> Hoang Minh Giam are permitted and signal controlled (protected left arrow, both LVL lefts together, LVL straight red meanwhile)"
+    left_turn_banned_evidence: field_observation
     u_turn_banned: false
     u_turn_banned_source: "assumed: OSM has t-connections and no restriction relation at this junction [S3]; no ban found in news"
     u_turn_banned_evidence: assumed
@@ -173,7 +179,9 @@ exits:
 
 # Phases: green_movements / yellow_movements are "<approach_id>:<dir>", dir = SUMO connection dir
 # (r right, s straight, l left, t turnaround). Movements not listed are red. Durations sum to cycle_s.
-# LVL_W:l stays in the LVL green phase: after the ban it is the custom1-only (illegal) link (PLAN 1.4).
+# Three stages (Viktor 2026-10-28, field): LVL straight; LVL protected left (both LVL lefts together, LVL straight
+# red); Hoang Minh Giam / Nguyen Tuan (HDT_N / HDT_S). HDT_N:l and HDT_S:l are banned: they stay in the HDT green
+# phase as the custom1-only (illegal) links (PLAN 1.4). The LVL U-turns (lane 2, like the left) go with the left arrow.
 # The `:r` entries of continuous_right_lane approaches are not used: that link is `g` (green, yield) in every
 # phase (PLAN 1.4); they are kept so that continuous_right_lane: false gives the signal-controlled right turn back.
 signal:
@@ -183,15 +191,27 @@ signal:
   cycle_s_evidence: literature_transferred
   cycle_s_transfer_note: "site: 120 s is the top of the TCCS normal range, chosen because the measured cycle at Lang Ha x Lang (another junction on the corridor) is 127 s"
   phases:
-    - name: LVL_green
-      duration_s: 64
-      green_movements: [LVL_W:r, LVL_W:s, LVL_W:l, LVL_W:t, LVL_E:r, LVL_E:s, LVL_E:l, LVL_E:t]
+    - name: LVL_straight
+      duration_s: 42
+      green_movements: [LVL_W:r, LVL_W:s, LVL_E:r, LVL_E:s]
       yellow_movements: []
-    - name: LVL_yellow
+    - name: LVL_straight_yellow
       duration_s: 4
       green_movements: []
-      yellow_movements: [LVL_W:r, LVL_W:s, LVL_W:l, LVL_W:t, LVL_E:r, LVL_E:s, LVL_E:l, LVL_E:t]
-    - name: LVL_allred
+      yellow_movements: [LVL_W:r, LVL_W:s, LVL_E:r, LVL_E:s]
+    - name: LVL_straight_allred
+      duration_s: 2
+      green_movements: []
+      yellow_movements: []
+    - name: LVL_left
+      duration_s: 16
+      green_movements: [LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t]
+      yellow_movements: []
+    - name: LVL_left_yellow
+      duration_s: 4
+      green_movements: []
+      yellow_movements: [LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t]
+    - name: LVL_left_allred
       duration_s: 2
       green_movements: []
       yellow_movements: []
@@ -207,21 +227,21 @@ signal:
       duration_s: 2
       green_movements: []
       yellow_movements: []
-  phases_source: "2 phases: [S2] TCCS 24 cl. 6.4.2 (urban 3-4 arm junction >= 2 phases), OSM/netconvert guess is 2-phase; yellow 4 s: [S2] cl. 6.7.6 (4 s for V <= 60 km/h, OSM maxspeed 60 [S3]); all-red 2 s: assumed, consistent with [S2] Annex G intergreen 11 s per 2-phase cycle; green split 64/44 s: assumed (LVL radial artery gets more green in AM peak [S6])"
+  phases_source: "stage structure: Viktor 2026-10-28 (field, not measured): protected left arrow for both LVL lefts, LVL straight red during it; yellow 4 s: [S2] cl. 6.7.6 (4 s for V <= 60 km/h, OSM maxspeed 60 [S3]); all-red 2 s: assumed; green splits 42 / 16 / 44 s: assumed (the former LVL green of 64 s split into straight 42 s and left 16 s plus one more intergreen of 6 s; HDT green unchanged; durations TODO_MEASURE)"
   phases_evidence: assumed
 
 illegal_left:
-  approaches: [LVL_W]
-  approaches_source: "assumed: follows left_turn_banned of LVL_W; box-waiting by motorcycles observed at Hanoi signalised junctions [S5]"
+  approaches: [HDT_N, HDT_S]
+  approaches_source: "assumed: the two left_turn_banned approaches (Viktor 2026-10-28: bans only on Hoang Minh Giam -> LVL and Nguyen Tuan -> LVL); that violators turn left there and wait in the box is assumed from box-waiting by motorcycles observed at Hanoi signalised junctions [S5]"
   approaches_evidence: assumed
   vclass: custom1
   mode: native
-  mode_source: "experiments/phase3/box_capacity.py (results_native.csv), ../docs/research/phase3_box_capacity.md: native SUMO box capacity 8 halting moto_violators with B0 vTypes (5 seeds x 900 s) >= M7 target mean 6 (data/proxy/targets.yaml); target p90 10 reached with custom1 minGap 1.8 m (measured 10) and exceeded at 1.0 m (measured 12)"
+  mode_source: "measured on the LVL_W left (the illegal-left approach before 2026-10-28), not yet re-checked on the HDT_N / HDT_S lefts: experiments/phase3/box_capacity.py (results_native.csv), ../docs/research/phase3_box_capacity.md: native SUMO box capacity 8 halting moto_violators with B0 vTypes (5 seeds x 900 s) >= M7 target mean 6 (data/proxy/targets.yaml); target p90 10 reached with custom1 minGap 1.8 m (measured 10) and exceeded at 1.0 m (measured 12)"
   mode_evidence: experiment
 
 violator_classes:              # vClasses of the violator vTypes (PLAN 0; not field data, same as config/site.yaml)
   moto: custom1
   car: custom2
-f2_measured_approaches: [LVL_W]
-f2_measured_approaches_source: "assumed (ruling R39: Phase 3A/3B go into the proxy net with assumed values): LVL_W = the focus inbound AM-peak approach (left_turn_banned, illegal_left.approaches); which approach riders use the sidewalk on is unknown (TODO_MEASURE)"
+f2_measured_approaches: [LVL_W, LVL_E]
+f2_measured_approaches_source: "Viktor, 2026-10-28 (field, not measured): riders use the sidewalk on Le Van Luong in both directions, LVL_W to go straight or right into Nguyen Tuan, LVL_E to go straight or right into Hoang Minh Giam; sidewalk geometry assumed (ruling R39)"
 f2_measured_approaches_evidence: assumed

@@ -1,26 +1,6 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
-\section*{Quy định chung}
-
-\section{Ngành học}
-
-\section{Đánh dấu (bullet) và đánh số (numering)}
-
-\section{Cách thêm bảng}
-
-\section{Chèn hình ảnh}
-
-\section{Tài liệu tham khảo}
-
-\paragraph{Cách liệt kê}\mbox{}
-
-\paragraph{Các loại tài liệu tham khảo}\mbox{}
-
-\section{Cách viết phương trình và công thức toán học}
-
-\section{Qui cách đóng quyển}
-
 % Nguồn: D:/hust-master/Thesis/SUMO/rules/bounds/param_bounds.yaml và rules/specs/B1_manual.json.
 % Giá trị chép nguyên từ tệp, chỉ đổi dấu thập phân sang dấu phẩy.
 \section{Miền giá trị tham số vType}
@@ -116,5 +96,36 @@ Bộ luật thủ công B1 (\texttt{spec\_id} \texttt{B1\_manual}, nguồn \text
 \end{table}
 
 B1 không có luật \texttt{illegal\_\allowbreak left\_\allowbreak box}, vì mô hình của Saval và cộng sự không có hành vi chờ giữa nút; vùng chờ của B1 vận hành theo cơ chế sẵn có của SUMO như B0. B1 cũng không có luật \texttt{slow\_\allowbreak lane\_\allowbreak center}; luật duy nhất áp dụng cho ô tô là \texttt{queue\_\allowbreak space\_\allowbreak seeking} (qua nguyên mẫu \texttt{car\_seeker}), hiện ở trạng thái tắt.
+
+
+\section{Kết quả từng đặc tả đã đánh giá}
+\label{section:appendix_specs}
+
+Bảng~\ref{table:4.interim_specs} liệt kê từng đặc tả đã đánh giá tại 27/10/2026 (Mục~\ref{subsection:interim}). Đơn vị: va chạm/h, teleport/h. Mọi đặc tả bị loại bởi tiêu chí đủ điều kiện. Nguồn: \texttt{report/2026-10-27/data/campaign\_specs.csv} và chiến dịch REF.
+
+\begin{table}[H]
+\centering
+\footnotesize\setlength{\tabcolsep}{3pt}
+\caption{Từng đặc tả đã đánh giá.}
+\label{table:4.interim_specs}
+\begin{tabular}{|p{1.2cm}|p{2.6cm}|p{1.5cm}|p{1.6cm}|p{1.6cm}|p{1.3cm}|p{1.6cm}|p{1.6cm}|}
+\hline
+\textbf{Chiến dịch} & \textbf{Đặc tả} & \textbf{Va chạm làn} & \textbf{Va chạm tổng} & \textbf{Teleport kẹt} & \textbf{$S$} & \textbf{$S_{\text{sourced}}$} & \textbf{$S_{\text{assumed}}$} \\ \hline
+B2 & \texttt{B2\_t000} & 29,3 & 168,0 & 27,3 & 1,302 & 0,547 & 0,754 \\ \hline
+B2 & \texttt{B2\_t001} & 7,3 & 128,0 & 60,0 & 1,356 & 0,531 & 0,825 \\ \hline
+B2 & \texttt{B2\_t002} & 9,3 & 113,3 & 43,3 & 1,286 & 0,519 & 0,768 \\ \hline
+B2 & \texttt{B2\_t003} & 2,0 & 96,7 & 20,0 & 1,233 & 0,511 & 0,722 \\ \hline
+B2 & \texttt{B2\_t004} & 14,0 & 115,3 & 43,3 & 1,523 & 0,522 & 1,002 \\ \hline
+B2 & \texttt{B2\_t005} & 7,3 & 112,0 & 13,3 & 1,228 & 0,513 & 0,715 \\ \hline
+B2 & \texttt{B2\_t006} & 12,7 & 110,0 & 50,0 & 1,428 & 0,526 & 0,902 \\ \hline
+B2 & \texttt{B2\_t007} & 2,7 & 93,3 & 38,0 & 1,182 & 0,490 & 0,692 \\ \hline
+B2 & \texttt{B2\_t008} & 21,3 & 120,0 & 49,3 & 1,450 & 0,502 & 0,948 \\ \hline
+B2 & \texttt{B2\_t009} & 9,3 & 100,0 & 31,3 & 1,361 & 0,516 & 0,844 \\ \hline
+B2 & \texttt{B2\_t010} & 46,0 & 166,0 & 12,0 & 1,374 & 0,526 & 0,848 \\ \hline
+B2 & \texttt{B2\_t011} & 3,3 & 90,7 & 76,7 & 1,262 & 0,533 & 0,729 \\ \hline
+REF & \texttt{B0} & 2,0 & 112,7 & 10,7 & 1,181 & 0,501 & 0,680 \\ \hline
+REF & \texttt{B1\_manual} & 0,0 & 107,3 & 45,3 & 1,216 & 0,525 & 0,691 \\ \hline
+\end{tabular}
+\end{table}
 
 \end{document}

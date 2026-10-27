@@ -3,11 +3,18 @@
 Thesis project: a local LLM generates and iteratively refines driver-behaviour rules (vType params +
 TraCI conditional rules) for SUMO, to make a micro-simulation of mixed car/motorcycle traffic at
 **Le Van Luong x Hoang Dao Thuy** (Thanh Xuan, Hanoi), AM peak 07:30–09:00, more realistic.
-Focus scenario: illegal left turns that wait inside the junction box.
+The scenario covers all 11 behaviours in PLAN §0; illegal left turns that wait inside the junction box
+are one of them, not a separate focus. Goal: reproduce road-user behaviour at the junction as closely as possible.
 
 `PLAN.md` is the source of truth (scope, decisions, phases). Work phase by phase; after each phase
 report what was done, commands to reproduce, criteria met/unmet, assumptions, remaining `TODO_MEASURE`,
 and wait for confirmation. Phase 3 and the end of Phase 5 are hard stops.
+
+## Writing documents
+
+Before any action that writes or edits prose (reports, LaTeX chapters, README, notes, long commit/PR
+text), load the `writing-docs-viktor` skill and follow it strictly. It does not apply to code or prompts.
+Run its checklist before delivering the text.
 
 ## Rules (PLAN §1)
 

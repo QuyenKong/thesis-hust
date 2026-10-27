@@ -20,7 +20,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     lane_widths_m: null        # TODO_MEASURE, list per lane
     lane_movements: null       # TODO_MEASURE: per lane (index 0 = rightmost), permitted movements r/s/l/u from markings
                                # (continuous_right_lane: lane 0 = [r])
-    left_turn_banned: null     # TODO_MEASURE
+    left_turn_banned: false    # Viktor 2026-10-28 (field): LVL -> Hoang Minh Giam permitted, protected left arrow
     u_turn_banned: null        # TODO_MEASURE
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
@@ -36,7 +36,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     edge: "37876499#0"         # arm from NE (Task 2)
     lane_widths_m: null        # TODO_MEASURE
     lane_movements: null       # TODO_MEASURE
-    left_turn_banned: null     # TODO_MEASURE
+    left_turn_banned: false    # Viktor 2026-10-28 (field): LVL -> Nguyen Tuan permitted, protected left arrow
     u_turn_banned: null        # TODO_MEASURE
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
@@ -52,7 +52,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     edge: "953158817#2"        # arm from NW; includes unnamed OSM way 1071601648 (= HDT, Task 2)
     lane_widths_m: null        # TODO_MEASURE
     lane_movements: null       # TODO_MEASURE
-    left_turn_banned: null     # TODO_MEASURE
+    left_turn_banned: true     # Viktor 2026-10-28 (field): Hoang Minh Giam -> LVL banned
     u_turn_banned: null        # TODO_MEASURE
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
@@ -68,7 +68,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     edge: "1346358303"         # arm from SE (Task 2)
     lane_widths_m: null        # TODO_MEASURE
     lane_movements: null       # TODO_MEASURE
-    left_turn_banned: null     # TODO_MEASURE
+    left_turn_banned: true     # Viktor 2026-10-28 (field): Nguyen Tuan -> LVL banned
     u_turn_banned: null        # TODO_MEASURE
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
@@ -99,6 +99,8 @@ signal:
   type: static
   cycle_s: null                # TODO_MEASURE from video
   phases: null                 # TODO_MEASURE: [{name, duration_s, green_movements}], incl. yellow and all-red
+                               # stage order (Viktor 2026-10-28, field): LVL straight -> LVL left arrow (both LVL
+                               # lefts, LVL straight red) -> HDT_N / HDT_S; durations TODO_MEASURE
 
 illegal_left:
   approaches: null             # TODO_MEASURE: approaches where illegal left turns occur

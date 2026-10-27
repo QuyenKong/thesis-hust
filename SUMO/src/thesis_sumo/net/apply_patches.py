@@ -90,9 +90,14 @@ SPLIT_PASSES = 5  # netconvert passes at most: moving a split node reshapes the 
 # overlapped lane 0 and the sidewalk links were no foes of the lane-0 right turn (junction collisions); 3-4 m moved the
 # LVL_W stop line 3.6 m. 1-2 m: links of the sidewalk and of lane 0 are foes (checked in _check_site_net), every road
 # link keeps its dir, stop lines within 0.1 m of the unpatched net for LVL_W / HDT_S (LVL_E -0.7 m, HDT_N +1.6 m:
-# scenario/net/stopline_shift.csv written by thesis_sumo.net.build).
-SIDEWALK_JOG_M, SIDEWALK_JOG_LEN_M = 2.0, 6.0
+# scenario/net/stopline_shift.csv written by thesis_sumo.net.build). With the second sidewalk on LVL_E (2026-10-28)
+# 2.0 m moved the LVL_E stop line +3.9 m; 1.0 and 1.5 m give -0.7 m there and leave the other three unchanged.
+SIDEWALK_JOG_M, SIDEWALK_JOG_LEN_M = 1.5, 6.0
 UP, MID, SIDEWALK = ".up", ".mid", ".sidewalk"  # suffixes of the split / added edges
+# sumo-gui highlight of the continuous right-turn lanes (write_gui_highlight; display only). Layer checked in sumo-gui
+# 1.27 (2026-10-28 screenshots): at 1 the polygon is drawn under the road and only shows beside lane 0, at 10 it covers
+# lane 0 and the vehicles stay on top
+GUI_HIGHLIGHT_SUFFIX, GUI_HIGHLIGHT_COLOR, GUI_HIGHLIGHT_LAYER = ".gui.add.xml", "255,215,0", "10"
 BOLLARD_NODE, SIDEWALK_NODE = ".bollard", ".sidewalk_start"
 
 
@@ -408,6 +413,40 @@ def _check_site_net(out: Path, links_before: list[tuple], dirs_before: list[str]
     got = [p.state for p in program.getPhases()]
     if program.getType() != "static" or got != states:
         raise RuntimeError(f"{out}: program {program.getType()} {got} differs from the generated one {states}")
+
+
+def gui_highlight_name(site: Site) -> str:
+    return site_net_name(site).removesuffix(".net.xml") + GUI_HIGHLIGHT_SUFFIX
+
+
+def write_gui_highlight(site: Site, net_path: Path, out: Path) -> Path:
+    """sumo-gui only: paints lane 0 yellow where it is the continuous right-turn lane, i.e. beside the separator (lane 0
+    of the bollard segment, the approach edge after the split), and its right-turn path through the junction. No lane is
+    added: filled `<poly>` additionals over the existing lane 0 (sumo.dlr.de/docs/Simulation/Shapes.html: fill, layer);
+    the simulation never loads them, so they cannot change a run."""
+    vals = site_values(site)
+    net = sumolib.net.readNet(str(net_path), withInternal=True)
+    root = etree.Element("additional")
+    for a in vals["approaches"]:
+        if not (a["continuous_right_lane"] and a["bollard_length_m"]):
+            continue
+        lane0 = net.getEdge(a["edge"]).getLane(0)
+        lanes = [lane0]
+        for c in lane0.getOutgoing():
+            if movement_of(c.getDirection()) != "r" or not c.getViaLaneID():
+                continue
+            via = net.getLane(c.getViaLaneID())
+            while via.getEdge().getFunction() == "internal":  # the turn may run over an internal junction
+                lanes.append(via)
+                via = via.getOutgoing()[0].getToLane()
+        for lane in lanes:  # filled outline of the lane: its centre line shifted half a width to each side
+            shape, half = lane.getShape(), lane.getWidth() / 2
+            outline = move2side(shape, -half) + move2side(shape, half)[::-1]
+            etree.SubElement(root, "poly", id=f"continuous_right_{lane.getID()}", type="continuous_right",
+                             color=GUI_HIGHLIGHT_COLOR, fill="1", layer=GUI_HIGHLIGHT_LAYER,
+                             shape=" ".join(f"{x:.2f},{y:.2f}" for x, y in outline))
+    write_xml(root, out)
+    return out
 
 
 def build_site_net(site: Site, base: Path, out: Path) -> Path:

@@ -4,7 +4,8 @@
 
 writes into `scenario/net/` (or `--out-dir`): `base.net.xml`, `removed_nodes.csv`, `edge_table.csv`,
 `patches/base/*`, `patches/<site net stem>/*`, `site.proxy.net.xml` (proxy) or `site.net.xml`
-(measured), `stopline_shift.csv` (stop line to junction centre, site net without / with the sidewalk), `diagram.svg`, and netconvert logs in `logs/`. A required null in the site file stops the
+(measured), `stopline_shift.csv` (stop line to junction centre, site net without / with the sidewalk), `diagram.svg`,
+`<site net stem>.gui.add.xml` (sumo-gui only: continuous right-turn lanes drawn in yellow), and netconvert logs in `logs/`. A required null in the site file stops the
 build before anything is written.
 """
 
@@ -20,7 +21,14 @@ import pandas as pd
 import sumolib
 
 from thesis_sumo.config import MissingFieldDataError, Site, load_site
-from thesis_sumo.net.apply_patches import ProxySiteWarning, build_site_net, site_net_name, site_values
+from thesis_sumo.net.apply_patches import (
+    ProxySiteWarning,
+    build_site_net,
+    gui_highlight_name,
+    site_net_name,
+    site_values,
+    write_gui_highlight,
+)
 from thesis_sumo.net.build_net import NET_DIR, approach_edges, build_base, edge_table, exit_edges
 from thesis_sumo.net.diagram import draw_diagram
 
@@ -85,7 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     draw_diagram(net, out_dir / "diagram.svg", {e: a for a, e in mapping.items()},
                  (site.require("violator_classes.moto"), site.require("violator_classes.car")),
                  title=f"{site['intersection']['name']} - {net.name} ({site.source})")
-    print(f"Wrote {net} and {out_dir / 'diagram.svg'}")
+    gui = write_gui_highlight(site, net, out_dir / gui_highlight_name(site))
+    print(f"Wrote {net}, {out_dir / 'diagram.svg'} and {gui} (sumo-gui: continuous right-turn lanes in yellow)")
     return 0
 
 

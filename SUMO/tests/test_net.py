@@ -156,7 +156,7 @@ def test_edges_mapped_and_inbound(site_net, proxy):
     edges = [a["edge"] for a in proxy["approaches"]]
     sidewalks = {f"{a['edge']}.sidewalk": a["id"] for a in proxy["approaches"] if a["id"] in
                  proxy["f2_measured_approaches"]}
-    assert sidewalk_edges(site_net) == sidewalks and len(sidewalks) == 1
+    assert sidewalk_edges(site_net) == sidewalks and len(sidewalks) == len(proxy["f2_measured_approaches"]) >= 1
     assert len(set(edges)) == 4 and set(edges) | set(sidewalks) == incoming
     assert approach_edges(site_net) == {a["id"]: a["edge"] for a in proxy["approaches"]}
 
@@ -515,38 +515,40 @@ def test_sidewalk_edge_custom1_only_with_pinned_links(built, site_net, proxy):
     stop line - sidewalk_start_m to the junction, entered from lane 0 of the upstream segment only, with its own TLS
     links appended after the unchanged road links: right = g always, straight = the approach's straight state."""
     out_dir, _ = built
-    (app,) = [a for a in proxy["approaches"] if a["id"] in proxy["f2_measured_approaches"]]
-    sw = site_net.getEdge(app["edge"] + ".sidewalk")
-    (lane,) = sw.getLanes()
-    assert lane.getPermissions() == {"custom1"} and not sw.getName()
-    assert round(lane.getWidth(), 2) == app["sidewalk_width_m"] and round(lane.getSpeed(), 2) == app["sidewalk_speed_mps"]
-    assert sw.getFromNode().getID() == app["edge"] + ".sidewalk_start"
-    mid, up = site_net.getEdge(app["edge"] + ".mid"), site_net.getEdge(app["edge"] + ".up")
-    start = sum(e.getLanes()[0].getLength() for e in (site_net.getEdge(app["edge"]), mid)) + 0.1  # + bollard node
-    assert abs(start - app["sidewalk_start_m"]) <= 0.25
-    into_sw = [c for c in up.getOutgoing()[sw]]
-    assert [(c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in into_sw] == [(0, 0)]
-    assert sorted((c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in up.getOutgoing()[mid]) == \
-        [(0, 0), (1, 1), (2, 2)]
-    # road links keep the base net's link indices; the two sidewalk links come last
+    apps = [a for a in proxy["approaches"] if a["id"] in proxy["f2_measured_approaches"]]
+    assert apps
+    # road links keep the base net's link indices; the two links of each sidewalk come last
     base = sumolib.net.readNet(str(out_dir / "base.net.xml"), withPrograms=True)
     key = lambda il, ol: (il.getEdge().getID(), il.getIndex(), ol.getEdge().getID(), ol.getIndex())
     before = sorted((i, key(il, ol)) for il, ol, i in target_tls(base).getConnections())
     after = sorted((i, key(il, ol)) for il, ol, i in target_tls(site_net).getConnections())
-    assert after[:len(before)] == before and len(after) == len(before) + 2
-    exits = {movement_of(c.getDirection()): (i, c.getTo().getID()) for i, (_, k) in enumerate(after[len(before):])
-             for c in sw.getOutgoing()[site_net.getEdge(k[2])]}
-    conns = _conns_from(site_net, app["edge"])
-    road = {movement_of(c.getDirection()): c.getTo().getID() for c in conns if movement_of(c.getDirection()) in "rs"}
-    assert {m: e for m, (_, e) in exits.items()} == road
-    straight = next(c.getTLLinkIndex() for c in conns if c.getFromLane().getIndex() == 1 and movement_of(c.getDirection()) == "s")
-    for state in _states(site_net):  # exits[mv][0] = offset after the road links
-        assert state[len(before) + exits["r"][0]] == "g"
-        assert state[len(before) + exits["s"][0]] == state[straight]
-    assert "G" in {s[len(before) + exits["s"][0]] for s in _states(site_net)}  # priority over the road (3B)
-    for c in sw.getOutgoing().values():
-        for x in c:
-            assert site_net.getLane(x.getViaLaneID()).getPermissions() == {"custom1"}
+    assert after[:len(before)] == before and len(after) == len(before) + 2 * len(apps)
+    for app in apps:
+        sw = site_net.getEdge(app["edge"] + ".sidewalk")
+        (lane,) = sw.getLanes()
+        assert lane.getPermissions() == {"custom1"} and not sw.getName()
+        assert round(lane.getWidth(), 2) == app["sidewalk_width_m"] and round(lane.getSpeed(), 2) == app["sidewalk_speed_mps"]
+        assert sw.getFromNode().getID() == app["edge"] + ".sidewalk_start"
+        mid, up = site_net.getEdge(app["edge"] + ".mid"), site_net.getEdge(app["edge"] + ".up")
+        start = sum(e.getLanes()[0].getLength() for e in (site_net.getEdge(app["edge"]), mid)) + 0.1  # + bollard node
+        assert abs(start - app["sidewalk_start_m"]) <= 0.25
+        into_sw = [c for c in up.getOutgoing()[sw]]
+        assert [(c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in into_sw] == [(0, 0)]
+        assert sorted((c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in up.getOutgoing()[mid]) ==             [(0, 0), (1, 1), (2, 2)]
+        exits = {movement_of(c.getDirection()): (i, c.getTo().getID()) for i, (_, k) in enumerate(after[len(before):])
+                 if k[0] == sw.getID() for c in sw.getOutgoing()[site_net.getEdge(k[2])]}
+        conns = _conns_from(site_net, app["edge"])
+        road = {movement_of(c.getDirection()): c.getTo().getID() for c in conns if movement_of(c.getDirection()) in "rs"}
+        assert {m: e for m, (_, e) in exits.items()} == road
+        straight = next(c.getTLLinkIndex() for c in conns
+                        if c.getFromLane().getIndex() == 1 and movement_of(c.getDirection()) == "s")
+        for state in _states(site_net):  # exits[mv][0] = offset after the road links
+            assert state[len(before) + exits["r"][0]] == "g"
+            assert state[len(before) + exits["s"][0]] == state[straight]
+        assert "G" in {s[len(before) + exits["s"][0]] for s in _states(site_net)}  # priority over the road (3B)
+        for c in sw.getOutgoing().values():
+            for x in c:
+                assert site_net.getLane(x.getViaLaneID()).getPermissions() == {"custom1"}
     assert sorted(p.name for p in (out_dir / "patches" / "site.proxy").iterdir()) == [
         "bollards.edg.xml", "lanes.edg.xml", "sidewalk.con.xml", "sidewalk.edg.xml", "signal.tll.xml",
         "split.edg.xml", "turns.con.xml"]
