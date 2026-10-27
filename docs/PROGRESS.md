@@ -645,6 +645,25 @@ Implementer (một lần dừng vì limit, đã resume) · review "changes reque
 
 **Kiểm tra (PROXY_D1, seed 1, 1800 s):** B1 (p = 0): 0 sự kiện F2. SEEK (p_right 0,3, p_sidewalk 0,3): 66 lượt chiếm làn rẽ phải, 2 lượt vỉa hè; 207/633 xe rẽ phải bị chặn, trễ 48 s (proxy ~20 s); M9a 1,13 xe/chu kỳ (proxy 0,22–0,41). Cả hai run quá tải (R42): hàng chờ ≥ 80 m ở 64–75 % thời gian.
 
+### 2026-10-27 — R28 đóng băng trên mạng cuối (F2)
+
+Lệnh: `.venv/bin/python -m thesis_sumo.sim.runner --spec B0 --day PROXY_Dk --seeds 1 2 3 --site config/site.proxy.yaml --nproc 3 --ssm off` (k = 1–3 song song; 1800 s; check-junctions bật; log `experiments/operator/task9/linux_f2_run_*.txt`; record `experiments/runs/B0__PROXY_D*` thay record trước F2).
+
+| Ngày / seed | Lane | Junction | Teleport (tổng / không do va chạm) | Backlog cuối | Wall (s) |
+|---|---|---|---|---|---|
+| D1 / 1 | 2 | 41 | 59 / 16 | 339 | 419 |
+| D1 / 2 | 0 | 53 | 79 / 26 | 101 | 342 |
+| D1 / 3 | 2 | 54 | 56 / 0 | 0 | 242 |
+| D2 / 1 | 0 | 47 | 47 / 0 | 0 | 126 |
+| D2 / 2 | 0 | 69 | 69 / 0 | 0 | 159 |
+| D2 / 3 | 1 | 63 | 91 / 27 | 51 | 340 |
+| D3 / 1 | 1 | 78 | 79 / 0 | 0 | 158 |
+| D3 / 2 | 0 | 63 | 78 / 15 | 0 | 272 |
+| D3 / 3 | 0 | 53 | 60 / 7 | 0 | 214 |
+
+- Quy về /h: lane 4, 0, 4, 0, 0, 2, 2, 0, 0 (p90 4,0; trung bình 1,3 → cổng R17 ≤ 5/h ĐẠT); junction 82–156 (p90 141,6).
+- **Đóng băng trong `experiment.yaml`:** `max_collisions_per_hour: 4`, `max_junction_collisions_per_hour: 142`, trước vòng LLM 1, không đổi sau khi thấy kết quả LLM. Không run B0 nào ELIGIBLE (va chạm junction / teleport / backlog) → chọn spec theo R32 khi cần (R42).
+
 ### Bước tiếp theo
 
 - Operator đang tính lại hai ngưỡng va chạm (lane và junction) với `check-junctions` BẬT (R28): B0 trên PROXY_D1–D3 x 3 seed rồi đóng băng và commit trước vòng 1 (R24); kèm kiểm cặp seed hold so với lag 0 (R29) và một run chẩn đoán B0 D1 với time-to-teleport `-1` (R33).

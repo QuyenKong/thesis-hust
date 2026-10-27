@@ -59,8 +59,11 @@ validity:
   max_end_backlog: 0
   # R28: --collision.check-junctions is on in every run; lane and junction collisions are counted apart
   # (manifest n_collisions_lane / n_collisions_junction) and capped separately.
-  max_collisions_per_hour: null  # lane collisions. Old value 3 (R24, Task 4b: max(2, ceil(p90)) of 9 B0 rates on
-                                 # PROXY_D1-D3) was derived WITHOUT check-junctions; being re-derived by the operator
-                                 # under R28 (B0 PROXY_D1-D3 x seeds 1,2,3, check-junctions on) before round 1
-  max_junction_collisions_per_hour: null  # re-derived by operator under R28 (B0-derived max(2, ceil(p90)))
+  # FROZEN 2026-10-27 before LLM round 1 (R24/R28): max(2, ceil(p90)) of B0 rates on PROXY_D1-D3 x seeds 1-3,
+  # 1800 s, check-junctions on, final F2 net (Linux, SUMO 1.27.0; experiments/runs/B0__PROXY_D*). Lane rates
+  # 4,0,4,0,0,2,2,0,0 /h (p90 4.0); junction 82,106,108,94,138,126,156,126,106 /h (p90 141.6). Old values: 3 (lane,
+  # check-junctions off, pre-F2 net); 5 / 118 (check-junctions on, pre-F2 net, not frozen). Never changed after
+  # LLM results are seen.
+  max_collisions_per_hour: 4             # lane collisions
+  max_junction_collisions_per_hour: 142
   max_intervened_collisions: 1

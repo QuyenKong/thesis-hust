@@ -3,23 +3,23 @@
   "spec_id": "B0",
   "day": "PROXY_D2",
   "seed": 1,
-  "git_hash": "0380530bff46e626ce2309da3f7dd83514e9b464",
+  "git_hash": "8acc85c3a1ee63aeee764dbfaffedefa030bf5a0",
   "git_dirty": true,
   "sumo_version": "SUMO 1.27.0",
   "backend": "libsumo",
   "gui": false,
   "spec_dir": "rules/compiled/B0",
-  "spec_hash": "f93f71f1b79c68df9b19c4786bf7885edf082c43c4471a423652131232630a36",
+  "spec_hash": "5af9ec3b3e6a9365ff9f69df0fd073bb3a031cd97f5d32079b4669fccfef976a",
   "spec_files": {
-    "vtypes.add.xml": "3e82eec8193d19ff67d4d57aabf6aa917c88216cfe36cdbfb14ec98da36dd30b"
+    "vtypes.add.xml": "1168f1e153db7cfae47af7392236cfd424c530bee05b7c73bbd6cb2c2ea5f67b"
   },
-  "spec_json_hash": "cace0ee1527700f80b90048a70a40952f10f6339e265b4f2ccf114921a134559",
+  "spec_json_hash": "2e7800eb9d317d3c54069aaecbec4bf6377e7c5fed0d8666aed8ff25fa8ccc88",
   "net": "scenario/net/site.proxy.net.xml",
-  "net_hash": "8e248aa6330b314ae30326a35967e0bd253d600671fccf7b2c0f37f9c4756532",
+  "net_hash": "68db2c0c4975d8f810cc0c3299ed4e16b28f1e5f39250a4338c9bcde3b441821",
   "routes": "scenario/demand/routes_PROXY_D2.rou.xml",
-  "routes_hash": "0f2d6750a031352d2e2f5fe3536b2dea50beec65c705338ff70469e7637e4228",
+  "routes_hash": "6260b573e403be10b74b8411e4ecb53ba8c912df052d6dccc1d379429c40de03",
   "site_path": "config/site.proxy.yaml",
-  "site_hash": "3e6310abc8cfa14d27b9cd61a4ed447b04eb6bf7a56abf11b9dcddee22d7267f",
+  "site_hash": "ae24dfb00943b06a892e89218c3cad3add2086730c34e565f58e92f969c64219",
   "site_source": "LITERATURE_PROXY",
   "config": {
     "sim": {
@@ -28,7 +28,7 @@
       "calib_end_s": 1800,
       "step_length_s": 0.1,
       "lateral_resolution_m": 0.4,
-      "fcd_radius_m": 120,
+      "fcd_radius_m": 220,
       "device_rerouting": false,
       "ssm": {
         "mode": "off"
@@ -74,7 +74,9 @@
         "M5": 1,
         "M6": 1,
         "M7": 1,
-        "M8": 1
+        "M8": 1,
+        "M9": 1,
+        "M10": 1
       },
       "geh_gate": {
         "threshold": 5,
@@ -111,7 +113,7 @@
     "seed": "1"
   },
   "ssm_n_explicit": 0,
-  "wall_time_s": 110.55,
+  "wall_time_s": 126.21,
   "n_teleports": 47,
   "n_teleports_noncollision": 0,
   "teleports": {
@@ -127,8 +129,8 @@
   },
   "collisions_by_class": {
     "rear_end": 0,
-    "lateral": 3,
-    "junction": 44,
+    "lateral": 4,
+    "junction": 43,
     "other": 0
   },
   "n_collisions_lane": 0,
@@ -140,23 +142,23 @@
   "safety": {
     "collisions": 47.0,
     "emergencyStops": 0.0,
-    "emergencyBraking": 2.0
+    "emergencyBraking": 26.0
   },
   "insertion_backlog": 0,
   "insertion_backlog_max": 2,
   "vehicles": {
-    "loaded": 3782.0,
-    "inserted": 3765.0,
-    "running": 159.0,
+    "loaded": 3768.0,
+    "inserted": 3756.0,
+    "running": 321.0,
     "waiting": 0.0
   },
-  "n_warnings": 96,
+  "n_warnings": 120,
   "n_errors": 0,
   "warnings_top": {
     "Warning: Vehicle '*' ends teleporting on edge '*', time=#.": 47,
-    "Warning: Teleporting vehicle '*'; junction collision with vehicle '*', lane='*', gap=-#, latGap=#, time=#, stage=move.": 44,
-    "Warning: Teleporting vehicle '*'; side collision with vehicle '*', lane='*', gap=-#, latGap=#, time=#, stage=laneChange.": 3,
-    "Warning: Vehicle '*' performs emergency braking on lane '*' with decel=#, wished=#, severity=#, time=#.": 2
+    "Warning: Teleporting vehicle '*'; junction collision with vehicle '*', lane='*', gap=-#, latGap=#, time=#, stage=move.": 43,
+    "Warning: Vehicle '*' performs emergency braking on lane '*' with decel=#, wished=#, severity=#, time=#.": 26,
+    "Warning: Teleporting vehicle '*'; side collision with vehicle '*', lane='*', gap=-#, latGap=#, time=#, stage=laneChange.": 4
   },
   "valid_strict": false,
   "valid": false,
@@ -166,11 +168,14 @@
   ],
   "observed_schema": {
     "signal_events": 182,
-    "stopline_crossings": 3627,
+    "stopline_crossings": 3489,
     "turn_counts": 62,
-    "traversals": 3627,
+    "traversals": 3489,
     "queue_snapshots": 58,
-    "lateral_snapshots": 2013,
+    "lateral_snapshots": 1976,
+    "queue_timeseries": 3600,
+    "space_seeking_events": 0,
+    "right_turn_delay": 517,
     "box_queue": 15
   }
 }
