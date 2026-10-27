@@ -43,10 +43,10 @@ Cập nhật sau mỗi lượt; cập nhật lần này sau Task 9. Tất cả l
 | 8 | Compiler (Phase 4.4) | ✅ | `ad1f8bb` (`90b302c..ad1f8bb`) |
 | 9 | TraCI runtime controller và rules (Phase 4.5) | ✅ (operator đang tính lại hai ngưỡng va chạm, R28) | `ac325b4`, `4023408` (`ad1f8bb..4023408`) |
 | 10 | Metrics M1–M8, G0 và distance (Phase 5) | ✅ (Linux) | xem nhật ký 2026-10-26 |
-| 11 | Experiment harness (evaluation chung + budget counter) | ⏳ | |
-| 12 | LLM client, prompts v001, feedback | ⏳ | |
-| 13 | LLM loop — 3 vòng | ⏳ | |
-| 14 | Optuna baseline B2 | ⏳ | |
+| 11 | Experiment harness (evaluation chung + budget counter) | ✅ | `d24a13b` |
+| 12 | LLM client, prompts v001, feedback | ✅ | `481ea06` |
+| 13 | LLM loop — 3 vòng | ✅ code `81a9362`; campaign P1/P2 ⏸ 2/3 vòng (stand-in Sonnet), vòng 3 tạm dừng 27/10 | `85df4c8` |
+| 14 | Optuna baseline B2 | ✅ code `ccb7520`; campaign B2 36/36 → `B2_best.json`; H ⏳ | `85df4c8` |
 | 15 | Benchmark và report | ⏳ | |
 
 ## Quyết định đã đưa ra (rulings)
@@ -699,6 +699,12 @@ Review lần 1 "changes requested" (2 Critical: kết quả mất khi ngắt gi�
 **Đã làm:** `llm/loop.py`: `run_loop(campaign, mode, base_spec, ...)` chạy tiếp được sau khi bị ngắt (`experiments/campaigns/<c>/loop/`: `loop.json` khóa mode, base spec, ngày, seed, ngân sách, `sim_end_s`, site, mức trần B0, định danh LLM; mỗi mẫu lưu kết quả ngay sau đánh giá; `iter_{i}.json`, `convergence.csv`, `specs/`). Với backend file: hỏi mọi mẫu của một vòng trước, thiếu câu trả lời thì dừng (`LoopPending`, exit 3) và liệt kê request; `loop pending --campaign X`. Prompt = system + context + mỗi vòng trước một tin nhắn gồm spec của vòng đó và `build_feedback`. `params_only` (P1) cần base spec; `full` (P2) không nhận base. R45: chạy thêm vòng tới khi hết ngân sách, tối đa 5. Tỷ lệ hợp lệ lưu theo từng lần thử và theo mẫu.
 
 **Lệnh:** `.venv/bin/python -m thesis_sumo.llm.loop --campaign P1 --mode params_only --base rules/specs/B1_manual.json --budget 36 --site config/site.proxy.yaml --b0-lane-collisions 1.333 --nproc 9 [--write-best rules/specs/P1_best.json]`; P2: `--mode full` không `--base`. Test `tests/test_loop.py` (17); toàn bộ 367 passed, 3 xfailed.
+
+### 2026-10-27 — Campaign tạm thời, tham chiếu B0/B1, LaTeX tạm thời, video demo (tạm dừng theo yêu cầu)
+
+- **Campaign** (mỗi spec = PROXY_D1–D3 × seed 1, R44): B2 xong 36/36 (best R32 `B2_t010`: teleport kẹt/yield 12,0/h, S 1,374). P1/P2 có kết quả 2 vòng × 4 spec; vòng 3 đang chạy thì Viktor yêu cầu tạm dừng → các process loop bị SIGSTOP (chưa kill; `budget.json` P1 33/36, P2 27/36 đã trừ cho vòng 3). Spec P1/P2 do Claude Sonnet stand-in sinh.
+- **Tham chiếu chấm cùng cách** (campaign REF, `experiments/operator/ref/eval_ref.py`): B0 S 1,181, teleport 10,7/h, va chạm 112,7/h (lane 2,0); B1 S 1,216, teleport 45,3/h, va chạm 107,3/h (lane 0). Theo R32 chưa spec B2/P1 nào hơn B0; chỉ `P2_it02_s03` (7,3/h, S 1,084) hơn B0 cả hai khóa; S thấp nhất `P2_it02_s00` 1,047. Mọi spec bị loại (R42). 1 seed/ngày → chỉ báo, không phải E1/E2.
+- **LaTeX tạm thời** (chương 1, 3–6, tóm tắt, phụ lục A; chưa commit), build 87 trang, 0 lỗi. **Video demo** `report/2026-10-27/` (spec B2_best, D1, seed 1, tracking chờ giữa nút / chặn làn rẽ phải + số xe kẹt / vỉa hè; đi ngược chiều ghi "không mô phỏng"). Báo cáo ngày: `report/2026-10-27/README.md`.
 
 ### Bước tiếp theo
 

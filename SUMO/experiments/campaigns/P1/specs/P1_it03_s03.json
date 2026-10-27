@@ -1,0 +1,129 @@
+{
+ "spec_id": "P1_it03_s03",
+ "source": "llm",
+ "provenance": {
+  "model": "claude-sonnet (stand-in)",
+  "prompt_version": "v001",
+  "iteration": 3,
+  "sample_idx": 3,
+  "runtime": "file"
+ },
+ "description": "Iteration 3: best it02 spec (s02, S 1.159) pushed along its working lever: faster car-following (M1, M5, M6 still 2-5x too slow), stronger early start, higher red-running base probability with weaker swarm term (var/mean 3 vs 1.3), more sidewalk riders, quicker box release.",
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.96,
+   "params": {
+    "accel": 2.6,
+    "decel": 4.8,
+    "tau": 0.9,
+    "minGap": 1.0
+   },
+   "rationale": "Targets M1/car (sim 1.0 s vs obs 0.39 s, R 10), M5/length (57-62 m vs 13 m) and M6 car approach times: it02 cut tau 2.5->1.2 s and cut M1/car 1.6->1.0 s and M5/length 74->57 m, so the same lever is pushed further: tau 1.2->0.9 s, accel 2.0->2.6 m/s2, minGap at its 1.0 m bound; decel unchanged. Share 0.96 leaves 0.04 for car_seeker."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.04,
+   "params": {
+    "accel": 2.6,
+    "decel": 4.8,
+    "tau": 0.9,
+    "minGap": 1.0
+   },
+   "rationale": "Targets M1/car (sim 1.0 s vs obs 0.39 s, R 10), M5/length (57-62 m vs 13 m) and M6 car approach times: it02 cut tau 2.5->1.2 s and cut M1/car 1.6->1.0 s and M5/length 74->57 m, so the same lever is pushed further: tau 1.2->0.9 s, accel 2.0->2.6 m/s2, minGap at its 1.0 m bound; decel unchanged. Share lowered 0.05->0.04 to cut M9b/share_blocked (sim 0.08 vs 0.02) while M9a (0.26 vs 0.33) is kept up by moto seekers."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.85,
+   "params": {
+    "accel": 4.0,
+    "decel": 4.6,
+    "tau": 0.45,
+    "minGap": 0.8,
+    "minGapLat": 0.3
+   },
+   "rationale": "Targets M1/moto (sim 0.63-0.67 s vs obs 0.30 s, R 18), M5/length and M6 moto approach times: it02 tau 0.5-0.6 s with accel 2.5-3.0 cut M1/moto 0.88->0.63 s, so tau 0.45 s (bound 0.4), accel 4.0 m/s2 (below the motorcycle default 6) and minGap 0.8 m shorten the discharge headway further; minGapLat stays at the 0.3 m bound for dense packing (M4/overshoot_share). Share 0.85 leaves 0.15 for moto_seeker."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.15,
+   "params": {
+    "accel": 4.0,
+    "decel": 4.6,
+    "tau": 0.45,
+    "minGap": 0.8,
+    "minGapLat": 0.3
+   },
+   "rationale": "Targets M1/moto (sim 0.63-0.67 s vs obs 0.30 s, R 18), M5/length and M6 moto approach times: it02 tau 0.5-0.6 s with accel 2.5-3.0 cut M1/moto 0.88->0.63 s, so tau 0.45 s (bound 0.4), accel 4.0 m/s2 (below the motorcycle default 6) and minGap 0.8 m shorten the discharge headway further; minGapLat stays at the 0.3 m bound for dense packing (M4/overshoot_share). Share 0.15 kept (M10a 0.06-0.15 vs obs 0.27: it needs enough eligible riders for the sidewalk draw)."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 4.0,
+    "decel": 4.6,
+    "tau": 0.45,
+    "minGap": 0.8,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 0.5
+   },
+   "rationale": "Targets M1/moto (sim 0.63-0.67 s vs obs 0.30 s, R 18), M5/length and M6 moto approach times: it02 tau 0.5-0.6 s with accel 2.5-3.0 cut M1/moto 0.88->0.63 s, so tau 0.45 s (bound 0.4), accel 4.0 m/s2 (below the motorcycle default 6) and minGap 0.8 m shorten the discharge headway further; minGapLat stays at the 0.3 m bound for dense packing (M4/overshoot_share). jmTimegapMinor 0.7->0.5 s (its lower bound) targets M7a/release_time (sim 11.8 vs obs 2.6 s, best at 0.7 s) and M7b/clear_lag: smaller accepted gap lets box waiters leave sooner. Share 1.0 required (sole archetype)."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.8,
+    "k": 0.03,
+    "p_max": 0.9,
+    "dt": 10.0
+   },
+   "rationale": "Targets M3/share/moto (sim 0.026-0.034 vs obs 0.092), M3/per_cycle (1.0 vs 4.4) and M3/var_to_mean (sim 2.8-4.1 vs 1.31): it02 k 0.1-0.2 overshot the variance/mean, so the swarm term is cut to k 0.03 (p_max 0.9) to bring dispersion down, while the base probability p0 rises 0.5->0.8 to lift the red-runner count; about a quarter of draws still end before crossing, so a higher p0 is needed."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 10.0,
+    "p": 1.0,
+    "v_max": 4.0
+   },
+   "rationale": "Targets M2/early/moto (sim 0.025-0.048 vs obs 0.13, R 2-3) and M2/first_delay (3.4-6.2 s vs 2.1 s): p 0.6-0.8 raised the share only to 0.03-0.05 because half the creepers do not cross before red ends (red_ended_before_crossing), so p goes to 1.0, window to 10 s (top of the 4-10 s target) and v_max 3->4 m/s so creepers reach the line sooner."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker",
+    "car_seeker"
+   ],
+   "params": {
+    "q": 20.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.0,
+    "p_right_lane": 0.03,
+    "p_sidewalk": 0.1,
+    "v_creep": 4.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Targets M10a (sim 0.03-0.15 vs obs 0.27 veh/cycle), M9a (0.18-0.46 vs 0.33) and M9b/share_blocked (0.07-0.10 vs 0.02): p_sidewalk 0.05->0.1 (it02 s01 with 0.1 gave the best M10a 0.15) lifts sidewalk riders; p_right_lane 0.03 kept, car_seeker share cut, to limit blocked right-turners. q 20 m and v_creep 4 m/s as in the best it02 specs; p_wrong_lane 0 (inapplicable on the proxy net, R27)."
+  }
+ ]
+}

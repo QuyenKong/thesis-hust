@@ -68,3 +68,10 @@ to the response path, touch nothing else. When all are answered, rerun the same 
 If finished (budget/max_iter): rerun once with `--write-best rules/specs/P1_best.json` (P2_best) — no new runs.
 B2 finished → B2_best.json written by its CLI. Then H = optuna_search --structure rules/specs/P2_best.json --campaign H.
 iteration 1 validity: P1 4/4 valid first attempt; P2 1/4 first attempt (3 × lcPushy+lcPushyGap logic error), retried.
+
+## Status 2026-10-27 ~17:00 — PAUSED by Viktor
+- P1/P2 loops (iteration 3 running) suspended with SIGSTOP on their process groups (not killed); supervisor stopped;
+  hourly reminder disabled (enabled=false). Resume: `kill -CONT -<pgid>` for both loops (pgrep -af llm.loop), rerun
+  supervise_llm.sh in background, re-enable the scheduled task. If the machine rebooted: rerun the loop commands above.
+- Interim: REF campaign (B0, B1 scored like a spec), LaTeX interim update (agent), demo video + report
+  report/2026-10-27/ (record/encode scripts ported to Linux, B2_best).

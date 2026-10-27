@@ -1,0 +1,194 @@
+{
+  "spec_id": "P2_it03_s00",
+  "source": "llm",
+  "provenance": {
+    "model": "claude-sonnet (stand-in)",
+    "prompt_version": "v001",
+    "iteration": 3,
+    "sample_idx": 0,
+    "runtime": "file"
+  },
+  "description": "Iteration 3: keep it02_s00 (best, S 1.047) and change only the levers its feedback isolates: sidewalk probability up (M10a), red-running push without swarm over-dispersion (M3), earlier-start probability up (M2), box params of it02_s03 with longer release lag (M7a).",
+  "driver_archetypes": [
+    {
+      "id": "car_std",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.9,
+      "params": {
+        "tau": 0.65,
+        "minGap": 1.5,
+        "accel": 3.2,
+        "decel": 5.0,
+        "sigma": 0.3,
+        "minGapLat": 0.5,
+        "impatience": 0.0
+      },
+      "rationale": "M1/car (0.70 s vs 0.39 s in it02_s00, best of it02) and M5/length: unchanged short tau/minGap/low sigma keep the discharge headway low; impatience 0 keeps M3/share/car near 0.003."
+    },
+    {
+      "id": "car_aggr",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.1,
+      "params": {
+        "tau": 0.5,
+        "minGap": 1.2,
+        "accel": 3.6,
+        "decel": 5.5,
+        "sigma": 0.3,
+        "minGapLat": 0.4,
+        "lcAssertive": 1.5
+      },
+      "rationale": "M1/car: a minority with tau 0.5 pulls mean car headway toward 0.39 s; no red-running attributes so M3/share/car stays low."
+    },
+    {
+      "id": "moto_std",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.85,
+      "params": {
+        "tau": 0.4,
+        "minGap": 0.5,
+        "accel": 6.0,
+        "decel": 9.0,
+        "sigma": 0.2,
+        "minGapLat": 0.3,
+        "maxSpeedLat": 2.5,
+        "latAlignment": "arbitrary",
+        "lcSublane": 5.0,
+        "lcPushy": 0.5,
+        "lcMaxSpeedLatStanding": 3.0,
+        "impatience": 0.7,
+        "jmDriveAfterRedTime": 7.0,
+        "jmDriveRedSpeed": 8.0
+      },
+      "rationale": "M3/share/moto (0.038 vs 0.092) and M3/per_cycle (1.6 vs 4.4): impatience 0.7 with a longer jmDriveAfterRedTime 7 s and jmDriveRedSpeed 8 m/s lets more riders enter on red; tau/minGap/lateral settings kept for M1/moto and M4 as in it02_s00."
+    },
+    {
+      "id": "moto_slow",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.05,
+      "params": {
+        "tau": 0.7,
+        "minGap": 0.7,
+        "accel": 4.0,
+        "decel": 7.0,
+        "sigma": 0.3,
+        "speedFactor": 0.9,
+        "speedDev": 0.05,
+        "latAlignment": "center"
+      },
+      "rationale": "M6/approach moto and M4/lat_moto (7.19 vs 7.085, close): small 5% slow group kept unchanged; larger shares lengthened approach times in it01."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.1,
+      "params": {
+        "tau": 0.4,
+        "minGap": 0.5,
+        "accel": 6.0,
+        "decel": 9.0,
+        "sigma": 0.2,
+        "minGapLat": 0.3,
+        "maxSpeedLat": 2.5,
+        "latAlignment": "arbitrary",
+        "lcSublane": 5.0,
+        "lcPushy": 0.7,
+        "lcAssertive": 2.0,
+        "lcMaxSpeedLatStanding": 3.0,
+        "impatience": 0.7,
+        "jmDriveAfterRedTime": 7.0,
+        "jmDriveRedSpeed": 8.0
+      },
+      "rationale": "M10a/per_cycle (0.03 vs 0.27) and M9a (0.34 vs 0.33, already on target): the 10% seeker share that gave M9a on target is kept; red-running attributes raised like moto_std for M3."
+    },
+    {
+      "id": "moto_left",
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "share": 1.0,
+      "params": {
+        "tau": 0.6,
+        "minGap": 0.5,
+        "accel": 5.0,
+        "decel": 9.0,
+        "sigma": 0.3,
+        "minGapLat": 0.4,
+        "impatience": 0.5,
+        "jmTimegapMinor": 1.0
+      },
+      "rationale": "M7a/release_time (-11.9 s in it02_s00, 0.62 s in it02_s03 vs 2.59 s) and M7b/clear_lag (5.1 vs 6.65 s): the it02_s03 box parameters gave the sane non-negative release time and are reused."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "params": {
+        "t_before_green": 10.0,
+        "p": 0.8,
+        "v_max": 5.0
+      },
+      "rationale": "M2/early/moto (0.025 vs 0.13): 152 of 265 attempts ended before crossing and only p was limiting; raising p to 0.8 with the full 10 s window and v_max 5 m/s increases crossings before green; cars excluded (M2/early/car ~0.001)."
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_std",
+        "moto_seeker"
+      ],
+      "params": {
+        "p0": 0.35,
+        "k": 0.03,
+        "p_max": 0.7,
+        "dt": 10.0
+      },
+      "rationale": "M3/share/moto (0.038 vs 0.092) and M3/per_cycle (1.6 vs 4.4) need a higher base rate p0 0.35; M3/var_to_mean (3.1 vs 1.31) is too clustered, so k drops from 0.1 to 0.03 to reduce follower-driven bursts."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 12.0,
+        "t_w": 60.0,
+        "t_g_s": 7.0,
+        "est_noise": 0.3,
+        "p_wrong_lane": 0.0,
+        "p_right_lane": 0.01,
+        "p_sidewalk": 0.2,
+        "v_creep": 4.0,
+        "merge_zone_m": 15.0
+      },
+      "rationale": "M10a/per_cycle (0.03 vs 0.27): p_sidewalk raised from 0.06 to 0.2 and trigger lowered to 12 m (observed choice queue 12.7 m, M10b); p_right_lane stays 0.01 so M9a (0.34 vs 0.33) and M9b/share_blocked do not worsen; p_wrong_lane 0 as it is inapplicable on this net (R27)."
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_left"
+      ],
+      "params": {
+        "release_lag_s": 2.5
+      },
+      "rationale": "M7a/release_time (0.6 s vs 2.59 s with a 2 s lag) and M7c/slope (0.18 vs 0.33 s/veh): a slightly longer extra hold of 2.5 s delays box exit after the opposing green end; M7b/clear_lag (5.1 vs 6.65 s) also moves up."
+    },
+    {
+      "rule_type": "slow_lane_center",
+      "applies_to": [
+        "moto_slow"
+      ],
+      "params": {
+        "lat_offset": 0.0
+      },
+      "rationale": "Behaviour 10 / M6 approach moto: slow riders hold the lane centre; unchanged since M4/lat_moto is near target."
+    }
+  ]
+}
