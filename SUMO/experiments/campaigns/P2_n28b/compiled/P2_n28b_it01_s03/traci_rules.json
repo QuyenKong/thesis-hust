@@ -1,0 +1,117 @@
+{
+  "spec_id": "P2_n28b_it01_s03",
+  "archetypes": {
+    "car_std": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_std",
+      "share": 1.0
+    },
+    "moto_std": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_std",
+      "share": 0.65
+    },
+    "moto_slow": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_slow",
+      "share": 0.1
+    },
+    "moto_seek": {
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "vtype_id": "moto_seek",
+      "share": 0.25
+    },
+    "moto_viol": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_viol",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_std",
+        "moto_slow",
+        "moto_seek"
+      ],
+      "vtype_ids": [
+        "moto_std",
+        "moto_slow",
+        "moto_seek"
+      ],
+      "params": {
+        "t_before_green": 7.0,
+        "p": 0.13,
+        "v_max": 2.5
+      }
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_std",
+        "moto_slow",
+        "moto_seek"
+      ],
+      "vtype_ids": [
+        "moto_std",
+        "moto_slow",
+        "moto_seek"
+      ],
+      "params": {
+        "p0": 0.05,
+        "k": 0.05,
+        "p_max": 0.4,
+        "dt": 10.0
+      }
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seek"
+      ],
+      "vtype_ids": [
+        "moto_seek"
+      ],
+      "params": {
+        "q": 10.0,
+        "t_g_s": 7.0,
+        "est_noise": 0.3,
+        "p_wrong_lane": 0.4,
+        "p_right_lane": 0.0,
+        "p_sidewalk": 0.1,
+        "v_creep": 4.0,
+        "merge_zone_m": 10.0
+      }
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_viol"
+      ],
+      "vtype_ids": [
+        "moto_viol"
+      ],
+      "params": {
+        "release_lag_s": 1.0
+      }
+    },
+    {
+      "rule_type": "slow_lane_center",
+      "applies_to": [
+        "moto_slow"
+      ],
+      "vtype_ids": [
+        "moto_slow"
+      ],
+      "params": {
+        "lat_offset": 0.2
+      }
+    }
+  ]
+}

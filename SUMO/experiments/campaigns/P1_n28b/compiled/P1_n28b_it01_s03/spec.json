@@ -1,0 +1,128 @@
+{
+  "spec_id": "P1_n28b_it01_s03",
+  "source": "llm",
+  "provenance": {
+    "model": "claude-sonnet (stand-in)",
+    "prompt_version": "v002",
+    "iteration": 1,
+    "sample_idx": 3,
+    "runtime": "file"
+  },
+  "description": "P1 it01: structure locked; switch on early_start (p=0.13) and queue_space_seeking (seeker share 0.25, p_wrong_lane 0.5, p_sidewalk 0.2, q=20 m); everything else at the Saval base values.",
+  "driver_archetypes": [
+    {
+      "id": "car_saval",
+      "base_vclass": "passenger",
+      "share": 0.9,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "Unchanged Saval et al. 2023 Table 11 car values: no feedback yet shows car headway (M1/car 0.3467 s) or car red running (M3/share/car 0.0041) is off, and cars stop at red, so nothing is moved."
+    },
+    {
+      "id": "car_seeker",
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "share": 0.1,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "Unchanged: no queue_space_seeking option exists for custom2 on this proxy net, so the car seekers drive like car_saval; share kept at 0.1 to keep the car population essentially the Saval one (M1/car)."
+    },
+    {
+      "id": "moto_saval",
+      "base_vclass": "motorcycle",
+      "share": 0.75,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3
+      },
+      "rationale": "Car-following and lateral values kept at Saval Table 11 (targets M1/moto 0.2957 s, M4 overshoot). Share lowered from 0.9 to 0.75 only so that the space-seeking riders can reach the observed wrong-lane share of motorcycles (M8/moto 0.249)."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.25,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3
+      },
+      "rationale": "Share raised from 0.1 to 0.25, matching the observed motorcycle wrong-lane share M8/moto = 0.249 and giving enough riders for the sidewalk target M10a (0.56 veh/cycle) to be reachable; motion params identical to moto_saval so only the seeking rule differs."
+    },
+    {
+      "id": "moto_violator_saval",
+      "base_vclass": "custom1",
+      "share": 1.0,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3,
+        "jmTimegapMinor": 1.0
+      },
+      "rationale": "Unchanged: single archetype of the moto_violator distribution; no feedback yet on M7a (5.59 waiters) or M7b/M7c, so jmTimegapMinor stays at the SUMO default 1.0 s."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.5,
+        "k": 0.0,
+        "p_max": 0.5,
+        "dt": 10.0
+      },
+      "rationale": "Unchanged Saval Sec 4 value (front-row motorcycle runs red with probability 0.5); target M3/share/moto 0.098 and M3/per_cycle 3.9 are shares over all motorcycles, and without a simulated red-running figure there is no evidence to move p0, so it is left for the next iteration."
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 10.0,
+        "p": 0.13,
+        "v_max": 2.0
+      },
+      "rationale": "Targets M2/early/moto = 0.1302 (and M2/first_delay): p set to the observed early-start share of motorcycles in the last 10 s of red (0.13), t_before_green 10 s = upper end of the 4-10 s lead-time target window; v_max stays 2.0 m/s. Before this the rule was off, so early-start share was 0 against 0.13."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 20.0,
+        "t_g_s": 0.0,
+        "est_noise": 0.0,
+        "p_wrong_lane": 0.5,
+        "p_right_lane": 0.0,
+        "p_sidewalk": 0.2,
+        "v_creep": 3.0,
+        "merge_zone_m": 15.0
+      },
+      "rationale": "Targets F2/wrong_lane (observed 0.19-0.23 at q 0-40 m), M8/moto 0.249 and F2/sidewalk/M10a (0.05 at q 20-40 m, 0.56 veh/cycle): q lowered to 20 m because the observed choice queue is about 15 m (M10b 15.34 m, M9c 15.71 m); p_wrong_lane 0.5 and p_sidewalk 0.2 are conditional on a seeker being triggered (p_wrong_lane is redistributed on this net); p_right_lane 0 because that option does not exist here; green check off and v_creep, merge_zone_m kept at base."
+    }
+  ]
+}

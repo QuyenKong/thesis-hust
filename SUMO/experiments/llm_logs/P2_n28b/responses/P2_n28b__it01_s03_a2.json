@@ -1,0 +1,80 @@
+{
+ "content": {
+  "description": "Full-structure proposal: one compliant car archetype, motorcycles split into standard, slow and space-seeking (custom1); red running and early start for motorcycles only; separate illegal-left riders. Cars no longer carry queue_space_seeking.",
+  "driver_archetypes": [
+   {
+    "id": "car_std",
+    "base_vclass": "passenger",
+    "distribution": "car",
+    "share": 1.0,
+    "params": {"tau": 0.9, "minGap": 2.0, "sigma": 0.4, "impatience": 0.1},
+    "rationale": "Compliant cars: M3/share/car 0.0041 and M2/early/car 0.011 are near zero, so no red-running rule applies; tau 0.9 s and sigma 0.4 target the M1/car discharge headway 0.35 s and M6 car approach times."
+   },
+   {
+    "id": "moto_std",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.65,
+    "params": {"tau": 0.6, "minGap": 0.8, "sigma": 0.4, "minGapLat": 0.4, "maxSpeedLat": 1.5, "latAlignment": "compact", "lcSublane": 3.0, "lcPushy": 0.5, "lcMaxSpeedLatStanding": 1.5, "impatience": 0.3},
+    "rationale": "Main motorcycle population: small tau, minGap, compact lateral alignment and high lcSublane/lcPushy to filter forward, targeting M1/moto headway 0.30 s, M4 overshoot share 0.62 and M5 moto density 0.052 veh/m2."
+   },
+   {
+    "id": "moto_slow",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.1,
+    "params": {"tau": 0.8, "minGap": 1.0, "sigma": 0.4, "speedFactor": 0.7, "speedDev": 0.1, "latAlignment": "center", "impatience": 0.1},
+    "rationale": "Slow riders in the lane centre (behaviour 10): a minority with speedFactor 0.7 lengthens M6 approach times without moving the mean far from the observed values."
+   },
+   {
+    "id": "moto_seek",
+    "base_vclass": "custom1",
+    "distribution": "moto",
+    "share": 0.25,
+    "params": {"tau": 0.6, "minGap": 0.8, "sigma": 0.4, "minGapLat": 0.4, "maxSpeedLat": 1.5, "latAlignment": "compact", "lcSublane": 3.0, "lcPushy": 0.5, "lcMaxSpeedLatStanding": 1.5, "impatience": 0.3},
+    "rationale": "Motorcycles that may seek space (wrong lane, sidewalk); share 0.25 matches M8/moto wrong-lane share 0.249, with the same filtering parameters as moto_std."
+   },
+   {
+    "id": "moto_viol",
+    "base_vclass": "custom1",
+    "distribution": "moto_violator",
+    "share": 1.0,
+    "params": {"tau": 0.6, "minGap": 0.8, "sigma": 0.4, "jmTimegapMinor": 1.0, "impatience": 0.3},
+    "rationale": "Illegal-left riders from HDT_N and HDT_S; jmTimegapMinor kept at the SUMO default 1 s because there is no feedback yet on M7a 5.6 waiters or M7b 5.5 s clear lag."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "early_start",
+    "applies_to": ["moto_std", "moto_slow", "moto_seek"],
+    "params": {"t_before_green": 7.0, "p": 0.13, "v_max": 2.5},
+    "rationale": "M2/early/moto 0.130 share in the last 10 s of red: p set to the observed share, lead time 7 s inside the 4-10 s target window, creep cap 2.5 m/s."
+   },
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": ["moto_std", "moto_slow", "moto_seek"],
+    "params": {"p0": 0.05, "k": 0.05, "p_max": 0.4, "dt": 10.0},
+    "rationale": "M3/share/moto 0.098 and M3/per_cycle 3.9 with var/mean 1.14: low base probability with a mild group effect gives a mean near the target and some overdispersion; cars excluded because M3/share/car is 0.004."
+   },
+   {
+    "rule_type": "queue_space_seeking",
+    "applies_to": ["moto_seek"],
+    "params": {"q": 10.0, "t_g_s": 7.0, "est_noise": 0.3, "p_wrong_lane": 0.4, "p_right_lane": 0.0, "p_sidewalk": 0.1, "v_creep": 4.0, "merge_zone_m": 10.0},
+    "rationale": "Trigger at q = 10 m since observed queues are about 16 m (M5/length 15.8) and choices occur at q0-40 m; p_sidewalk 0.1 targets F2/p/sidewalk 0.009-0.049 and M10a 0.56 veh/cycle, p_wrong_lane 0.4 targets F2/p/wrong_lane 0.19-0.23; p_right_lane 0 because it does not exist on this site. Applied to the custom1 archetype only, since custom2 has no existing option here."
+   },
+   {
+    "rule_type": "illegal_left_box",
+    "applies_to": ["moto_viol"],
+    "params": {"release_lag_s": 1.0},
+    "rationale": "M7a/release_time 2.78 s and M7b/clear_lag 5.46 s after the opposing green ends: a moderate extra hold of 1 s on top of SUMO's native release, to be adjusted once feedback is available."
+   },
+   {
+    "rule_type": "slow_lane_center",
+    "applies_to": ["moto_slow"],
+    "params": {"lat_offset": 0.2},
+    "rationale": "Slow motorcycles keep near the lane centre (behaviour 10); a small 0.2 m offset stays well inside the 3.5 m lane and avoids pushing M4/lat_moto."
+   }
+  ]
+ },
+ "reasoning": "The validator rejected queue_space_seeking applied to car_wrong (custom2): no option (wrong_lane, sidewalk) exists for custom2 on this site, so the rule could never run. I removed car_wrong and its rule target, and merged its 0.07 share into car_std so the car distribution still sums to 1. The rule now applies only to moto_seek (custom1), where the sidewalk option exists. All other values are unchanged, so the effect of the fix is isolated."
+}

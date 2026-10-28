@@ -1,0 +1,152 @@
+{
+  "content": {
+    "description": "Iteration 2 from it01 feedback: shorter discharge headways (queues were 2-3x too long, which drives M5, M9, M6 left/U), less lateral aggression (lane collisions), much higher early-start and red-running probabilities (sim shares were 5-20x too low), fewer space seekers with sidewalk as the only effective option, illegal-left archetype taken from the best it01 variant (s02).",
+    "driver_archetypes": [
+      {
+        "id": "car_std",
+        "base_vclass": "passenger",
+        "distribution": "car",
+        "share": 1.0,
+        "params": {
+          "tau": 0.7,
+          "minGap": 1.5,
+          "accel": 3.5,
+          "decel": 4.5,
+          "sigma": 0.3,
+          "impatience": 0.1
+        },
+        "rationale": "M1/car was 0.50-0.63 s vs 0.347 s observed and M5/length 38-44 m vs 15.8 m: shorter tau (0.7), smaller minGap (1.5 m), higher accel (3.5) and lower sigma (0.3) shorten the discharge headway and the queue; impatience kept at 0.1 because M3/share/car (0.004) and M2/early/car (0.011) are already close."
+      },
+      {
+        "id": "moto_std",
+        "base_vclass": "motorcycle",
+        "distribution": "moto",
+        "share": 0.7,
+        "params": {
+          "tau": 0.6,
+          "minGap": 0.5,
+          "accel": 6.0,
+          "decel": 8.0,
+          "sigma": 0.3,
+          "minGapLat": 0.4,
+          "maxSpeedLat": 1.2,
+          "latAlignment": "compact",
+          "lcSublane": 2.0,
+          "lcPushy": 0.3,
+          "lcMaxSpeedLatStanding": 1.0,
+          "impatience": 0.3
+        },
+        "rationale": "M1/moto was 0.38-0.48 s vs 0.296 s and M5/moto_density 0.097 vs 0.052: tau 0.6, minGap 0.5, accel 6 and sigma 0.3 shorten the headway; lcSublane 2, lcPushy 0.3 and maxSpeedLat 1.2 are milder than the it01 s03 values (lane collisions 20.7/h vs 9.3/h in s01) to reduce lane collisions."
+      },
+      {
+        "id": "moto_slow",
+        "base_vclass": "motorcycle",
+        "distribution": "moto",
+        "share": 0.1,
+        "params": {
+          "tau": 0.7,
+          "minGap": 0.8,
+          "accel": 4.0,
+          "decel": 8.0,
+          "sigma": 0.3,
+          "speedFactor": 0.75,
+          "speedDev": 0.1,
+          "latAlignment": "center",
+          "impatience": 0.1
+        },
+        "rationale": "M6/approach/s/moto was 38.0 s in it01 s03 vs 35.7 s observed, so a 10% slow minority with speedFactor 0.75 is kept; tau 0.7 and sigma 0.3 follow the headway reduction (M1/moto)."
+      },
+      {
+        "id": "moto_seek",
+        "base_vclass": "custom1",
+        "distribution": "moto",
+        "share": 0.2,
+        "params": {
+          "tau": 0.6,
+          "minGap": 0.5,
+          "accel": 6.0,
+          "decel": 8.0,
+          "sigma": 0.3,
+          "minGapLat": 0.4,
+          "maxSpeedLat": 1.2,
+          "latAlignment": "compact",
+          "lcSublane": 2.0,
+          "lcPushy": 0.3,
+          "lcMaxSpeedLatStanding": 1.0,
+          "impatience": 0.3
+        },
+        "rationale": "Space-seeking custom1 riders share 0.2 (was 0.25-0.3): M10a/per_cycle was 1.7-3.6 veh/cycle vs 0.56, so fewer eligible riders lower it; same car-following and filtering values as moto_std so only the TraCI rule makes them different."
+      },
+      {
+        "id": "moto_viol",
+        "base_vclass": "custom1",
+        "distribution": "moto_violator",
+        "share": 1.0,
+        "params": {
+          "tau": 0.8,
+          "minGap": 1.0,
+          "accel": 4.0,
+          "decel": 8.0,
+          "minGapLat": 0.4,
+          "jmTimegapMinor": 1.0
+        },
+        "rationale": "Illegal-left riders: this is the it01 s02 variant, the best on M7 (n_waiting 4.27 vs 5.59, clear_lag 5.45 vs 5.46, R 0.89); the other variants with impatience 0.3-0.5 gave n_waiting 1.6-1.9 and negative release times, so impatience stays unset."
+      }
+    ],
+    "traci_rules": [
+      {
+        "rule_type": "early_start",
+        "applies_to": ["moto_std", "moto_slow", "moto_seek"],
+        "params": {
+          "t_before_green": 10.0,
+          "p": 0.7,
+          "v_max": 1.5
+        },
+        "rationale": "M2/early/moto was 0.02 vs 0.130 with p 0.13-0.15 (about 1/6 of p arrives as share), so p rises to 0.7 and the window to the full 10 s; a lower creep cap of 1.5 m/s raises M2/first_delay (0.4-1.2 s vs 2.83 s; the v_max 2.0 variant gave the largest value) and lets riders pass the stop line for M4/overshoot_share (sim 0 vs 0.62)."
+      },
+      {
+        "rule_type": "swarm_red_running",
+        "applies_to": ["moto_std", "moto_slow", "moto_seek"],
+        "params": {
+          "p0": 0.35,
+          "k": 0.05,
+          "p_max": 0.7,
+          "dt": 10.0
+        },
+        "rationale": "M3/share/moto was 0.005-0.007 vs 0.098 and M3/per_cycle 0.2-0.3 vs 3.9 with p0 0.05-0.06 (decided runs were about p0 of draws); p0 rises to 0.35 (Saval et al. reports 0.5 for front-row riders) with a mild k 0.05 to keep M3/var_to_mean near 1.14 (R 0.7-0.8 so far)."
+      },
+      {
+        "rule_type": "queue_space_seeking",
+        "applies_to": ["moto_seek"],
+        "params": {
+          "q": 15.0,
+          "t_g_s": 7.0,
+          "est_noise": 0.3,
+          "p_wrong_lane": 0.0,
+          "p_right_lane": 0.0,
+          "p_sidewalk": 0.08,
+          "v_creep": 3.0,
+          "merge_zone_m": 10.0
+        },
+        "rationale": "M10a/per_cycle was 1.7 (total option probability 0.27), 3.0 (0.4) and 3.6 (0.5) vs 0.56, i.e. it scales with the sum because wrong_lane/right_lane mass is redistributed to the sidewalk; p_wrong_lane and p_right_lane go to 0 (inapplicable on this net) and p_sidewalk 0.08 with seeker share 0.2 targets about 0.5 veh/cycle; trigger q 15 m matches M10b/M9c choice queues (15.3-15.7 m)."
+      },
+      {
+        "rule_type": "illegal_left_box",
+        "applies_to": ["moto_viol"],
+        "params": {
+          "release_lag_s": 0.8
+        },
+        "rationale": "M7a/release_time was 3.74 s vs 2.78 s with a 1.0 s hold, while M7b/clear_lag already matched (5.45 vs 5.46); a slightly shorter hold of 0.8 s moves release_time down with a small effect on clear_lag."
+      },
+      {
+        "rule_type": "slow_lane_center",
+        "applies_to": ["moto_slow"],
+        "params": {
+          "lat_offset": 0.0
+        },
+        "rationale": "Slow riders keep the lane centre; no measured offset exists and M6/approach/s/moto is already near the observed 35.7 s, so the neutral value is kept."
+      }
+    ]
+  },
+  "reasoning": "Cả ba spec iteration 1 đều bị loại vì va chạm (lane collisions 9-21/h) và hàng đợi dài gấp 2-3 lần quan sát (M5/length 38-44 m so với 15,8 m; M9a 15-17 so với 0,57), nên tôi rút ngắn tau/minGap/sigma và tăng accel (M1 0,38-0,63 s so với 0,30-0,35 s) và giảm lcPushy/lcSublane/maxSpeedLat để bớt va chạm làn. M2/early và M3/share/moto thấp hơn quan sát 5-20 lần nên tăng mạnh p của early_start (0,7) và p0 của swarm_red_running (0,35), giữ k nhỏ vì var/mean đã đạt R<1. M10a tỉ lệ với tổng xác suất lựa chọn (1,7/3,0/3,6 ứng với tổng 0,27/0,4/0,5) vì xác suất wrong_lane và right_lane được phân bổ lại sang vỉa hè, nên đặt chúng bằng 0, p_sidewalk 0,08 và giảm share người tìm chỗ xuống 0,2. Archetype moto_viol lấy lại biến thể s02 vì M7 tốt nhất (n_waiting 4,27, clear_lag 5,45), chỉ giảm release_lag_s xuống 0,8 để kéo M7a/release_time (3,74 so với 2,78 s) xuống."
+}

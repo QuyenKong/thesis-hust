@@ -1,0 +1,65 @@
+{
+ "content": {
+  "description": "P1 it02: start from best it01 (s00: swarm p0 0.5, early_start on, seeker share 0.1). Faster discharge (lower tau, higher accel) against M1/M5/M6 over-congestion; stronger early_start; slightly more sidewalk seeking; lower jmTimegapMinor for earlier box exit.",
+  "driver_archetypes": [
+   {
+    "id": "car_saval",
+    "base_vclass": "passenger",
+    "share": 0.9,
+    "params": {"accel": 2.0, "decel": 4.8, "tau": 1.6, "minGap": 1.1},
+    "rationale": "Targets M1/car (sim 1.2-1.6 s vs obs 0.347 s, R about 15), M5/length (sim about 65 m vs 15.8 m) and M6 approach times (sim 5-10 times obs): the queue never clears, so tau 2.5 -> 1.6 s and accel 1.2 -> 2.0 m/s2 shorten the discharge headway and the queue; decel and minGap stay at Saval Table 11."
+   },
+   {
+    "id": "car_seeker",
+    "base_vclass": "custom2",
+    "distribution": "car",
+    "share": 0.1,
+    "params": {"accel": 2.0, "decel": 4.8, "tau": 1.6, "minGap": 1.1},
+    "rationale": "Same values as car_saval (no rule acts on custom2 on this net), so M1/car and M6 car times move together with the car_saval change; share unchanged."
+   },
+   {
+    "id": "moto_saval",
+    "base_vclass": "motorcycle",
+    "share": 0.9,
+    "params": {"accel": 2.0, "decel": 4.6, "tau": 0.7, "minGap": 1.9, "minGapLat": 0.3},
+    "rationale": "Targets M1/moto (sim 0.83-1.0 s vs obs 0.296 s, R about 17) and M5/length (sim 65 m vs 15.8 m): accel 1.1 -> 2.0 m/s2 and tau 0.8 -> 0.7 s let the front of the queue leave faster; minGap and minGapLat unchanged (M5/moto_density sim 0.09 vs 0.052 is too high only because the queue is too long)."
+   },
+   {
+    "id": "moto_seeker",
+    "base_vclass": "custom1",
+    "distribution": "moto",
+    "share": 0.1,
+    "params": {"accel": 2.0, "decel": 4.6, "tau": 0.7, "minGap": 1.9, "minGapLat": 0.3},
+    "rationale": "Same riding values as moto_saval (M1/moto, M5). Share kept at 0.1: raising it to 0.25-0.3 in it01 s02/s03 pushed M10a/per_cycle to 2.2-3.2 veh/cycle (obs 0.56) and S from 1.22 to 1.35-1.39, while 0.1 gave 0.36-0.48."
+   },
+   {
+    "id": "moto_violator_saval",
+    "base_vclass": "custom1",
+    "share": 1.0,
+    "params": {"accel": 2.0, "decel": 4.6, "tau": 0.7, "minGap": 1.9, "minGapLat": 0.3, "jmTimegapMinor": 0.7},
+    "rationale": "Targets M7a/release_time (sim 24-27 s vs obs 2.78 s), M7b/clear_lag (sim 12-15 s vs 5.46 s) and M7c/slope (sim 0.43-0.64 vs 0.29 s/veh): all sim > obs in every it01 spec, so jmTimegapMinor 1.0 -> 0.7 s lets box waiters accept smaller gaps and leave earlier; accel and tau as moto_saval to shorten M6/junction/illegal_l and M6 approach times."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": ["moto_saval", "moto_seeker", "moto_violator_saval"],
+    "params": {"p0": 0.5, "k": 0.0, "p_max": 0.5, "dt": 10.0},
+    "rationale": "Kept at 0.5: in it01 s00 and s03 this gave M3/share/moto 0.104 and 0.095 vs obs 0.098 and M3/per_cycle 2.8 vs 3.9, while p0 = 0.15 (s01, s02) dropped M3/share/moto to 0.015-0.017 (R 8); k = 0 since M3/var_to_mean is near 1."
+   },
+   {
+    "rule_type": "early_start",
+    "applies_to": ["moto_saval", "moto_seeker", "moto_violator_saval"],
+    "params": {"t_before_green": 10.0, "p": 0.4, "v_max": 3.0},
+    "rationale": "Targets M2/early/moto (sim 0.016-0.021 vs obs 0.130, R about 5) and M2/first_delay: with p = 0.13 only about 10% of draws became attempts and 55-70% of those executed, so the realised share stayed at 0.02; p 0.13 -> 0.4, t_before_green 7 -> 10 s (top of the 4-10 s lead time) and v_max 2 -> 3 m/s let more riders cross before the green ends their window."
+   },
+   {
+    "rule_type": "queue_space_seeking",
+    "applies_to": ["moto_seeker"],
+    "params": {"q": 20.0, "t_g_s": 0.0, "est_noise": 0.0, "p_wrong_lane": 0.0, "p_right_lane": 0.0, "p_sidewalk": 0.5, "v_creep": 3.0, "merge_zone_m": 15.0},
+    "rationale": "Targets M10a/per_cycle (best it01 s00: sim 0.36 with p_sidewalk 0.4, share 0.1 vs obs 0.56): p_sidewalk 0.4 -> 0.5 raises it toward 0.45 without the overshoot seen at higher seeker shares; p_wrong_lane and p_right_lane stay 0 (inapplicable here and redistributed), q = 20 m and the other values stay as in s00."
+   }
+  ]
+ },
+ "reasoning": "Baseline is it01 s00 (best S = 1.2165): its M3/share/moto (0.104 vs 0.098) and M10a (0.36 vs 0.56) are close, while s01 to s03 show that lowering p0 to 0.15 or raising the seeker share to 0.25-0.3 makes S worse. The dominant errors in all four specs are congestion metrics (M1 headways 1.0-1.6 s vs 0.30-0.35 s, M5/length 65 m vs 15.8 m, M6 approach times 3-10 times observed), so I lowered tau and raised accel for cars and motorcycles within the allowed bounds to speed discharge, a single mechanism. Early_start realised only 0.02 vs 0.13 observed at p = 0.13, so p goes to 0.4 with the maximum 10 s window; p_sidewalk goes to 0.5 for M10a, and jmTimegapMinor to 0.7 because M7a/M7b/M7c were above observed in every it01 spec."
+}

@@ -1,0 +1,88 @@
+{
+ "content": {
+  "description": "Iteration 1 (no feedback yet): moderate baseline. Moto distribution split into normal, slow and space-seeking (custom1) riders; cars into standard and a small space-seeking custom2 share; one violator archetype for illegal lefts. Rules sized from the observation targets.",
+  "driver_archetypes": [
+   {
+    "id": "car_std",
+    "base_vclass": "passenger",
+    "distribution": "car",
+    "share": 0.9,
+    "params": {"tau": 1.0, "minGap": 2.0, "accel": 2.6, "decel": 4.5, "sigma": 0.5, "impatience": 0.1},
+    "rationale": "Compliant cars: near-default car following; low impatience keeps M3/share/car (0.004) and M2/early/car (0.011) small, M1/car headway left at SUMO-typical values until feedback shows a gap."
+   },
+   {
+    "id": "car_seeker",
+    "base_vclass": "custom2",
+    "distribution": "car",
+    "share": 0.1,
+    "params": {"tau": 0.9, "minGap": 1.8, "impatience": 0.3},
+    "rationale": "Small share of cars that may look for other space in long queues; targets M8/car (observed wrong-lane share 0.068) via about 10% of cars times p_wrong_lane."
+   },
+   {
+    "id": "moto_normal",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.55,
+    "params": {"tau": 0.8, "minGap": 0.8, "minGapLat": 0.4, "maxSpeedLat": 1.5, "latAlignment": "compact", "lcSublane": 2.0, "impatience": 0.3},
+    "rationale": "Typical riders filter and compact in the queue: small minGapLat and compact alignment push M4/overshoot_share (0.62) and M5/moto_density (0.052 veh/m2) up, and shorten M5/length (15.8 m) and M1/moto headway (0.296 s)."
+   },
+   {
+    "id": "moto_slow",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.2,
+    "params": {"speedFactor": 0.8, "speedDev": 0.1, "tau": 1.0, "minGap": 1.0},
+    "rationale": "Slow riders in the lane centre: lower speedFactor raises the M6/approach times towards the observed means (e.g. s/moto 35.7 s) without changing the other behaviours."
+   },
+   {
+    "id": "moto_seeker",
+    "base_vclass": "custom1",
+    "distribution": "moto",
+    "share": 0.25,
+    "params": {"tau": 0.8, "minGap": 0.7, "minGapLat": 0.3, "maxSpeedLat": 2.0, "latAlignment": "compact", "lcSublane": 3.0, "lcPushy": 0.5, "lcMaxSpeedLatStanding": 1.5, "impatience": 0.5},
+    "rationale": "Pushy riders that may seek space: about 25% of motos times p_wrong_lane 0.2 matches M8/moto 0.249 order of magnitude, and they provide the sidewalk riders for M10a (0.56 veh/cycle)."
+   },
+   {
+    "id": "moto_violator_a",
+    "base_vclass": "custom1",
+    "distribution": "moto_violator",
+    "share": 1.0,
+    "params": {"tau": 0.8, "minGap": 0.8, "jmTimegapMinor": 1.0, "impatience": 0.5},
+    "rationale": "Illegal-left riders from HDT_N/HDT_S: default jmTimegapMinor 1.0 s as a neutral start for M7a (5.6 waiters) and M7b (5.5 s clear lag); no feedback yet to move it."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "early_start",
+    "applies_to": ["moto_normal", "moto_slow", "moto_seeker"],
+    "params": {"t_before_green": 8.0, "p": 0.15, "v_max": 3.0},
+    "rationale": "M2/early/moto observed 0.13 within the last 10 s of red; p 0.15 on front-row riders (within the 4-10 s lead time) targets that share and M2/first_delay (2.8 s)."
+   },
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": ["moto_normal", "moto_seeker"],
+    "params": {"p0": 0.06, "k": 0.03, "p_max": 0.3, "dt": 10.0},
+    "rationale": "M3/share/moto observed 0.098 and var_to_mean 1.14 (mild clustering): low base probability plus a small swarm increment, capped, aims at about 3.9 violations per cycle without over-dispersion."
+   },
+   {
+    "rule_type": "queue_space_seeking",
+    "applies_to": ["moto_seeker", "car_seeker"],
+    "params": {"q": 10.0, "t_w": 60.0, "t_g_s": 7.0, "est_noise": 0.3, "p_wrong_lane": 0.2, "p_right_lane": 0.02, "p_sidewalk": 0.05, "v_creep": 3.0, "merge_zone_m": 15.0},
+    "rationale": "Option probabilities follow the observed F2 targets (wrong_lane 0.19-0.23, sidewalk 0.009-0.049, right_lane 0.01-0.02 at q below 40 m); q 10 m is under the mean queue at green onset (15.8 m, M5/length) so the draw fires in observed queues; t_g_s 7 s is the green check from the prompt."
+   },
+   {
+    "rule_type": "illegal_left_box",
+    "applies_to": ["moto_violator_a"],
+    "params": {"release_lag_s": 1.5},
+    "rationale": "M7a/release_time is 2.78 s and M7b/clear_lag 5.46 s after the opposing green ends; a mid-range extra hold of 1.5 s on top of SUMO's native release is a neutral start before feedback."
+   },
+   {
+    "rule_type": "slow_lane_center",
+    "applies_to": ["moto_slow"],
+    "params": {"lat_offset": 0.0},
+    "rationale": "Slow riders keep the lane centre (offset 0), which supports the M6/approach moto times and M4/lat_moto without extra lateral shift; no measured offset is given so the neutral value is kept."
+   }
+  ]
+ },
+ "reasoning": "Chưa có phản hồi R nên đây là bộ giá trị khởi đầu vừa phải, bám các mục tiêu trong prompt. Cấu trúc: mỗi phân phối có tổng share bằng 1 (car 0.9+0.1, moto 0.55+0.2+0.25, moto_violator 1.0); nhóm custom1/custom2 là các archetype được phép tìm chỗ trống. Xác suất tùy chọn của queue_space_seeking lấy theo F2 (wrong_lane ~0.2, sidewalk ~0.05, right_lane ~0.02) và q=10 m thấp hơn hàng chờ trung bình 15.8 m (M5/length). early_start p=0.15 theo M2/early/moto 0.13; swarm p0=0.06 theo M3/share/moto 0.098 và var_to_mean 1.14; các tham số còn lại giữ gần giá trị mặc định vì thiếu dữ liệu để chỉnh."
+}

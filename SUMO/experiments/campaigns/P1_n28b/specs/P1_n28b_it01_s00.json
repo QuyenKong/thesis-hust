@@ -1,0 +1,128 @@
+{
+ "spec_id": "P1_n28b_it01_s00",
+ "source": "llm",
+ "provenance": {
+  "model": "claude-sonnet (stand-in)",
+  "prompt_version": "v002",
+  "iteration": 1,
+  "sample_idx": 0,
+  "runtime": "file"
+ },
+ "description": "P1 it01: base values kept; early_start switched on to the M2 moto target, sidewalk seeking switched on for moto_seeker to the M10a/F2 sidewalk target.",
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.9,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Kept at Saval et al. 2023 Table 11 (car): the prompt has no simulated-vs-observed feedback yet, so nothing shows M1/car (0.3467 s) or M6 car times are off; cars stop at red (M3/share/car 0.0041)."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.1,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Kept: no rule applies to custom2 on this net (no option for it), so it must ride like car_saval and not shift M1/car or M6 car times."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.9,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Kept at Saval et al. 2023 Table 11 (motorcycle); without feedback on M1/moto (0.2957 s), M4 overshoot (0.62) or M5 queue length (15.8 m), I do not change car-following or lateral gap in a first step."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.1,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Kept: same riders as moto_saval except they may take the sidewalk (M10a 0.56 veh/cycle, F2 sidewalk share 0.049 at q20-40 m); share 0.1 with p_sidewalk 0.4 gives about 0.04 of motorcycles, near that observed share."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 1.0
+   },
+   "rationale": "Kept at the SUMO default jmTimegapMinor = 1.0 s: no feedback yet on M7a (5.59 waiters), M7b (5.46 s) or M7c (0.29 s/veh), so there is no evidence for moving the early-leaving lever."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.5,
+    "k": 0.0,
+    "p_max": 0.5,
+    "dt": 10.0
+   },
+   "rationale": "Kept at Saval's 0.5 for front-row motorcycles: M3/share/moto is 0.098 of all motorcycles and M3/per_cycle 3.9 veh, but without the simulated front-row fraction I cannot tell whether 0.5 over- or under-shoots, so I leave it for the next iteration's feedback."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 7.0,
+    "p": 0.13,
+    "v_max": 2.0
+   },
+   "rationale": "M2/early/moto observed 0.1302 share in the last 10 s of red, and the rule is off at p = 0, so M2/early/moto is 0 in the base; p = 0.13 sets the per-front-row-vehicle probability to the observed share, t_before_green = 7 s lies inside the observed 4-10 s lead time, v_max = 2 m/s keeps the creep slow."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker"
+   ],
+   "params": {
+    "q": 20.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.0,
+    "p_right_lane": 0.0,
+    "p_sidewalk": 0.4,
+    "v_creep": 3.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "M10a observes 0.56 sidewalk riders per cycle and F2/p/sidewalk is 0.049 at q20-40 m (0.009 at q0-20 m), so the draw starts at q = 20 m and p_sidewalk = 0.4 of the 10% seekers gives about 0.04 overall; p_wrong_lane and p_right_lane stay 0 because they are inapplicable on this net and would be redistributed onto the sidewalk."
+  }
+ ]
+}

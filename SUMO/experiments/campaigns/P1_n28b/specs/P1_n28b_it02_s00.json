@@ -1,0 +1,128 @@
+{
+ "spec_id": "P1_n28b_it02_s00",
+ "source": "llm",
+ "provenance": {
+  "model": "claude-sonnet (stand-in)",
+  "prompt_version": "v002",
+  "iteration": 2,
+  "sample_idx": 0,
+  "runtime": "file"
+ },
+ "description": "P1 it02: faster discharge (lower car tau, higher car/moto accel) for M1; red running back to Saval 0.5 (best M3 in it01); early_start p raised for M2/early/moto; seeker share 0.12 with the it01_s01 option set for M10a; jmTimegapMinor 0.8 for the box release metrics M7.",
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.9,
+   "params": {
+    "accel": 2.0,
+    "decel": 4.8,
+    "tau": 1.5,
+    "minGap": 1.1
+   },
+   "rationale": "Targets M1/car: simulated discharge headway is 1.16-1.61 s against 0.3467 s observed (R about 14.6) in all four it01 specs. Lowering tau from 2.5 to 1.5 s and raising accel from 1.2 to 2.0 m/s2 (both inside the car bounds) shortens the headway and the start-up time, which also lowers the queue and M6 approach times; decel and minGap are kept."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.1,
+   "params": {
+    "accel": 2.0,
+    "decel": 4.8,
+    "tau": 1.5,
+    "minGap": 1.1
+   },
+   "rationale": "Same values as car_saval so that custom2 cars still drive like the other cars (M1/car); no rule acts on custom2 on this net, so the share has no effect on the metrics."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.88,
+   "params": {
+    "accel": 2.0,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Targets M1/moto: simulated headway is 0.83-1.0 s against 0.2957 s observed (R about 17). Raising accel from 1.1 to 2.0 m/s2 speeds up the start from the stop line; tau, minGap, decel and minGapLat are kept so that the M4 lateral metrics change only through the queue length. Share 0.88 because moto_seeker rises to 0.12."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.12,
+   "params": {
+    "accel": 2.0,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Targets M10a/per_cycle (weight 0.1): observed 0.5606 veh/cycle, simulated 0.36 with share 0.1 (s00) and 0.48 with share 0.1 and the s01 options; the spec with share 0.25-0.3 gave 2.2-3.2 (R above 17). Share 0.12 is a small step up, roughly 0.48 * 1.2, aiming at 0.56. Riding values equal moto_saval."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 2.0,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 0.8
+   },
+   "rationale": "Targets M7a/release_time (sim 24-27 s vs 2.78 s observed), M7b/clear_lag (11.7-15.1 s vs 5.46 s) and M7c/slope (0.43-0.64 vs 0.29 s/veh): the box waiters leave too late in all it01 specs. Lowering jmTimegapMinor from 1.0 to 0.8 s (bound 0.5-3) lets them accept a smaller gap and leave sooner, a moderate step because collisions are already high; accel 2.0 matches the other motorcycles."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.5,
+    "k": 0.0,
+    "p_max": 0.5,
+    "dt": 10.0
+   },
+   "rationale": "Targets M3/share/moto and M3/per_cycle: with p0 = p_max = 0.5 the simulated share was 0.095-0.104 against 0.098 observed (R 1.3-1.4) and 2.75-2.80 veh/cycle against 3.91, while p = 0.15 gave only 0.015 and 0.5 veh/cycle (R 8). So 0.5 is kept; k = 0 because M3/var_to_mean 1.5-2.0 is already above the observed 1.14."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 8.0,
+    "p": 0.6,
+    "v_max": 2.5
+   },
+   "rationale": "Targets M2/early/moto (observed 0.1302, simulated 0.016-0.021 with p = 0.13, R about 5) and M2/first_delay (3.7-5.3 s vs 2.83 s observed): only front-row vehicles can early-start and about 70% of attempts finish before the red ends, so the pooled share is about 0.16 of p; p = 0.6 aims at the observed share. t_before_green = 8 s stays inside the 4-10 s lead time; v_max = 2.5 m/s lets the creeper clear the line before the red ends (34 of 76 attempts failed that way)."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker"
+   ],
+   "params": {
+    "q": 15.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.2,
+    "p_right_lane": 0.02,
+    "p_sidewalk": 0.05,
+    "v_creep": 3.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Targets M10a/per_cycle (observed 0.56 veh/cycle) and M10b/queue_at_choice (observed 15.3 m): the it01_s01 option set (q = 15 m, wrong_lane 0.2, right_lane 0.02, sidewalk 0.05; the first two are redistributed on this net) gave the closest M10a (0.48, R 2.06) and is kept, with the seeker share raised to 0.12; p_sidewalk 0.4 at q = 20 m gave 0.36. Other options and the green check stay off."
+  }
+ ]
+}

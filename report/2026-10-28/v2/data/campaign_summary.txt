@@ -1,0 +1,74 @@
+# campaign_summary (28/10, vong 2): B0, B1_manual, B2_n28b, P1_n28b, P2_n28b; PROXY_D1-D3, seed 1, mang vong 2 (lan 0 mo; REF_n28b)
+# Nguon: experiments/campaigns/{B2_n28b/optuna_results,P1_n28b/loop/results,P2_n28b/loop/results}/*.pkl (EvalResult.to_row()), report/2026-10-28/v2/data/REF_B0_B1.txt (B0, B1_manual, hang TB3), experiments/llm_logs/<camp>/validity_log.csv
+# Gioi han: 1 seed/ngay, 3 ngay, run 1800 s; site LITERATURE_PROXY; PROXY_D4/D5 khong dung. LLM = Claude Sonnet stand-in, KHONG phai ket qua phuong phap LLM cuc bo. Trung binh = trung binh cac spec (moi spec da la trung binh 3 ngay).
+# Ghi chu input: tat ca run vong 2 cung net/site hash (5b6355f8/9ba38295) va routes hash theo ngay; git_hash trong manifest REF_n28b khac nhau (B0 685b4fe; B1_manual D1 84406c9, D2-D3 cc6df0f; campaign 84406c9, git_dirty=True), khong anh huong hash dau vao.
+# Eligible = moi run eligible. B0/B1_manual deu 'excluded' (REF_B0_B1.txt).
+# LUU Y: P2_n28b_it01_s00 co status 'lost' (3 run da tinh vao ngan sach, ket qua khong con -> khong co pkl, khong xep hang). Vi vay P2_n28b co 7 spec (khong phai 8) va tong chung la 23 spec (khong phai 24); ngan sach 24/24 van da dung het.
+
+method     n_spec   S_min   S_med   S_max | coll/h tb coll/h best | lane/h tb lane/h best |  jy/h tb jy/h best | n_elig  best_R32
+B0              1  1.2116  1.2116  1.2116 |     38.67       38.67 |      1.33        1.33 |     7.33      7.33 |      0  (1 spec)
+B1_manual       1  1.2538  1.2538  1.2538 |     21.33       21.33 |      0.00        0.00 |     3.33      3.33 |      0  (1 spec)
+B2_n28b         8  1.1028  1.2755  1.3902 |     40.08       32.67 |     11.00        9.33 |    14.75      0.00 |      0  B2_n28b_t007 (S=1.2823, excluded)
+P1_n28b         8  1.1369  1.2238  1.3881 |     44.00       42.67 |      1.92        0.00 |    14.08      2.00 |      0  P1_n28b_it02_s03 (S=1.1369, excluded)
+P2_n28b         7  1.0122  1.2340  1.2820 |     57.14       35.33 |     17.52       12.00 |     5.24      0.00 |      0  P2_n28b_it02_s03 (S=1.0122, excluded)
+# 'best' = select_best theo tung campaign (R10/R32/R42, b0_lane=1.3333): khong spec eligible -> it teleport ket+yield nhat roi S. Khop rules/specs/{B2,P1,P2}_n28b_best.json (B2_n28b_t007 = trial 7, P1_n28b_it02_s03, P2_n28b_it02_s03; so khop toan bo noi dung spec, tru spec_id/description/provenance: B2_n28b=khop, P1_n28b=khop, P2_n28b=khop).
+# Luu y B2: best_S theo hoi tu (B2_convergence.csv) = B2_n28b_t001 (S=1.1028, jam+yield 2.00/h, excluded), con select_best/R32 chon B2_n28b_t007 (S=1.2823, jam+yield 0.00/h). 'best' o tren la theo R32. Hai cach chon KHAC nhau; rules/specs/B2_n28b_best.json la theo R32 (t007), khong phai S thuan.
+
+## Best chung (select_best tren 23 spec cua B2_n28b+P1_n28b+P2_n28b, B0/B1 khong tham gia)
+best chung: P2_n28b_it02_s03 (P2_n28b), eligibility=excluded, jam+yield=0.00/h, S=1.0122, coll=35.33/h, lane=12.00/h
+so spec eligible tren 23 spec: 0. Ly do: khong spec nao eligible -> R32/R42: it teleport ket+yield nhat (0.00/h co 6 spec hoa), roi S nho nhat. Day la 'it ket xe nhat', KHONG phai 'eligible'.
+best theo S thuan (khong R32): P2_n28b_it02_s03 (trung best chung: True).
+Bang xep hang day du (jam+yield/h tang dan, roi S):
+ # campaign spec_id           elig      jam+yld/h       S  coll/h  lane/h
+ 1 P2_n28b P2_n28b_it02_s03  excluded       0.00  1.0122   35.33   12.00
+ 2 P2_n28b P2_n28b_it01_s01  excluded       0.00  1.2340   52.67    9.33
+ 3 P2_n28b P2_n28b_it01_s03  excluded       0.00  1.2785   62.67   20.67
+ 4 P2_n28b P2_n28b_it01_s02  excluded       0.00  1.2820   48.67   12.00
+ 5 B2_n28b B2_n28b_t007      excluded       0.00  1.2823   32.67    9.33
+ 6 B2_n28b B2_n28b_t000      excluded       0.00  1.3497   54.67   25.33
+ 7 P2_n28b P2_n28b_it02_s01  excluded       1.33  1.0947   54.67   20.00
+ 8 P2_n28b P2_n28b_it02_s00  excluded       1.33  1.1200   58.67   24.00
+ 9 B2_n28b B2_n28b_t001      excluded       2.00  1.1028   46.00   12.67
+10 P1_n28b P1_n28b_it02_s03  excluded       2.00  1.1369   42.67    0.00
+11 P1_n28b P1_n28b_it02_s00  excluded       2.67  1.1864   37.33    1.33
+12 P1_n28b P1_n28b_it01_s02  excluded       6.67  1.3881   43.33    4.67
+13 B2_n28b B2_n28b_t004      excluded       7.33  1.3902   42.00    8.00
+14 B2_n28b B2_n28b_t006      excluded       9.33  1.2539   20.67    7.33
+15 P1_n28b P1_n28b_it01_s03  excluded      12.67  1.3457   34.67    5.33
+16 P1_n28b P1_n28b_it01_s01  excluded      14.67  1.2343   32.67    0.00
+17 P1_n28b P1_n28b_it02_s02  excluded      17.33  1.1538   54.67    0.00
+18 B2_n28b B2_n28b_t003      excluded      20.67  1.3127   26.67    4.67
+19 P1_n28b P1_n28b_it01_s00  excluded      22.67  1.2165   46.00    1.33
+20 B2_n28b B2_n28b_t005      excluded      31.33  1.2686   54.00   10.00
+21 P1_n28b P1_n28b_it02_s01  excluded      34.00  1.2310   60.67    2.67
+22 P2_n28b P2_n28b_it02_s02  excluded      34.00  1.2416   87.33   24.67
+23 B2_n28b B2_n28b_t002      excluded      47.33  1.1954   44.00   10.67
+
+## Ty le spec hop le (validity_log.csv; thong ke theo spec_id goc, #aN = lan thu N)
+P1_n28b: 8 spec; hop le lan dau (#a1) 8/8 = 100%; hop le sau retry (toi da #a1) 8/8 = 100%; ty le theo lan thu 8/8 = 100%
+P2_n28b: 8 spec; hop le lan dau (#a1) 5/8 = 62%; hop le sau retry (toi da #a2) 8/8 = 100%; ty le theo lan thu 8/11 = 73%
+  fail: P2_n28b_it01_s01#a1, P2_n28b_it01_s02#a1, P2_n28b_it01_s03#a1 (logic:1 moi spec; xem experiments/llm_logs/P2_n28b/validity_log.csv); tat ca hop le o #a2.
+  Luu y: P2_n28b_it01_s00 hop le o #a1 nhung 'lost' khi danh gia (khong phai loi validity); tinh vao 8/8 'hop le' o tren nhung khong co ket qua.
+
+## So voi B0 (mang vong 2; 'tb' = trung binh cac spec cua phuong phap; hieu = phuong phap - B0; am = tot hon)
+method        dS tb  dS best   djy tb  djy best   (B0: S=1.2116, jam+yield=7.33/h)
+B1_manual   +0.0422  +0.0422    -4.00     -4.00
+B2_n28b     +0.0639  +0.0707    +7.42     -7.33   (dS tb dung trung vi S; djy tb dung trung binh)
+P1_n28b     +0.0122  -0.0747    +6.75     -5.33   (dS tb dung trung vi S; djy tb dung trung binh)
+P2_n28b     +0.0224  -0.1994    -2.09     -7.33   (dS tb dung trung vi S; djy tb dung trung binh)
+# B0 vong 2 co jam+yield = 7.33/h (khac vong 1: 0.00) va S = 1.2116; 'dS/djy best' dung spec best R32 cua tung campaign.
+
+## So voi vong 1 (report/2026-10-28/data/campaign_specs.csv, id *_n28)
+# Khong so sanh tren cung tap spec: mang vong 1 va vong 2 khac (net_hash, routes_hash, site_hash doi; xem REF_B0_B1.txt), khac so spec P2 (8 -> 7), khac mau tim kiem. Chi de tham khao.
+method   vong  n_spec   S_min   S_med   S_max   coll/h   lane/h     jy/h n_elig best_R32
+B2       v1         8  1.0909  1.1902  1.2269    46.83    13.08    15.92      0 B2_n28_t000 (S=1.1602, jy=0.00, excluded)
+B2       v2         8  1.1028  1.2755  1.3902    40.08    11.00    14.75      0 B2_n28b_t007 (S=1.2823, jy=0.00, excluded)
+P1       v1         8  1.0179  1.1017  1.2263    55.17     0.67     7.92      0 P1_n28_it02_s02 (S=1.0572, jy=0.00, excluded)
+P1       v2         8  1.1369  1.2238  1.3881    44.00     1.92    14.08      0 P1_n28b_it02_s03 (S=1.1369, jy=2.00, excluded)
+P2       v1         8  0.9006  1.0251  1.0646    81.75     8.00     3.92      0 P2_n28_it02_s02 (S=0.9006, jy=0.00, excluded)
+P2       v2         7  1.0122  1.2340  1.2820    57.14    17.52     5.24      0 P2_n28b_it02_s03 (S=1.0122, jy=0.00, excluded)
+B0       v1         1  1.1235   -       -       34.67     2.67     0.00      0
+B0       v2         1  1.2116   -       -       38.67     1.33     7.33      0
+B1_man   v1         1  1.1975   -       -       41.33     0.00    24.00      0
+B1_man   v2         1  1.2538   -       -       21.33     0.00     3.33      0
+# v1: B2 8 trial, P1 8, P2 8 (2 vong x 4); v2: B2 8 trial, P1 8, P2 7 (it01_s00 lost).

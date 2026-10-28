@@ -1,0 +1,128 @@
+{
+  "spec_id": "P1_n28b_it01_s01",
+  "source": "llm",
+  "provenance": {
+    "model": "claude-sonnet (stand-in)",
+    "prompt_version": "v002",
+    "iteration": 1,
+    "sample_idx": 1,
+    "runtime": "file"
+  },
+  "description": "P1 it01 params_only: keep Saval base car/moto values and shares; tune swarm_red_running p0/p_max toward M3/share/moto, early_start p toward M2/early/moto, and queue_space_seeking q/p_* toward the F2 and M9c/M10b targets.",
+  "driver_archetypes": [
+    {
+      "id": "car_saval",
+      "base_vclass": "passenger",
+      "share": 0.9,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "No feedback yet, so the Saval et al. 2023 Table 11 car values are kept; they target M1/car discharge headway and M6 car travel times, and cars show almost no red running (M3/share/car 0.004)."
+    },
+    {
+      "id": "car_seeker",
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "share": 0.1,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "Same car values as car_saval (M1/car, M6 car) because no rule acts on custom2 on this net; share 0.1 kept so the car population stays the Saval one."
+    },
+    {
+      "id": "moto_saval",
+      "base_vclass": "motorcycle",
+      "share": 0.9,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3
+      },
+      "rationale": "Saval et al. 2023 Table 11 motorcycle values kept (M1/moto discharge headway 0.296 s, M6 moto times, M4 overshoot via minGapLat 0.3, the lower bound); nothing in the prompt yet shows these need to move."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.1,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3
+      },
+      "rationale": "Same riding parameters as moto_saval (M1/moto, M4); share 0.1 kept for now so the seeker population (M10a sidewalk 0.56 veh/cycle, M8/moto, M9a) can be adjusted after the first feedback."
+    },
+    {
+      "id": "moto_violator_saval",
+      "base_vclass": "custom1",
+      "share": 1.0,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3,
+        "jmTimegapMinor": 1.0
+      },
+      "rationale": "Illegal-left riders keep the moto values and the SUMO default jmTimegapMinor 1.0 s; M7a/M7b/M7c (box waiters, clear lag 5.46 s) give no feedback yet on which direction to move it."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.15,
+        "k": 0.0,
+        "p_max": 0.15,
+        "dt": 10.0
+      },
+      "rationale": "Targets M3/share/moto (observed 0.098) and M3/per_cycle (3.9 veh/cycle): the Tay Son value 0.5 is a front-row stopping probability and would overshoot a pooled red-running share of 0.098, so p0 = p_max = 0.15 (front row only, so above the pooled share); k = 0 as no swarm effect is evidenced yet."
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 8.0,
+        "p": 0.13,
+        "v_max": 2.0
+      },
+      "rationale": "Targets M2/early/moto (observed share 0.130 in the last 10 s of red) and M2/first_delay: p = 0.13 matches the observed share, t_before_green = 8 s lies inside the 4-10 s lead time of the target, v_max = 2 m/s kept as a slow creep."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 15.0,
+        "t_g_s": 0.0,
+        "est_noise": 0.0,
+        "p_wrong_lane": 0.2,
+        "p_right_lane": 0.02,
+        "p_sidewalk": 0.05,
+        "v_creep": 3.0,
+        "merge_zone_m": 15.0
+      },
+      "rationale": "Targets M10a/M10b and M9a/M9c: observed choices occur at queue about 15.3-15.7 m (M10b, M9c), so q = 15 m instead of 30 m; p_wrong_lane 0.2, p_right_lane 0.02, p_sidewalk 0.05 follow the observed F2 conditional shares at q20-40 (0.19, 0.02, 0.05), the first two being redistributed on this net; other params kept."
+    }
+  ]
+}

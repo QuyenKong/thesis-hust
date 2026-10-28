@@ -1,0 +1,488 @@
+{
+ "request_id": "P2_n28b__it02_s02_a1",
+ "campaign": "P2_n28b",
+ "mode": "full",
+ "attempt": 1,
+ "model": "claude-sonnet (stand-in)",
+ "messages": [
+  {
+   "role": "system",
+   "content": "You are a traffic-simulation modeller. You write driver-behaviour rule specs for the microscopic simulator SUMO\n(version 1.27, sublane model SL2015) so that a simulation of mixed motorcycle and car traffic at one signalised\nintersection in Hanoi reproduces the observed, often non-compliant, driving behaviour as closely as possible.\n\nA rule spec has two parts:\n1. `driver_archetypes`: driver types. Each one joins a vehicle-type distribution with a `share` and sets SUMO\n   vType attributes in `params`.\n2. `traci_rules`: conditional behaviours that a TraCI controller executes during the run (early start, swarm red\n   running, queue space seeking, illegal-left box waiting, slow riding in the lane centre), each applied to some\n   archetypes with numeric `params`.\n\nHard constraints (a spec that breaks one is rejected and costs you an attempt):\n- Use only the vType attributes and rule parameters listed in the parameter dictionary, within their ranges for\n  the archetype's base vehicle class. Do not invent attribute names.\n- In every vehicle-type distribution the shares of its archetypes sum to exactly 1.\n- Every archetype and every rule has a short `rationale` that names the observed metric it targets and why the\n  value moves it in the right direction.\n- Archetype ids are unique, start with a letter, use only letters, digits and `_`, and never start with `DEFAULT_`.\n- Answer with one JSON object that follows the output schema, and nothing else. Do not add `spec_id`, `source`\n  or `provenance`: the harness inserts them.\n\nGoal: make the simulation realistic, i.e. reduce the weighted distance between simulated and observed metrics.\nA metric with ratio R <= 1 is as close to the observations as two observed days are to each other. Prefer changes\nwith a clear mechanism; change few things at a time when the feedback shows what is wrong."
+  },
+  {
+   "role": "user",
+   "content": "# Task context\n\nMode: full\nYou may change the structure (experiment E2, P2): add, remove or redefine archetypes and rules, as well as all values.\n\n## Intersection\n\nLe Van Luong x Hoang Dao Thuy (Hanoi), signalised, AM peak. Site file source: LITERATURE_PROXY.\n- Approach LVL_W: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'l', 'u']] [assumed] (r right, s straight, l left, u U-turn); lane 0 is a continuous right-turn lane: right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation]; rideable sidewalk from 170 m before the stop line, 3.0 m wide [assumed].\n- Approach LVL_E: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'l', 'u']] [assumed] (r right, s straight, l left, u U-turn); lane 0 is a continuous right-turn lane: right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation]; rideable sidewalk from 170 m before the stop line, 3.0 m wide [assumed].\n- Approach HDT_N: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'u']] [assumed] (r right, s straight, l left, u U-turn); left turn banned [field_observation]; lane 0 is a continuous right-turn lane: right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation].\n- Approach HDT_S: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'u']] [assumed] (r right, s straight, l left, u U-turn); left turn banned [field_observation]; lane 0 is a continuous right-turn lane: right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation].\n- Signal: fixed time, cycle 120 s [literature_transferred]; phases LVL_straight 42 s (green LVL_W:s, LVL_E:s), LVL_straight_yellow 4 s, LVL_straight_allred 2 s, LVL_left 16 s (green LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t), LVL_left_yellow 4 s, LVL_left_allred 2 s, HDT_green 44 s (green HDT_N:s, HDT_N:l (banned, custom1 only), HDT_N:t, HDT_S:s, HDT_S:l (banned, custom1 only), HDT_S:t), HDT_yellow 4 s, HDT_allred 2 s [assumed] (movement <approach>:<r right, s straight, l left, t U-turn>; not listed = red).\n- Illegal left turns (custom1 riders, distribution moto_violator) from HDT_N, HDT_S: they enter the junction on their own green, wait inside the box and turn when the opposing straight green ends [assumed].\n\nThe site values above and the observation targets below are proxy values from the literature or assumptions\n(evidence label per value), not field measurements of this intersection. Do not fit noise: the observed days\nthemselves differ (see R in the feedback).\n\nSignal stages (one cycle): LVL_straight (straight from LVL_W and LVL_E), LVL_left (protected left-turn and U-turn\narrow for LVL_W and LVL_E together, LVL straight red), HDT_green (HDT_N and HDT_S together); each stage is followed\nby its yellow and all-red interval. HDT_N and HDT_S face each other: each is the other's opposing approach.\n\n## Behaviours in scope (10)\n\nGroup F1, signal non-compliance\n1. Patience / red-light running: vType `impatience`, `jmDriveAfterRedTime`, `jmDriveRedSpeed`, `lcImpatience`.\n2. Swarm pressure, red running in groups: rule `swarm_red_running`.\n3. Early start before green: rule `early_start`.\n\nGroup F2, seeking space when queued (a long queue makes drivers look for other space to reach the queue head)\n4. Lateral gap, encroachment, filtering: `minGapLat`, `latAlignment`, `lcSublane`, `lcPushy`,\n   `lcMaxSpeedLatStanding`.\n5. Wrong lane to dodge the signal: rule `queue_space_seeking`, option `p_wrong_lane`.\n6. Straight vehicles waiting at red in the continuous right-turn lane (lane 0), blocking the right turns: going\n   straight from lane 0 is legal on green (no separator), so these vehicles come from the ordinary lane choice of the\n   vTypes and the queue; option `p_right_lane` does not exist on this site (its probability is redistributed to the\n   other options of `queue_space_seeking`).\n7. Riding on the sidewalk to pass the queue: rule `queue_space_seeking`, option `p_sidewalk` (custom1 only;\n   only on the approaches with a rideable sidewalk, LVL_W and LVL_E).\n\nGroup F3, interaction inside the junction\n8. Risky gap acceptance, cutting in: `lcAssertive`, `lcPushyGap`, `jmTimegapMinor`, `tau`.\n9. Illegal left turn from HDT_N and HDT_S (left turn banned there) that enters on the HDT_green stage and waits\n   inside the junction box until the opposing straight green ends: the custom1 archetypes of the `moto_violator`\n   distribution (their `jm*` attributes) and rule `illegal_left_box`.\n10. Slow motorcycles riding in the lane centre: `speedFactor`, `speedDev` (own archetype) and rule\n    `slow_lane_center`.\n\nNot violations: right turns from the continuous right-turn lane (every approach) at any time, and left turns\nand U-turns from LVL_W and LVL_E on their own LVL_left arrow. Wrong-way driving is not modelled.\n\nVehicle classes: `passenger` (cars, distribution `car`), `motorcycle` (distribution `moto`), `custom1` (violating\nmotorcycles: distribution `moto_violator` = the illegal-left riders from HDT_N and HDT_S, or `moto` = straight\nriders that may seek space), `custom2` (violating cars: distribution `car_violator` (unused by the demand) or\n`car`). The demand references the distributions `car`, `moto`, `moto_violator`; each needs at least one archetype.\n\n## Parameter dictionary\n\n### vType attributes (set in an archetype's `params`)\n\n- `tau` (carFollow): [0.4, 3] s, SUMO default 1; behaviour f_risk; observed through M1, M5\n- `minGap` (vType): [1, 3] m, SUMO default 2.5 (except motorcycle: [0.5, 2.5], default 2.5; custom1: [0.5, 2.5], default 2.5); behaviour encroachment, illegal_left_box; observed through M1, M5, M7\n- `accel` (carFollow): [0.8, 4] m/s^2, SUMO default 2.6 (except motorcycle: [0.8, 6], default 6; custom1: [0.8, 6], default 6); behaviour I_slow; observed through M1, M6\n- `decel` (carFollow): [2, 7.5] m/s^2, SUMO default 4.5 (except motorcycle: [2, 10], default 10; custom1: [2, 10], default 10); behaviour f_risk; observed through M3, M6\n- `sigma` (carFollow): [0, 1] -, SUMO default 0.5; behaviour I_slow; observed through M1, M6\n- `speedFactor` (vType): [0.5, 1.3] -, SUMO default 1; behaviour I_slow; observed through M6\n- `speedDev` (vType): [0, 0.3] -, SUMO default 0.1; behaviour I_slow; observed through M6\n- `minGapLat` (LC): [0.3, 1] m, SUMO default 0.6; behaviour encroachment; observed through M4, M5, M7\n- `maxSpeedLat` (vType): [0.5, 3] m/s, SUMO default 1; behaviour encroachment; observed through M4\n- `latAlignment` (vType): one of right, center, left, compact, nice, arbitrary; SUMO default center; behaviour encroachment; observed through M4, M8\n- `lcSublane` (LC): [0, 5] -, SUMO default 1; behaviour encroachment; observed through M4\n- `lcPushy` (LC): [0, 1] -, SUMO default 0; behaviour encroachment; observed through M4, M5\n- `lcPushyGap` (LC): [0, 1] m, SUMO default 0.6; behaviour f_risk; observed through M4\n- `lcAssertive` (LC): [0.5, 5] -, SUMO default 1; behaviour f_risk; observed through M4, M8\n- `lcImpatience` (LC): [0, 1] -, SUMO default 0; behaviour patience; observed through M4, M8\n- `lcTimeToImpatience` (LC): [1, 600] s, SUMO default inf; behaviour patience; observed through M4, M8\n- `lcMaxSpeedLatStanding` (LC): [0, 3] m/s, SUMO default 1; behaviour encroachment; observed through M4\n- `lcSpeedGain` (LC): [0, 10] -, SUMO default 1; behaviour encroachment; observed through M8\n- `impatience` (junction): [0, 1] -, SUMO default 0; behaviour patience; observed through M7\n- `jmDriveAfterRedTime` (junction): [0, 10] s, SUMO default -1; behaviour patience; observed through M3\n- `jmDriveRedSpeed` (junction): [1, 13.9] m/s, SUMO default 55.5556; behaviour patience; observed through M3, M6\n- `jmTimegapMinor` (junction): [0.5, 3] s, SUMO default 1; only on base_vclass custom1; behaviour illegal_left_box, f_risk; observed through M7\n\n### TraCI rules (`rule_type`, `params`; all listed params are required unless marked optional)\n\n- `early_start` (applies to base_vclass passenger, motorcycle, custom1):\n  - `t_before_green` [0, 10] s: window before green onset in which a front-row vehicle may creep over the stop line; 10 s = upper end of the M2 target lead time (data/proxy/targets.yaml early_start_lead_s 4-10 s)\n  - `p` [0, 1] -: probability per front-row vehicle and red phase\n  - `v_max` [0.5, 5] m/s: creep speed cap; 5 m/s = 18 km/h, assumed walking-to-slow-rolling range\n- `swarm_red_running` (applies to base_vclass passenger, motorcycle, custom1):\n  - `p0` [0, 1] -: base probability to run the red for a vehicle at the stop line; Saval et al. 2023 (Sec 4) report 0.5 for front-row motorcycles in Hanoi, so the full [0, 1] is kept\n  - `k` [0, 0.5] 1/veh: increase of the probability per vehicle that ran the red on the same approach within dt; 0 = no swarm effect; 0.5 assumed upper (two followers saturate p)\n  - `p_max` [0, 1] -: cap of p0 + k*n; must be >= p0\n  - `dt` [1, 30] s: look-back window for counting red runners; assumed, at most a quarter of the 120 s proxy cycle\n- `queue_space_seeking` (applies to base_vclass custom1, custom2):\n  - `q` [5, 80] m: queue length on the vehicle's correct lanes (lane_movements) that triggers the draw; 80 m = experiment.yaml observation.queue_range_m (queues beyond it are not observed); Phase 3A used 50 m (setting)\n  - `t_w` [5, 120] s (optional): optional: the draw is also triggered once the vehicle has halted this long on its approach (within the controller radius); 120 s = one proxy cycle; assumed\n  - `t_g_s` [0, 20] s: green check (PLAN 4.5 'đèn sắp xanh', Viktor 2026-10-27): this many seconds before its approach's next green each queued vehicle not yet drawn estimates whether it clears the stop line in that green (vehicles ahead x the approach's discharge headway of the previous green, measured live) and draws if not; 0 = off. Viktor's example 7 s; 20 s assumed upper bound (twice the 10 s early-start window, data/proxy/targets.yaml)\n  - `est_noise` [0, 1] -: sigma of the multiplicative lognormal error of that estimate (median unbiased); 1 = a factor e ~ 2.7 at one sigma; assumed\n  - `p_wrong_lane` [0, 1] -: probability of the wrong_lane option (S_cheat: an adjacent lane whose markings do not permit the movement but which connects to the vehicle's next edge); inapplicable on the proxy net (ruling R27), so it is redistributed\n  - `p_right_lane` [0, 1] -: probability of the right_lane option (behaviour 6, straight vehicles ride the continuous right-turn lane upstream of the bollards, Phase 3A); exists only where straight is not permitted from lane 0 and bollards separate it; not on the proxy net (no bollards, straight from lane 0 legal on green, 2026-10-28), so it is redistributed\n  - `p_sidewalk` [0, 1] -: probability of the sidewalk option (behaviour 7, custom1 only, Phase 3B); p_wrong_lane + p_right_lane + p_sidewalk <= 1\n  - `v_creep` [0.5, 5] m/s: speed cap while in the alternative space (PLAN 4.5 'tốc độ <= v_creep'); 5 m/s = the proxy sidewalk speed (Phase 3B setting); assumed\n  - `merge_zone_m` [3, 20] m: right_lane: the lane-0 request ends this far upstream of the bollard edge and SL2015 merges the vehicle back (Phase 3A: 'a few metres to ~20 m', 15 m tested); assumed; no effect without bollards\n- `illegal_left_box` (applies to base_vclass custom1):\n  - `release_lag_s` [0, 4] s: extra hold added to SUMO's native release of box waiters (setSpeed(0) hold, no safety bits changed); ruling R15. R25 dropped the second param max_clear_into_cross_green_s: holding waiters into the crossing green either locks the crossing road or, with foes told to ignore them, collides\n- `slow_lane_center` (applies to base_vclass motorcycle):\n  - `lat_offset` [-1, 1] m: lateral offset from the lane centre the slow rider keeps (0 = centre); |1 m| keeps a 0.9 m wide motorcycle inside a 3.5 m proxy lane; assumed\n\n## Observation targets (calibration days, pooled)\n\n- F2/p/right_lane/ge80: P(choose right_lane | queue ge80 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/right_lane/q0-20: P(choose right_lane | queue q0-20 m at range entry): observed mean 0.01081 share (target evidence assumed, reported only)\n- F2/p/right_lane/q20-40: P(choose right_lane | queue q20-40 m at range entry): observed mean 0.02136 share (target evidence assumed, reported only)\n- F2/p/right_lane/q40-60: P(choose right_lane | queue q40-60 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/right_lane/q60-80: P(choose right_lane | queue q60-80 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/sidewalk/ge80: P(choose sidewalk | queue ge80 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/sidewalk/q0-20: P(choose sidewalk | queue q0-20 m at range entry): observed mean 0.008621 share (target evidence assumed, reported only)\n- F2/p/sidewalk/q20-40: P(choose sidewalk | queue q20-40 m at range entry): observed mean 0.04893 share (target evidence assumed, reported only)\n- F2/p/sidewalk/q40-60: P(choose sidewalk | queue q40-60 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/sidewalk/q60-80: P(choose sidewalk | queue q60-80 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/wrong_lane/ge80: P(choose wrong_lane | queue ge80 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/wrong_lane/q0-20: P(choose wrong_lane | queue q0-20 m at range entry): observed mean 0.2288 share (target evidence assumed, reported only)\n- F2/p/wrong_lane/q20-40: P(choose wrong_lane | queue q20-40 m at range entry): observed mean 0.1863 share (target evidence assumed, reported only)\n- F2/p/wrong_lane/q40-60: P(choose wrong_lane | queue q40-60 m at range entry): no observed events (target evidence assumed, reported only)\n- F2/p/wrong_lane/q60-80: P(choose wrong_lane | queue q60-80 m at range entry): no observed events (target evidence assumed, reported only)\n- M1/car: discharge headway after green (car): observed mean 0.3467 s (target evidence literature_transferred)\n- M1/moto: discharge headway after green (moto): observed mean 0.2957 s (target evidence literature_transferred)\n- M10a/per_cycle: motorcycles seen on the sidewalk per cycle: observed mean 0.5606 veh/cycle (target evidence assumed)\n- M10b/queue_at_choice: approach queue when a motorcycle takes the sidewalk: observed mean 15.34 m (target evidence assumed, reported only)\n- M2/early/car: early-start share, last 10 s of red (car): observed mean 0.01111 share (target evidence literature_transferred)\n- M2/early/moto: early-start share, last 10 s of red (moto): observed mean 0.1302 share (target evidence literature_transferred)\n- M2/first_delay: green onset to first crossing: observed mean 2.832 s (target evidence assumed)\n- M3/per_cycle: red-light violations per cycle: observed mean 3.913 veh/cycle (target evidence assumed)\n- M3/share/car: red-running share (car): observed mean 0.004108 share (target evidence literature_transferred)\n- M3/share/moto: red-running share (moto): observed mean 0.09802 share (target evidence literature_transferred)\n- M3/var_to_mean: red-light violations per cycle, variance/mean: observed mean 1.142 (target evidence assumed)\n- M4/lat_moto: lateral position of halting motorcycles at green onset: observed mean 7.191 m (target evidence assumed)\n- M4/overshoot_depth: stop-line overshoot depth of motorcycles: observed mean 1.992 m (target evidence assumed)\n- M4/overshoot_share: share of halting motorcycles past the stop line at green onset: observed mean 0.6203 share (target evidence literature_transferred)\n- M5/length: queue length at green onset: observed mean 15.83 m (target evidence assumed)\n- M5/moto_density: motorcycle density in the queue at green onset: observed mean 0.05248 veh/m2 (target evidence assumed)\n- M5/share_censored: share of queues reaching the observed range (80 m): observed mean 0 share (target evidence assumed, reported only)\n- M6/approach/illegal_l/moto: time range entry to stop line (illegal_l, moto): observed mean 38.32 s (target evidence literature_transferred)\n- M6/approach/l/car: time range entry to stop line (l, car): observed mean 63.18 s (target evidence literature_transferred)\n- M6/approach/l/moto: time range entry to stop line (l, moto): observed mean 53.58 s (target evidence literature_transferred)\n- M6/approach/r/car: time range entry to stop line (r, car): observed mean 12.37 s (target evidence literature_transferred)\n- M6/approach/r/moto: time range entry to stop line (r, moto): observed mean 11.89 s (target evidence literature_transferred)\n- M6/approach/s/car: time range entry to stop line (s, car): observed mean 42.14 s (target evidence literature_transferred)\n- M6/approach/s/moto: time range entry to stop line (s, moto): observed mean 35.67 s (target evidence literature_transferred)\n- M6/approach/u/car: time range entry to stop line (u, car): observed mean 49.68 s (target evidence literature_transferred)\n- M6/approach/u/moto: time range entry to stop line (u, moto): observed mean 41.79 s (target evidence literature_transferred)\n- M6/junction/illegal_l/moto: time stop line to outbound lane (illegal_l, moto): observed mean 36.8 s (target evidence assumed)\n- M6/junction/l/car: time stop line to outbound lane (l, car): observed mean 7.568 s (target evidence literature_transferred)\n- M6/junction/l/moto: time stop line to outbound lane (l, moto): observed mean 7.57 s (target evidence literature_transferred)\n- M6/junction/r/car: time stop line to outbound lane (r, car): observed mean 2.594 s (target evidence literature_transferred)\n- M6/junction/r/moto: time stop line to outbound lane (r, moto): observed mean 2.401 s (target evidence literature_transferred)\n- M6/junction/s/car: time stop line to outbound lane (s, car): observed mean 7.783 s (target evidence literature_transferred)\n- M6/junction/s/moto: time stop line to outbound lane (s, moto): observed mean 7.428 s (target evidence literature_transferred)\n- M6/junction/u/car: time stop line to outbound lane (u, car): observed mean 3.013 s (target evidence literature_transferred)\n- M6/junction/u/moto: time stop line to outbound lane (u, moto): observed mean 2.74 s (target evidence literature_transferred)\n- M7a/n_waiting: illegal lefts halting in the box at the opposing green end: observed mean 5.59 veh (target evidence assumed)\n- M7a/release_time: box exit time after the opposing green end: observed mean 2.78 s (target evidence assumed)\n- M7b/clear_lag: PET proxy (box clear lag): first box exit after the opposing stream ends: observed mean 5.459 s (target evidence assumed)\n- M7c/slope: crossing-road start delay per box waiter: observed mean 0.2886 s/veh (target evidence assumed)\n- M8/car: wrong-lane share of turning vehicles (car): observed mean 0.06808 share (target evidence assumed)\n- M8/moto: wrong-lane share of turning vehicles (moto): observed mean 0.249 share (target evidence assumed)\n- M9a/per_cycle: straight vehicles standing in the right-turn lane per cycle: observed mean 0.5725 veh/cycle (target evidence assumed)\n- M9b/delay_blocked: delay of blocked right-turners (range entry to stop line): observed mean 18.83 s (target evidence assumed)\n- M9b/share_blocked: share of right-turners blocked in lane 0: observed mean 0.06505 share (target evidence assumed)\n- M9c/queue_at_choice: approach queue when a straight vehicle takes the right-turn lane: observed mean 15.71 m (target evidence assumed, reported only)\n\n## Output\n\nReturn one JSON object with `driver_archetypes`, `traci_rules` and optionally `description`, following this\nJSON schema:\n\n```json\n{\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"driver_archetypes\", \"traci_rules\"], \"properties\": {\"description\": {\"type\": \"string\"}, \"driver_archetypes\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"id\", \"base_vclass\", \"share\", \"params\", \"rationale\"], \"properties\": {\"id\": {\"type\": \"string\"}, \"base_vclass\": {\"enum\": [\"passenger\", \"motorcycle\", \"custom1\", \"custom2\"]}, \"distribution\": {\"enum\": [\"car\", \"moto\", \"moto_violator\", \"car_violator\"]}, \"share\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 1}, \"params\": {\"type\": \"object\", \"additionalProperties\": false, \"properties\": {\"tau\": {\"type\": \"number\", \"minimum\": 0.4, \"maximum\": 3.0}, \"minGap\": {\"type\": \"number\", \"minimum\": 0.5, \"maximum\": 3.0}, \"accel\": {\"type\": \"number\", \"minimum\": 0.8, \"maximum\": 6.0}, \"decel\": {\"type\": \"number\", \"minimum\": 2.0, \"maximum\": 10.0}, \"sigma\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"speedFactor\": {\"type\": \"number\", \"minimum\": 0.5, \"maximum\": 1.3}, \"speedDev\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 0.3}, \"minGapLat\": {\"type\": \"number\", \"minimum\": 0.3, \"maximum\": 1.0}, \"maxSpeedLat\": {\"type\": \"number\", \"minimum\": 0.5, \"maximum\": 3.0}, \"latAlignment\": {\"enum\": [\"right\", \"center\", \"left\", \"compact\", \"nice\", \"arbitrary\"]}, \"lcSublane\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 5.0}, \"lcPushy\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"lcPushyGap\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"lcAssertive\": {\"type\": \"number\", \"minimum\": 0.5, \"maximum\": 5.0}, \"lcImpatience\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"lcTimeToImpatience\": {\"type\": \"number\", \"minimum\": 1.0, \"maximum\": 600.0}, \"lcMaxSpeedLatStanding\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 3.0}, \"lcSpeedGain\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 10.0}, \"impatience\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"jmDriveAfterRedTime\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 10.0}, \"jmDriveRedSpeed\": {\"type\": \"number\", \"minimum\": 1.0, \"maximum\": 13.9}, \"jmTimegapMinor\": {\"type\": \"number\", \"minimum\": 0.5, \"maximum\": 3.0}}}, \"rationale\": {\"type\": \"string\"}}}}, \"traci_rules\": {\"type\": \"array\", \"items\": {\"anyOf\": [{\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"rule_type\", \"applies_to\", \"params\", \"rationale\"], \"properties\": {\"rule_type\": {\"enum\": [\"early_start\"]}, \"applies_to\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"string\"}}, \"params\": {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"t_before_green\", \"p\", \"v_max\"], \"properties\": {\"t_before_green\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 10.0}, \"p\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"v_max\": {\"type\": \"number\", \"minimum\": 0.5, \"maximum\": 5.0}}}, \"rationale\": {\"type\": \"string\"}}}, {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"rule_type\", \"applies_to\", \"params\", \"rationale\"], \"properties\": {\"rule_type\": {\"enum\": [\"swarm_red_running\"]}, \"applies_to\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"string\"}}, \"params\": {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"p0\", \"k\", \"p_max\", \"dt\"], \"properties\": {\"p0\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"k\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 0.5}, \"p_max\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"dt\": {\"type\": \"number\", \"minimum\": 1.0, \"maximum\": 30.0}}}, \"rationale\": {\"type\": \"string\"}}}, {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"rule_type\", \"applies_to\", \"params\", \"rationale\"], \"properties\": {\"rule_type\": {\"enum\": [\"queue_space_seeking\"]}, \"applies_to\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"string\"}}, \"params\": {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"q\", \"t_g_s\", \"est_noise\", \"p_wrong_lane\", \"p_right_lane\", \"p_sidewalk\", \"v_creep\", \"merge_zone_m\"], \"properties\": {\"q\": {\"type\": \"number\", \"minimum\": 5.0, \"maximum\": 80.0}, \"t_w\": {\"type\": \"number\", \"minimum\": 5.0, \"maximum\": 120.0}, \"t_g_s\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 20.0}, \"est_noise\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"p_wrong_lane\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"p_right_lane\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"p_sidewalk\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 1.0}, \"v_creep\": {\"type\": \"number\", \"minimum\": 0.5, \"maximum\": 5.0}, \"merge_zone_m\": {\"type\": \"number\", \"minimum\": 3.0, \"maximum\": 20.0}}}, \"rationale\": {\"type\": \"string\"}}}, {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"rule_type\", \"applies_to\", \"params\", \"rationale\"], \"properties\": {\"rule_type\": {\"enum\": [\"illegal_left_box\"]}, \"applies_to\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"string\"}}, \"params\": {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"release_lag_s\"], \"properties\": {\"release_lag_s\": {\"type\": \"number\", \"minimum\": 0.0, \"maximum\": 4.0}}}, \"rationale\": {\"type\": \"string\"}}}, {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"rule_type\", \"applies_to\", \"params\", \"rationale\"], \"properties\": {\"rule_type\": {\"enum\": [\"slow_lane_center\"]}, \"applies_to\": {\"type\": \"array\", \"minItems\": 1, \"items\": {\"type\": \"string\"}}, \"params\": {\"type\": \"object\", \"additionalProperties\": false, \"required\": [\"lat_offset\"], \"properties\": {\"lat_offset\": {\"type\": \"number\", \"minimum\": -1.0, \"maximum\": 1.0}}}, \"rationale\": {\"type\": \"string\"}}}]}}}}\n```\n"
+  },
+  {
+   "role": "user",
+   "content": "# Iteration 1: your specs\n\n```json\n{\"P2_n28b_it01_s00\":{\"description\":\"Iteration 1 baseline-structure spec: cars as one compliant archetype; motorcycles split into standard, slow lane-centre and space-seeking custom1 riders; illegal-left riders as a separate custom1 distribution; per-class early-start and swarm red-running rules.\",\"driver_archetypes\":[{\"id\":\"car_std\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":1.0,\"params\":{\"tau\":1.0,\"minGap\":2.0,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"speedDev\":0.1,\"impatience\":0.1},\"rationale\":\"Cars are nearly compliant (M3/share/car 0.0041, M2/early/car 0.0111), so near-default car-following values and low impatience keep red running and early start low; tau 1.0 and accel 2.6 target M1/car discharge headway.\"},{\"id\":\"moto_std\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.5,\"params\":{\"tau\":0.6,\"minGap\":0.5,\"accel\":5.0,\"decel\":8.0,\"sigma\":0.5,\"speedFactor\":1.0,\"speedDev\":0.1,\"minGapLat\":0.4,\"maxSpeedLat\":1.5,\"latAlignment\":\"compact\",\"lcSublane\":2.0,\"lcPushy\":0.5,\"lcMaxSpeedLatStanding\":1.0,\"impatience\":0.5,\"jmDriveAfterRedTime\":3.0,\"jmDriveRedSpeed\":5.0},\"rationale\":\"Short tau, small minGap/minGapLat and compact alignment pack motorcycles at the stop line to move M4/overshoot_share (0.62) and M1/moto headway (0.296 s); impatience with jmDriveAfterRedTime 3 s lets a share run the red towards M3/share/moto 0.098.\"},{\"id\":\"moto_slow\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.2,\"params\":{\"tau\":0.8,\"minGap\":0.6,\"accel\":3.0,\"decel\":6.0,\"sigma\":0.5,\"speedFactor\":0.75,\"speedDev\":0.1,\"minGapLat\":0.5,\"latAlignment\":\"center\",\"impatience\":0.2},\"rationale\":\"Slow riders keeping the lane centre (lower speedFactor, centre alignment) lengthen M6/approach times (e.g. s/moto 35.7 s) and are less likely to red-run; paired with slow_lane_center.\"},{\"id\":\"moto_seeker\",\"base_vclass\":\"custom1\",\"distribution\":\"moto\",\"share\":0.3,\"params\":{\"tau\":0.6,\"minGap\":0.5,\"accel\":5.0,\"decel\":8.0,\"sigma\":0.5,\"speedFactor\":1.0,\"speedDev\":0.1,\"minGapLat\":0.4,\"maxSpeedLat\":1.5,\"latAlignment\":\"compact\",\"lcSublane\":2.0,\"lcPushy\":0.6,\"lcMaxSpeedLatStanding\":1.0,\"impatience\":0.5,\"jmDriveAfterRedTime\":3.0,\"jmDriveRedSpeed\":5.0},\"rationale\":\"Straight custom1 riders that may seek space when queued, targeting M8/moto wrong-lane share 0.249, M10a sidewalk 0.56 veh/cycle and M4 overshoot; same filtering-oriented values as moto_std, slightly higher lcPushy.\"},{\"id\":\"moto_violator_left\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":0.6,\"minGap\":0.5,\"accel\":5.0,\"decel\":8.0,\"minGapLat\":0.4,\"latAlignment\":\"compact\",\"impatience\":0.7,\"jmTimegapMinor\":1.0},\"rationale\":\"Illegal-left riders from HDT_N/HDT_S wait in the box; default jmTimegapMinor 1.0 s and high impatience target M7a n_waiting (5.59 veh) and M7b clear_lag (5.46 s), kept at base to avoid fitting noise.\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"moto_std\",\"moto_slow\",\"moto_seeker\"],\"params\":{\"t_before_green\":8.0,\"p\":0.13,\"v_max\":2.5},\"rationale\":\"Targets M2/early/moto 0.1302 (share of motorcycles starting in the last 10 s of red) with p equal to the observed share; creep speed 2.5 m/s also affects M2/first_delay 2.83 s.\"},{\"rule_type\":\"early_start\",\"applies_to\":[\"car_std\"],\"params\":{\"t_before_green\":6.0,\"p\":0.011,\"v_max\":2.0},\"rationale\":\"Targets M2/early/car 0.0111: p set to the observed car early-start share, so cars stay almost compliant.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_std\",\"moto_slow\",\"moto_seeker\"],\"params\":{\"p0\":0.06,\"k\":0.03,\"p_max\":0.3,\"dt\":10.0},\"rationale\":\"Targets M3/share/moto 0.098 and M3/var_to_mean 1.14: small base p0 plus a modest group effect k raises the share and the overdispersion of violations per cycle; cap 0.3 prevents runaway.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"car_std\"],\"params\":{\"p0\":0.004,\"k\":0.0,\"p_max\":0.01,\"dt\":10.0},\"rationale\":\"Targets M3/share/car 0.0041: p0 at the observed share and no swarm effect keep car red running rare.\"},{\"rule_type\":\"queue_space_seeking\",\"applies_to\":[\"moto_seeker\"],\"params\":{\"q\":12.0,\"t_g_s\":7.0,\"est_noise\":0.3,\"p_wrong_lane\":0.2,\"p_right_lane\":0.02,\"p_sidewalk\":0.05,\"v_creep\":5.0,\"merge_zone_m\":15.0},\"rationale\":\"Queue trigger of 12 m sits near the observed choice queues (M10b 15.3 m, M9c 15.7 m); option probabilities follow the targets F2/p/wrong_lane ~0.2, sidewalk ~0.05 (q20-40), right_lane ~0.02, and t_g_s 7 s is the green-check example from the prompt.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_violator_left\"],\"params\":{\"release_lag_s\":1.0},\"rationale\":\"Targets M7a/release_time 2.78 s and M7b/clear_lag 5.46 s: a short extra hold of 1 s over SUMO's native release, small because the native release already contributes part of the lag.\"},{\"rule_type\":\"slow_lane_center\",\"applies_to\":[\"moto_slow\"],\"params\":{\"lat_offset\":0.0},\"rationale\":\"Slow motorcycles keep the lane centre (offset 0), which narrows lateral spread for slow riders and lengthens M6/approach times towards the observed values.\"}]},\"P2_n28b_it01_s01\":{\"description\":\"Iteration 1 (no feedback yet), corrected: moto distribution split into normal, slow and space-seeking (custom1) riders; cars as one standard archetype (custom2 car seekers dropped, no queue_space_seeking option exists for them on this site); one violator archetype for illegal lefts. Rules sized from the observation targets.\",\"driver_archetypes\":[{\"id\":\"car_std\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":1.0,\"params\":{\"tau\":1.0,\"minGap\":2.0,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"impatience\":0.1},\"rationale\":\"Compliant cars: near-default car following; low impatience keeps M3/share/car (0.004) and M2/early/car (0.011) small, M1/car headway left at SUMO-typical values until feedback shows a gap.\"},{\"id\":\"moto_normal\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.55,\"params\":{\"tau\":0.8,\"minGap\":0.8,\"minGapLat\":0.4,\"maxSpeedLat\":1.5,\"latAlignment\":\"compact\",\"lcSublane\":2.0,\"impatience\":0.3},\"rationale\":\"Typical riders filter and compact in the queue: small minGapLat and compact alignment push M4/overshoot_share (0.62) and M5/moto_density (0.052 veh/m2) up, and shorten M5/length (15.8 m) and M1/moto headway (0.296 s).\"},{\"id\":\"moto_slow\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.2,\"params\":{\"speedFactor\":0.8,\"speedDev\":0.1,\"tau\":1.0,\"minGap\":1.0},\"rationale\":\"Slow riders in the lane centre: lower speedFactor raises the M6/approach times towards the observed means (e.g. s/moto 35.7 s) without changing the other behaviours.\"},{\"id\":\"moto_seeker\",\"base_vclass\":\"custom1\",\"distribution\":\"moto\",\"share\":0.25,\"params\":{\"tau\":0.8,\"minGap\":0.7,\"minGapLat\":0.3,\"maxSpeedLat\":2.0,\"latAlignment\":\"compact\",\"lcSublane\":3.0,\"lcPushy\":0.5,\"lcMaxSpeedLatStanding\":1.5,\"impatience\":0.5},\"rationale\":\"Pushy riders that may seek space: they provide the sidewalk riders for M10a (0.56 veh/cycle) and the right_lane/wrong_lane-type space seeking targeted by M8/moto (0.249) where those options exist.\"},{\"id\":\"moto_violator_a\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":0.8,\"minGap\":0.8,\"jmTimegapMinor\":1.0,\"impatience\":0.5},\"rationale\":\"Illegal-left riders from HDT_N/HDT_S: default jmTimegapMinor 1.0 s as a neutral start for M7a (5.6 waiters) and M7b (5.5 s clear lag); no feedback yet to move it.\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"moto_normal\",\"moto_slow\",\"moto_seeker\"],\"params\":{\"t_before_green\":8.0,\"p\":0.15,\"v_max\":3.0},\"rationale\":\"M2/early/moto observed 0.13 within the last 10 s of red; p 0.15 on front-row riders (within the 4-10 s lead time) targets that share and M2/first_delay (2.8 s).\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_normal\",\"moto_seeker\"],\"params\":{\"p0\":0.06,\"k\":0.03,\"p_max\":0.3,\"dt\":10.0},\"rationale\":\"M3/share/moto observed 0.098 and var_to_mean 1.14 (mild clustering): low base probability plus a small swarm increment, capped, aims at about 3.9 violations per cycle without over-dispersion.\"},{\"rule_type\":\"queue_space_seeking\",\"applies_to\":[\"moto_seeker\"],\"params\":{\"q\":10.0,\"t_w\":60.0,\"t_g_s\":7.0,\"est_noise\":0.3,\"p_wrong_lane\":0.2,\"p_right_lane\":0.02,\"p_sidewalk\":0.05,\"v_creep\":3.0,\"merge_zone_m\":15.0},\"rationale\":\"Option probabilities follow the observed F2 targets (wrong_lane 0.19-0.23, sidewalk 0.009-0.049, right_lane 0.01-0.02 at q below 40 m); on this site wrong_lane and right_lane are redistributed and p_sidewalk > 0 keeps the rule executable for custom1 riders (M10a 0.56 veh/cycle); q 10 m is under the mean queue at green onset (15.8 m, M5/length) so the draw fires in observed queues; t_g_s 7 s is the green check from the prompt.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_violator_a\"],\"params\":{\"release_lag_s\":1.5},\"rationale\":\"M7a/release_time is 2.78 s and M7b/clear_lag 5.46 s after the opposing green ends; a mid-range extra hold of 1.5 s on top of SUMO's native release is a neutral start before feedback.\"},{\"rule_type\":\"slow_lane_center\",\"applies_to\":[\"moto_slow\"],\"params\":{\"lat_offset\":0.0},\"rationale\":\"Slow riders keep the lane centre (offset 0), which supports the M6/approach moto times and M4/lat_moto without extra lateral shift; no measured offset is given so the neutral value is kept.\"}]},\"P2_n28b_it01_s02\":{\"description\":\"First full-structure spec: compliant cars; motorcycles split into normal, slow lane-centre and space-seeking (custom1) riders; illegal-left riders in moto_violator; red running, early start and space seeking via TraCI rules. Car space-seeker removed because queue_space_seeking has no existing option for custom2 on this site.\",\"driver_archetypes\":[{\"id\":\"car_std\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":1.0,\"params\":{\"tau\":1.0,\"minGap\":2.0,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"minGapLat\":0.6,\"latAlignment\":\"center\",\"impatience\":0.0},\"rationale\":\"Targets M1/car (headway 0.35 s), M3/share/car (0.004) and M6 car times: near-default car-following and no native red running, since observed car red running is almost nil.\"},{\"id\":\"moto_normal\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.6,\"params\":{\"tau\":0.8,\"minGap\":0.8,\"accel\":4.0,\"decel\":8.0,\"sigma\":0.5,\"minGapLat\":0.4,\"maxSpeedLat\":1.5,\"latAlignment\":\"compact\",\"lcSublane\":2.0,\"lcPushy\":0.5,\"lcMaxSpeedLatStanding\":1.0,\"impatience\":0.2},\"rationale\":\"Targets M1/moto (headway 0.30 s), M4/overshoot_share (0.62) and M5/moto_density (0.052 veh/m2): short tau and small minGap/minGapLat with compact alignment and active lateral filtering pack motorcycles in the queue and let them pass the stop line.\"},{\"id\":\"moto_slow\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.1,\"params\":{\"tau\":0.9,\"minGap\":0.8,\"accel\":3.0,\"decel\":8.0,\"sigma\":0.5,\"minGapLat\":0.4,\"latAlignment\":\"center\",\"speedFactor\":0.75,\"speedDev\":0.1},\"rationale\":\"Targets M6/approach and junction moto times (behaviour 10): a lower speedFactor gives slow riders that keep the lane centre, raising approach times toward the observed 36-54 s for s/l movements.\"},{\"id\":\"moto_seeker\",\"base_vclass\":\"custom1\",\"distribution\":\"moto\",\"share\":0.3,\"params\":{\"tau\":0.8,\"minGap\":0.8,\"accel\":4.0,\"decel\":8.0,\"sigma\":0.5,\"minGapLat\":0.35,\"maxSpeedLat\":1.8,\"latAlignment\":\"compact\",\"lcSublane\":3.0,\"lcPushy\":0.7,\"lcMaxSpeedLatStanding\":1.5,\"lcImpatience\":0.3,\"impatience\":0.3},\"rationale\":\"Targets M10a (0.56 sidewalk riders per cycle), M8/moto (0.249) and M4: riders eligible for queue_space_seeking, with stronger lateral aggressiveness and impatience; share 0.3 scales the per-rider probabilities to the observed overall shares.\"},{\"id\":\"moto_illegal_left\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":0.8,\"minGap\":1.0,\"accel\":4.0,\"decel\":8.0,\"minGapLat\":0.4,\"jmTimegapMinor\":1.0},\"rationale\":\"Targets M7a/n_waiting (5.6 waiters) and M7b/clear_lag (5.5 s): default minor-road time gap 1.0 s and moderate minGap, since no feedback yet says the box waiting is off.\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"moto_normal\",\"moto_slow\",\"moto_seeker\"],\"params\":{\"t_before_green\":8.0,\"p\":0.13,\"v_max\":2.0},\"rationale\":\"Targets M2/early/moto (0.130 share in the last 10 s of red) and M2/first_delay (2.8 s): p equals the observed moto share; cars (0.011) are left out as negligible.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_normal\",\"moto_slow\",\"moto_seeker\"],\"params\":{\"p0\":0.06,\"k\":0.03,\"p_max\":0.3,\"dt\":10.0},\"rationale\":\"Targets M3/share/moto (0.098), M3/per_cycle (3.9) and M3/var_to_mean (1.14): small base probability plus a mild swarm increment gives an overall share near 0.1 with slight overdispersion; cars excluded (observed 0.004).\"},{\"rule_type\":\"queue_space_seeking\",\"applies_to\":[\"moto_seeker\"],\"params\":{\"q\":12.0,\"t_g_s\":7.0,\"est_noise\":0.3,\"p_wrong_lane\":0.3,\"p_right_lane\":0.0,\"p_sidewalk\":0.1,\"v_creep\":3.0,\"merge_zone_m\":15.0},\"rationale\":\"Targets F2/p/sidewalk (0.01-0.05), M10a/M10b (queue at choice 15 m) and M5/length (15.8 m): trigger near 12 m, green check 7 s from the Viktor example; p_right_lane 0 because it does not exist on this site. Applied to the custom1 moto_seeker only, since the car (custom2) options do not exist here.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_illegal_left\"],\"params\":{\"release_lag_s\":1.0},\"rationale\":\"Targets M7a/release_time (2.78 s) and M7b/clear_lag (5.5 s): a moderate extra hold of 1 s on top of SUMO's native release, no feedback yet to move it.\"},{\"rule_type\":\"slow_lane_center\",\"applies_to\":[\"moto_slow\"],\"params\":{\"lat_offset\":0.0},\"rationale\":\"Targets M6 moto approach times (behaviour 10): slow riders stay on the lane centre (offset 0), so they hold up following motorcycles.\"}]},\"P2_n28b_it01_s03\":{\"description\":\"Full-structure proposal: one compliant car archetype, motorcycles split into standard, slow and space-seeking (custom1); red running and early start for motorcycles only; separate illegal-left riders. Cars no longer carry queue_space_seeking.\",\"driver_archetypes\":[{\"id\":\"car_std\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":1.0,\"params\":{\"tau\":0.9,\"minGap\":2.0,\"sigma\":0.4,\"impatience\":0.1},\"rationale\":\"Compliant cars: M3/share/car 0.0041 and M2/early/car 0.011 are near zero, so no red-running rule applies; tau 0.9 s and sigma 0.4 target the M1/car discharge headway 0.35 s and M6 car approach times.\"},{\"id\":\"moto_std\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.65,\"params\":{\"tau\":0.6,\"minGap\":0.8,\"sigma\":0.4,\"minGapLat\":0.4,\"maxSpeedLat\":1.5,\"latAlignment\":\"compact\",\"lcSublane\":3.0,\"lcPushy\":0.5,\"lcMaxSpeedLatStanding\":1.5,\"impatience\":0.3},\"rationale\":\"Main motorcycle population: small tau, minGap, compact lateral alignment and high lcSublane/lcPushy to filter forward, targeting M1/moto headway 0.30 s, M4 overshoot share 0.62 and M5 moto density 0.052 veh/m2.\"},{\"id\":\"moto_slow\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.1,\"params\":{\"tau\":0.8,\"minGap\":1.0,\"sigma\":0.4,\"speedFactor\":0.7,\"speedDev\":0.1,\"latAlignment\":\"center\",\"impatience\":0.1},\"rationale\":\"Slow riders in the lane centre (behaviour 10): a minority with speedFactor 0.7 lengthens M6 approach times without moving the mean far from the observed values.\"},{\"id\":\"moto_seek\",\"base_vclass\":\"custom1\",\"distribution\":\"moto\",\"share\":0.25,\"params\":{\"tau\":0.6,\"minGap\":0.8,\"sigma\":0.4,\"minGapLat\":0.4,\"maxSpeedLat\":1.5,\"latAlignment\":\"compact\",\"lcSublane\":3.0,\"lcPushy\":0.5,\"lcMaxSpeedLatStanding\":1.5,\"impatience\":0.3},\"rationale\":\"Motorcycles that may seek space (wrong lane, sidewalk); share 0.25 matches M8/moto wrong-lane share 0.249, with the same filtering parameters as moto_std.\"},{\"id\":\"moto_viol\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":0.6,\"minGap\":0.8,\"sigma\":0.4,\"jmTimegapMinor\":1.0,\"impatience\":0.3},\"rationale\":\"Illegal-left riders from HDT_N and HDT_S; jmTimegapMinor kept at the SUMO default 1 s because there is no feedback yet on M7a 5.6 waiters or M7b 5.5 s clear lag.\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"moto_std\",\"moto_slow\",\"moto_seek\"],\"params\":{\"t_before_green\":7.0,\"p\":0.13,\"v_max\":2.5},\"rationale\":\"M2/early/moto 0.130 share in the last 10 s of red: p set to the observed share, lead time 7 s inside the 4-10 s target window, creep cap 2.5 m/s.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_std\",\"moto_slow\",\"moto_seek\"],\"params\":{\"p0\":0.05,\"k\":0.05,\"p_max\":0.4,\"dt\":10.0},\"rationale\":\"M3/share/moto 0.098 and M3/per_cycle 3.9 with var/mean 1.14: low base probability with a mild group effect gives a mean near the target and some overdispersion; cars excluded because M3/share/car is 0.004.\"},{\"rule_type\":\"queue_space_seeking\",\"applies_to\":[\"moto_seek\"],\"params\":{\"q\":10.0,\"t_g_s\":7.0,\"est_noise\":0.3,\"p_wrong_lane\":0.4,\"p_right_lane\":0.0,\"p_sidewalk\":0.1,\"v_creep\":4.0,\"merge_zone_m\":10.0},\"rationale\":\"Trigger at q = 10 m since observed queues are about 16 m (M5/length 15.8) and choices occur at q0-40 m; p_sidewalk 0.1 targets F2/p/sidewalk 0.009-0.049 and M10a 0.56 veh/cycle, p_wrong_lane 0.4 targets F2/p/wrong_lane 0.19-0.23; p_right_lane 0 because it does not exist on this site. Applied to the custom1 archetype only, since custom2 has no existing option here.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_viol\"],\"params\":{\"release_lag_s\":1.0},\"rationale\":\"M7a/release_time 2.78 s and M7b/clear_lag 5.46 s after the opposing green ends: a moderate extra hold of 1 s on top of SUMO's native release, to be adjusted once feedback is available.\"},{\"rule_type\":\"slow_lane_center\",\"applies_to\":[\"moto_slow\"],\"params\":{\"lat_offset\":0.2},\"rationale\":\"Slow motorcycles keep near the lane centre (behaviour 10); a small 0.2 m offset stays well inside the 3.5 m lane and avoids pushing M4/lat_moto.\"}]}}\n```\n\n# Feedback on the previous iteration\n\nEach metric line gives the simulated and observed means, the direction of the error, the distance d (0 = equal),\nR = d / (distance between observed days; R <= 1 = as close as the days are to each other) and the weight of the\nmetric in the score S (lower S is better). Metrics marked \"not scored\" are reported only.\n\n## Spec P2_n28b_it01_s01: S = 1.2340 (sourced targets 0.4053, assumed targets 0.8287)\nRuns: 3; eligibility excluded (0 eligible, 3 excluded); mean collisions/h 52.7 (lane 9.3); mean jam+yield teleports/h 0.0; exclusion reasons (runs): {'collisions involving a vehicle under TraCI intervention': 3, 'lane collisions per hour': 2}\nMetrics:\n- F2/p/right_lane/ge80: sim 0.4007 vs obs nan share (undefined); d 1.333, R 26.67, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q0-20: sim 0.3212 vs obs 0.01081 share (sim>obs); d 2.000, R 12.45, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q20-40: sim 0.368 vs obs 0.02136 share (sim>obs); d 2.000, R 1.98, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q40-60: sim 0.399 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q60-80: sim 0.4113 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/ge80: sim 0.02425 vs obs nan share (undefined); d 1.333, R 26.67, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q0-20: sim 0.00813 vs obs 0.008621 share (sim<obs); d 1.251, R 6.01, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q20-40: sim 0.03835 vs obs 0.04893 share (sim<obs); d 0.495, R 0.56, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q40-60: sim 0.02549 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q60-80: sim 0.03681 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/ge80: sim 0 vs obs nan share (undefined); d 1.333, R 26.67, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q0-20: sim 0 vs obs 0.2288 share (sim<obs); d 1.000, R 4.54, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q20-40: sim 0 vs obs 0.1863 share (sim<obs); d 1.000, R 9.16, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q40-60: sim 0 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q60-80: sim 0 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- M1/car: sim 0.6255 vs obs 0.3467 s (sim>obs); d 1.552, R 11.32, weight 0.050; target evidence literature_transferred\n- M1/moto: sim 0.4311 vs obs 0.2957 s (sim>obs); d 1.237, R 10.72, weight 0.050; target evidence literature_transferred\n- M10a/per_cycle: sim 1.697 vs obs 0.5606 veh/cycle (sim>obs); d 1.136, R 12.50, weight 0.100; target evidence assumed\n- M10b/queue_at_choice: sim 55.7 vs obs 15.34 m (sim>obs); d 2.000, R 6.95, weight 0.000, not scored; target evidence assumed\n- M2/early/car: sim 0.001016 vs obs 0.01111 share (sim<obs); d 0.847, R 0.78, weight 0.033; target evidence literature_transferred\n- M2/early/moto: sim 0.0239 vs obs 0.1302 share (sim<obs); d 0.814, R 4.82, weight 0.033; target evidence literature_transferred\n- M2/first_delay: sim 0.4183 vs obs 2.832 s (sim<obs); d 0.701, R 4.70, weight 0.033; target evidence assumed\n- M3/per_cycle: sim 0.2391 vs obs 3.913 veh/cycle (sim<obs); d 1.291, R 4.25, weight 0.025; target evidence assumed\n- M3/share/car: sim 0 vs obs 0.004108 share (sim<obs); d 0.667, R 0.46, weight 0.025; target evidence literature_transferred\n- M3/share/moto: sim 0.006016 vs obs 0.09802 share (sim<obs); d 0.938, R 9.19, weight 0.025; target evidence literature_transferred\n- M3/var_to_mean: sim 1.173 vs obs 1.142  (sim>obs); d 0.112, R 0.70, weight 0.025; target evidence assumed\n- M4/lat_moto: sim 5.129 vs obs 7.191 m (sim<obs); d 0.605, R 23.26, weight 0.033; target evidence assumed\n- M4/overshoot_depth: sim nan vs obs 1.992 m (sim<obs); d 2.000, R 43.44, weight 0.033; target evidence assumed\n- M4/overshoot_share: sim 0 vs obs 0.6203 share (sim<obs); d 1.000, R 28.74, weight 0.033; target evidence literature_transferred\n- M5/length: sim 43.9 vs obs 15.83 m (sim>obs); d 2.000, R 6.10, weight 0.050; target evidence assumed\n- M5/moto_density: sim 0.09693 vs obs 0.05248 veh/m2 (sim>obs); d 1.193, R 7.26, weight 0.050; target evidence assumed\n- M5/share_censored: sim 0.09333 vs obs 0 share (sim>obs); d 1.333, R 26.67, weight 0.000, not scored; target evidence assumed\n- M6/approach/illegal_l/moto: sim 41.26 vs obs 38.32 s (sim>obs); d 0.170, R 2.68, weight 0.006; target evidence literature_transferred\n- M6/approach/l/car: sim 259.5 vs obs 63.18 s (sim>obs); d 1.857, R 13.24, weight 0.006; target evidence literature_transferred\n- M6/approach/l/moto: sim 242.8 vs obs 53.58 s (sim>obs); d 2.000, R 14.01, weight 0.006; target evidence literature_transferred\n- M6/approach/r/car: sim 43.28 vs obs 12.37 s (sim>obs); d 2.000, R 7.38, weight 0.006; target evidence literature_transferred\n- M6/approach/r/moto: sim 33.45 vs obs 11.89 s (sim>obs); d 2.000, R 7.01, weight 0.006; target evidence literature_transferred\n- M6/approach/s/car: sim 47.2 vs obs 42.14 s (sim>obs); d 0.213, R 4.50, weight 0.006; target evidence literature_transferred\n- M6/approach/s/moto: sim 43.17 vs obs 35.67 s (sim>obs); d 0.235, R 5.50, weight 0.006; target evidence literature_transferred\n- M6/approach/u/car: sim 155.2 vs obs 49.68 s (sim>obs); d 1.862, R 10.20, weight 0.006; target evidence literature_transferred\n- M6/approach/u/moto: sim 156.1 vs obs 41.79 s (sim>obs); d 1.935, R 25.66, weight 0.006; target evidence literature_transferred\n- M6/junction/illegal_l/moto: sim 23.13 vs obs 36.8 s (sim<obs); d 0.641, R 10.23, weight 0.006; target evidence assumed\n- M6/junction/l/car: sim 7.56 vs obs 7.568 s (sim<obs); d 1.483, R 2.93, weight 0.006; target evidence literature_transferred\n- M6/junction/l/moto: sim 5.756 vs obs 7.57 s (sim<obs); d 1.800, R 6.11, weight 0.006; target evidence literature_transferred\n- M6/junction/r/car: sim 2.558 vs obs 2.594 s (sim<obs); d 1.083, R 2.21, weight 0.006; target evidence literature_transferred\n- M6/junction/r/moto: sim 2.164 vs obs 2.401 s (sim<obs); d 0.458, R 2.07, weight 0.006; target evidence literature_transferred\n- M6/junction/s/car: sim 4.701 vs obs 7.783 s (sim<obs); d 1.847, R 6.23, weight 0.006; target evidence literature_transferred\n- M6/junction/s/moto: sim 3.551 vs obs 7.428 s (sim<obs); d 1.706, R 6.58, weight 0.006; target evidence literature_transferred\n- M6/junction/u/car: sim 11.27 vs obs 3.013 s (sim>obs); d 2.000, R 4.49, weight 0.006; target evidence literature_transferred\n- M6/junction/u/moto: sim 7.527 vs obs 2.74 s (sim>obs); d 2.000, R 5.83, weight 0.006; target evidence literature_transferred\n- M7a/n_waiting: sim 1.564 vs obs 5.59 veh (sim<obs); d 1.094, R 4.81, weight 0.017; target evidence assumed\n- M7a/release_time: sim -7.041 vs obs 2.78 s (sim<obs); d 1.798, R 4.75, weight 0.017; target evidence assumed\n- M7b/clear_lag: sim 3.566 vs obs 5.459 s (sim<obs); d 0.842, R 1.27, weight 0.033; target evidence assumed\n- M7c/slope: sim 0.02612 vs obs 0.2886 s/veh (sim<obs); d 0.909, R 16.00, weight 0.033; target evidence assumed\n- M8/car: sim 0 vs obs 0.06808 share (sim<obs); d 1.000, R 1.03, weight 0.050; target evidence assumed\n- M8/moto: sim 0 vs obs 0.249 share (sim<obs); d 1.000, R 3.80, weight 0.050; target evidence assumed\n- M9a/per_cycle: sim 17.25 vs obs 0.5725 veh/cycle (sim>obs); d 2.000, R 10.62, weight 0.050; target evidence assumed\n- M9b/delay_blocked: sim 46.54 vs obs 18.83 s (sim>obs); d 2.000, R 6.83, weight 0.025; target evidence assumed\n- M9b/share_blocked: sim 0.7005 vs obs 0.06505 share (sim>obs); d 2.000, R 6.83, weight 0.025; target evidence assumed\n- M9c/queue_at_choice: sim 41.63 vs obs 15.71 m (sim>obs); d 1.922, R 5.26, weight 0.000, not scored; target evidence assumed\nTraCI interventions (all runs):\n  - early_start: attempted 166, executed 153, not executed {'red_ended_before_crossing': 7, 'run_ended': 6}, counters {'draws': 1128}\n  - illegal_left_box: attempted 397, executed 395, not executed {'cannot_stop': 1, 'not_held': 1}, counters {'native_releases': 154}\n  - queue_space_seeking: attempted 328, executed 155, not executed {'lane_change_not_done': 150, 'left_zone': 2, 'past_sidewalk_start': 21}, counters {'drawn_sidewalk': 328, 'draws': 2165, 'no_option': 921, 'no_seek': 916}\n  - slow_lane_center: attempted 24327, executed 16735, not executed {'lane_changed': 717, 'lateral_target_not_reached': 6858, 'run_ended': 17}\n  - swarm_red_running: attempted 56, executed 55, not executed {'crossed_after_red': 1}, counters {'decided_run': 56, 'draws': 1006}\n\n## Spec P2_n28b_it01_s02: S = 1.2820 (sourced targets 0.4292, assumed targets 0.8528)\nRuns: 3; eligibility excluded (0 eligible, 3 excluded); mean collisions/h 48.7 (lane 12.0); mean jam+yield teleports/h 0.0; exclusion reasons (runs): {'collisions involving a vehicle under TraCI intervention': 3, 'lane collisions per hour': 3}\nMetrics:\n- F2/p/right_lane/ge80: sim 0.3639 vs obs nan share (undefined); d 1.333, R 26.67, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q0-20: sim 0.3114 vs obs 0.01081 share (sim>obs); d 2.000, R 12.45, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q20-40: sim 0.3839 vs obs 0.02136 share (sim>obs); d 2.000, R 1.98, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q40-60: sim 0.3414 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q60-80: sim 0.3487 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/ge80: sim 0.05175 vs obs nan share (undefined); d 1.333, R 26.67, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q0-20: sim 0.03022 vs obs 0.008621 share (sim>obs); d 1.381, R 6.63, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q20-40: sim 0.0478 vs obs 0.04893 share (sim<obs); d 0.575, R 0.65, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q40-60: sim 0.05998 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q60-80: sim 0.04656 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/ge80: sim 0 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q0-20: sim 0 vs obs 0.2288 share (sim<obs); d 1.000, R 4.54, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q20-40: sim 0 vs obs 0.1863 share (sim<obs); d 1.000, R 9.16, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q40-60: sim 0 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q60-80: sim 0 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- M1/car: sim 0.6334 vs obs 0.3467 s (sim>obs); d 1.632, R 11.91, weight 0.050; target evidence literature_transferred\n- M1/moto: sim 0.4822 vs obs 0.2957 s (sim>obs); d 1.472, R 12.75, weight 0.050; target evidence literature_transferred\n- M10a/per_cycle: sim 2.985 vs obs 0.5606 veh/cycle (sim>obs); d 1.990, R 21.89, weight 0.100; target evidence assumed\n- M10b/queue_at_choice: sim 56.27 vs obs 15.34 m (sim>obs); d 2.000, R 6.95, weight 0.000, not scored; target evidence assumed\n- M2/early/car: sim 0.003453 vs obs 0.01111 share (sim<obs); d 0.970, R 0.89, weight 0.033; target evidence literature_transferred\n- M2/early/moto: sim 0.01743 vs obs 0.1302 share (sim<obs); d 0.865, R 5.12, weight 0.033; target evidence literature_transferred\n- M2/first_delay: sim 1.183 vs obs 2.832 s (sim<obs); d 0.512, R 3.44, weight 0.033; target evidence assumed\n- M3/per_cycle: sim 0.2826 vs obs 3.913 veh/cycle (sim<obs); d 1.275, R 4.20, weight 0.025; target evidence assumed\n- M3/share/car: sim 0 vs obs 0.004108 share (sim<obs); d 0.667, R 0.46, weight 0.025; target evidence literature_transferred\n- M3/share/moto: sim 0.007041 vs obs 0.09802 share (sim<obs); d 0.928, R 9.09, weight 0.025; target evidence literature_transferred\n- M3/var_to_mean: sim 1.149 vs obs 1.142  (sim>obs); d 0.116, R 0.72, weight 0.025; target evidence assumed\n- M4/lat_moto: sim 5.038 vs obs 7.191 m (sim<obs); d 0.627, R 24.10, weight 0.033; target evidence assumed\n- M4/overshoot_depth: sim nan vs obs 1.992 m (sim<obs); d 2.000, R 43.44, weight 0.033; target evidence assumed\n- M4/overshoot_share: sim 0 vs obs 0.6203 share (sim<obs); d 1.000, R 28.74, weight 0.033; target evidence literature_transferred\n- M5/length: sim 43.12 vs obs 15.83 m (sim>obs); d 2.000, R 6.10, weight 0.050; target evidence assumed\n- M5/moto_density: sim 0.09929 vs obs 0.05248 veh/m2 (sim>obs); d 1.244, R 7.56, weight 0.050; target evidence assumed\n- M5/share_censored: sim 0.1133 vs obs 0 share (sim>obs); d 1.333, R 26.67, weight 0.000, not scored; target evidence assumed\n- M6/approach/illegal_l/moto: sim 47.7 vs obs 38.32 s (sim>obs); d 0.235, R 3.69, weight 0.006; target evidence literature_transferred\n- M6/approach/l/car: sim 253.3 vs obs 63.18 s (sim>obs); d 1.995, R 14.22, weight 0.006; target evidence literature_transferred\n- M6/approach/l/moto: sim 218.3 vs obs 53.58 s (sim>obs); d 1.986, R 13.92, weight 0.006; target evidence literature_transferred\n- M6/approach/r/car: sim 54.57 vs obs 12.37 s (sim>obs); d 2.000, R 7.38, weight 0.006; target evidence literature_transferred\n- M6/approach/r/moto: sim 43.41 vs obs 11.89 s (sim>obs); d 2.000, R 7.01, weight 0.006; target evidence literature_transferred\n- M6/approach/s/car: sim 55.78 vs obs 42.14 s (sim>obs); d 0.295, R 6.23, weight 0.006; target evidence literature_transferred\n- M6/approach/s/moto: sim 45.85 vs obs 35.67 s (sim>obs); d 0.266, R 6.24, weight 0.006; target evidence literature_transferred\n- M6/approach/u/car: sim 148.9 vs obs 49.68 s (sim>obs); d 1.762, R 9.65, weight 0.006; target evidence literature_transferred\n- M6/approach/u/moto: sim 137 vs obs 41.79 s (sim>obs); d 1.800, R 23.86, weight 0.006; target evidence literature_transferred\n- M6/junction/illegal_l/moto: sim 31.96 vs obs 36.8 s (sim<obs); d 0.250, R 3.99, weight 0.006; target evidence assumed\n- M6/junction/l/car: sim 24.6 vs obs 7.568 s (sim>obs); d 2.000, R 3.94, weight 0.006; target evidence literature_transferred\n- M6/junction/l/moto: sim 6.843 vs obs 7.57 s (sim<obs); d 1.838, R 6.24, weight 0.006; target evidence literature_transferred\n- M6/junction/r/car: sim 2.741 vs obs 2.594 s (sim>obs); d 1.120, R 2.28, weight 0.006; target evidence literature_transferred\n- M6/junction/r/moto: sim 2.234 vs obs 2.401 s (sim<obs); d 0.382, R 1.72, weight 0.006; target evidence literature_transferred\n- M6/junction/s/car: sim 5.171 vs obs 7.783 s (sim<obs); d 1.880, R 6.34, weight 0.006; target evidence literature_transferred\n- M6/junction/s/moto: sim 3.874 vs obs 7.428 s (sim<obs); d 1.581, R 6.10, weight 0.006; target evidence literature_transferred\n- M6/junction/u/car: sim 12.04 vs obs 3.013 s (sim>obs); d 2.000, R 4.49, weight 0.006; target evidence literature_transferred\n- M6/junction/u/moto: sim 8.21 vs obs 2.74 s (sim>obs); d 2.000, R 5.83, weight 0.006; target evidence literature_transferred\n- M7a/n_waiting: sim 4.269 vs obs 5.59 veh (sim<obs); d 0.431, R 1.89, weight 0.017; target evidence assumed\n- M7a/release_time: sim 3.742 vs obs 2.78 s (sim>obs); d 0.708, R 1.87, weight 0.017; target evidence assumed\n- M7b/clear_lag: sim 5.453 vs obs 5.459 s (sim<obs); d 0.590, R 0.89, weight 0.033; target evidence assumed\n- M7c/slope: sim 0.1831 vs obs 0.2886 s/veh (sim<obs); d 0.365, R 6.42, weight 0.033; target evidence assumed\n- M8/car: sim 0 vs obs 0.06808 share (sim<obs); d 1.000, R 1.03, weight 0.050; target evidence assumed\n- M8/moto: sim 0 vs obs 0.249 share (sim<obs); d 1.000, R 3.80, weight 0.050; target evidence assumed\n- M9a/per_cycle: sim 16.56 vs obs 0.5725 veh/cycle (sim>obs); d 2.000, R 10.62, weight 0.050; target evidence assumed\n- M9b/delay_blocked: sim 57.94 vs obs 18.83 s (sim>obs); d 2.000, R 6.83, weight 0.025; target evidence assumed\n- M9b/share_blocked: sim 0.7451 vs obs 0.06505 share (sim>obs); d 2.000, R 6.83, weight 0.025; target evidence assumed\n- M9c/queue_at_choice: sim 42.12 vs obs 15.71 m (sim>obs); d 1.894, R 5.19, weight 0.000, not scored; target evidence assumed\nTraCI interventions (all runs):\n  - early_start: attempted 141, executed 114, not executed {'red_ended_before_crossing': 26, 'run_ended': 1}, counters {'draws': 1064}\n  - illegal_left_box: attempted 461, executed 451, not executed {'run_ended': 10}, counters {'native_releases': 160}\n  - queue_space_seeking: attempted 570, executed 271, not executed {'lane_change_not_done': 255, 'left_zone': 1, 'past_sidewalk_start': 43}, counters {'drawn_sidewalk': 570, 'draws': 2603, 'green_check_no_headway': 10, 'no_option': 1100, 'no_seek': 933}\n  - slow_lane_center: attempted 15204, executed 11369, not executed {'lane_changed': 295, 'lateral_target_not_reached': 3524, 'run_ended': 16}\n  - swarm_red_running: attempted 62, executed 59, not executed {'crossed_after_red': 1, 'red_ended_before_crossing': 1, 'run_ended': 1}, counters {'decided_run': 62, 'draws': 1204}\n\n## Spec P2_n28b_it01_s03: S = 1.2785 (sourced targets 0.3578, assumed targets 0.9207)\nRuns: 3; eligibility excluded (0 eligible, 3 excluded); mean collisions/h 62.7 (lane 20.7); mean jam+yield teleports/h 0.0; exclusion reasons (runs): {'collisions involving a vehicle under TraCI intervention': 3, 'lane collisions per hour': 2}\nMetrics:\n- F2/p/right_lane/ge80: sim 0.2286 vs obs nan share (undefined); d 0.667, R 13.33, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q0-20: sim 0.3023 vs obs 0.01081 share (sim>obs); d 2.000, R 12.45, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q20-40: sim 0.3636 vs obs 0.02136 share (sim>obs); d 2.000, R 1.98, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q40-60: sim 0.3326 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/right_lane/q60-80: sim 0.1523 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/ge80: sim 0 vs obs nan share (undefined); d 0.667, R 13.33, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q0-20: sim 0.0299 vs obs 0.008621 share (sim>obs); d 1.608, R 7.72, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q20-40: sim 0.06708 vs obs 0.04893 share (sim>obs); d 0.747, R 0.84, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q40-60: sim 0.06027 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/sidewalk/q60-80: sim 0.08399 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/ge80: sim 0 vs obs nan share (undefined); d 0.667, R 13.33, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q0-20: sim 0 vs obs 0.2288 share (sim<obs); d 1.000, R 4.54, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q20-40: sim 0 vs obs 0.1863 share (sim<obs); d 1.000, R 9.16, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q40-60: sim 0 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- F2/p/wrong_lane/q60-80: sim 0 vs obs nan share (undefined); d 2.000, R 40.00, weight 0.000, not scored; target evidence assumed\n- M1/car: sim 0.4977 vs obs 0.3467 s (sim>obs); d 1.031, R 7.52, weight 0.050; target evidence literature_transferred\n- M1/moto: sim 0.378 vs obs 0.2957 s (sim>obs); d 1.008, R 8.74, weight 0.050; target evidence literature_transferred\n- M10a/per_cycle: sim 3.561 vs obs 0.5606 veh/cycle (sim>obs); d 2.000, R 22.00, weight 0.100; target evidence assumed\n- M10b/queue_at_choice: sim 42.94 vs obs 15.34 m (sim>obs); d 1.822, R 6.33, weight 0.000, not scored; target evidence assumed\n- M2/early/car: sim 0.005387 vs obs 0.01111 share (sim<obs); d 0.892, R 0.82, weight 0.033; target evidence literature_transferred\n- M2/early/moto: sim 0.02126 vs obs 0.1302 share (sim<obs); d 0.835, R 4.95, weight 0.033; target evidence literature_transferred\n- M2/first_delay: sim 0.4299 vs obs 2.832 s (sim<obs); d 0.697, R 4.68, weight 0.033; target evidence assumed\n- M3/per_cycle: sim 0.2029 vs obs 3.913 veh/cycle (sim<obs); d 1.304, R 4.30, weight 0.025; target evidence assumed\n- M3/share/car: sim 0 vs obs 0.004108 share (sim<obs); d 0.667, R 0.46, weight 0.025; target evidence literature_transferred\n- M3/share/moto: sim 0.004942 vs obs 0.09802 share (sim<obs); d 0.949, R 9.30, weight 0.025; target evidence literature_transferred\n- M3/var_to_mean: sim 0.9799 vs obs 1.142  (sim<obs); d 0.133, R 0.83, weight 0.025; target evidence assumed\n- M4/lat_moto: sim 4.87 vs obs 7.191 m (sim<obs); d 0.680, R 26.13, weight 0.033; target evidence assumed\n- M4/overshoot_depth: sim nan vs obs 1.992 m (sim<obs); d 2.000, R 43.44, weight 0.033; target evidence assumed\n- M4/overshoot_share: sim 0 vs obs 0.6203 share (sim<obs); d 1.000, R 28.74, weight 0.033; target evidence literature_transferred\n- M5/length: sim 37.79 vs obs 15.83 m (sim>obs); d 1.953, R 5.96, weight 0.050; target evidence assumed\n- M5/moto_density: sim 0.09899 vs obs 0.05248 veh/m2 (sim>obs); d 1.240, R 7.54, weight 0.050; target evidence assumed\n- M5/share_censored: sim 0 vs obs 0 share (sim=obs); d 0.000, R 0.00, weight 0.000, not scored; target evidence assumed\n- M6/approach/illegal_l/moto: sim 39.55 vs obs 38.32 s (sim>obs); d 0.155, R 2.43, weight 0.006; target evidence literature_transferred\n- M6/approach/l/car: sim 194.1 vs obs 63.18 s (sim>obs); d 1.605, R 11.44, weight 0.006; target evidence literature_transferred\n- M6/approach/l/moto: sim 148.5 vs obs 53.58 s (sim>obs); d 1.440, R 10.09, weight 0.006; target evidence literature_transferred\n- M6/approach/r/car: sim 44.05 vs obs 12.37 s (sim>obs); d 2.000, R 7.38, weight 0.006; target evidence literature_transferred\n- M6/approach/r/moto: sim 32.72 vs obs 11.89 s (sim>obs); d 2.000, R 7.01, weight 0.006; target evidence literature_transferred\n- M6/approach/s/car: sim 47.19 vs obs 42.14 s (sim>obs); d 0.177, R 3.75, weight 0.006; target evidence literature_transferred\n- M6/approach/s/moto: sim 37.99 vs obs 35.67 s (sim>obs); d 0.125, R 2.94, weight 0.006; target evidence literature_transferred\n- M6/approach/u/car: sim 103.8 vs obs 49.68 s (sim>obs); d 1.167, R 6.39, weight 0.006; target evidence literature_transferred\n- M6/approach/u/moto: sim 106.3 vs obs 41.79 s (sim>obs); d 1.266, R 16.78, weight 0.006; target evidence literature_transferred\n- M6/junction/illegal_l/moto: sim 24.77 vs obs 36.8 s (sim<obs); d 0.563, R 8.98, weight 0.006; target evidence assumed\n- M6/junction/l/car: sim 12.64 vs obs 7.568 s (sim>obs); d 1.686, R 3.33, weight 0.006; target evidence literature_transferred\n- M6/junction/l/moto: sim 4.697 vs obs 7.57 s (sim<obs); d 1.659, R 5.63, weight 0.006; target evidence literature_transferred\n- M6/junction/r/car: sim 2.532 vs obs 2.594 s (sim<obs); d 1.064, R 2.17, weight 0.006; target evidence literature_transferred\n- M6/junction/r/moto: sim 2.08 vs obs 2.401 s (sim<obs); d 0.520, R 2.35, weight 0.006; target evidence literature_transferred\n- M6/junction/s/car: sim 4.709 vs obs 7.783 s (sim<obs); d 1.790, R 6.04, weight 0.006; target evidence literature_transferred\n- M6/junction/s/moto: sim 3.423 vs obs 7.428 s (sim<obs); d 1.758, R 6.79, weight 0.006; target evidence literature_transferred\n- M6/junction/u/car: sim 9.523 vs obs 3.013 s (sim>obs); d 2.000, R 4.49, weight 0.006; target evidence literature_transferred\n- M6/junction/u/moto: sim 6.927 vs obs 2.74 s (sim>obs); d 2.000, R 5.83, weight 0.006; target evidence literature_transferred\n- M7a/n_waiting: sim 1.949 vs obs 5.59 veh (sim<obs); d 0.990, R 4.35, weight 0.017; target evidence assumed\n- M7a/release_time: sim -5.419 vs obs 2.78 s (sim<obs); d 1.719, R 4.54, weight 0.017; target evidence assumed\n- M7b/clear_lag: sim 3.158 vs obs 5.459 s (sim<obs); d 0.966, R 1.45, weight 0.033; target evidence assumed\n- M7c/slope: sim 0.0114 vs obs 0.2886 s/veh (sim<obs); d 0.960, R 16.90, weight 0.033; target evidence assumed\n- M8/car: sim 0 vs obs 0.06808 share (sim<obs); d 1.000, R 1.03, weight 0.050; target evidence assumed\n- M8/moto: sim 0 vs obs 0.249 share (sim<obs); d 1.000, R 3.80, weight 0.050; target evidence assumed\n- M9a/per_cycle: sim 15.52 vs obs 0.5725 veh/cycle (sim>obs); d 2.000, R 10.62, weight 0.050; target evidence assumed\n- M9b/delay_blocked: sim 46.46 vs obs 18.83 s (sim>obs); d 2.000, R 6.83, weight 0.025; target evidence assumed\n- M9b/share_blocked: sim 0.6995 vs obs 0.06505 share (sim>obs); d 2.000, R 6.83, weight 0.025; target evidence assumed\n- M9c/queue_at_choice: sim 32.37 vs obs 15.71 m (sim>obs); d 1.636, R 4.48, weight 0.000, not scored; target evidence assumed\nTraCI interventions (all runs):\n  - early_start: attempted 141, executed 136, not executed {'red_ended_before_crossing': 4, 'run_ended': 1}, counters {'draws': 1060}\n  - illegal_left_box: attempted 407, executed 406, not executed {'cannot_stop': 1}, counters {'native_releases': 151}\n  - queue_space_seeking: attempted 642, executed 336, not executed {'lane_change_not_done': 255, 'left_zone': 1, 'past_sidewalk_start': 49, 'run_ended': 1}, counters {'drawn_sidewalk': 642, 'draws': 2147, 'green_check_no_headway': 5, 'green_check_pass': 3, 'no_option': 902, 'no_seek': 603}\n  - slow_lane_center: attempted 12647, executed 9982, not executed {'lane_changed': 319, 'lateral_target_not_reached': 2333, 'run_ended': 13}\n  - swarm_red_running: attempted 59, executed 59, counters {'decided_run': 59, 'draws': 1218}\n\n## Validator errors of rejected specs\n\n(none)\n\nWrite a new spec that lowers S. Explain in the rationales which metric each change targets.\n"
+  }
+ ],
+ "schema": {
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+   "driver_archetypes",
+   "traci_rules"
+  ],
+  "properties": {
+   "description": {
+    "type": "string"
+   },
+   "driver_archetypes": {
+    "type": "array",
+    "minItems": 1,
+    "items": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "id",
+      "base_vclass",
+      "share",
+      "params",
+      "rationale"
+     ],
+     "properties": {
+      "id": {
+       "type": "string"
+      },
+      "base_vclass": {
+       "enum": [
+        "passenger",
+        "motorcycle",
+        "custom1",
+        "custom2"
+       ]
+      },
+      "distribution": {
+       "enum": [
+        "car",
+        "moto",
+        "moto_violator",
+        "car_violator"
+       ]
+      },
+      "share": {
+       "type": "number",
+       "minimum": 0,
+       "maximum": 1
+      },
+      "params": {
+       "type": "object",
+       "additionalProperties": false,
+       "properties": {
+        "tau": {
+         "type": "number",
+         "minimum": 0.4,
+         "maximum": 3.0
+        },
+        "minGap": {
+         "type": "number",
+         "minimum": 0.5,
+         "maximum": 3.0
+        },
+        "accel": {
+         "type": "number",
+         "minimum": 0.8,
+         "maximum": 6.0
+        },
+        "decel": {
+         "type": "number",
+         "minimum": 2.0,
+         "maximum": 10.0
+        },
+        "sigma": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 1.0
+        },
+        "speedFactor": {
+         "type": "number",
+         "minimum": 0.5,
+         "maximum": 1.3
+        },
+        "speedDev": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 0.3
+        },
+        "minGapLat": {
+         "type": "number",
+         "minimum": 0.3,
+         "maximum": 1.0
+        },
+        "maxSpeedLat": {
+         "type": "number",
+         "minimum": 0.5,
+         "maximum": 3.0
+        },
+        "latAlignment": {
+         "enum": [
+          "right",
+          "center",
+          "left",
+          "compact",
+          "nice",
+          "arbitrary"
+         ]
+        },
+        "lcSublane": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 5.0
+        },
+        "lcPushy": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 1.0
+        },
+        "lcPushyGap": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 1.0
+        },
+        "lcAssertive": {
+         "type": "number",
+         "minimum": 0.5,
+         "maximum": 5.0
+        },
+        "lcImpatience": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 1.0
+        },
+        "lcTimeToImpatience": {
+         "type": "number",
+         "minimum": 1.0,
+         "maximum": 600.0
+        },
+        "lcMaxSpeedLatStanding": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 3.0
+        },
+        "lcSpeedGain": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 10.0
+        },
+        "impatience": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 1.0
+        },
+        "jmDriveAfterRedTime": {
+         "type": "number",
+         "minimum": 0.0,
+         "maximum": 10.0
+        },
+        "jmDriveRedSpeed": {
+         "type": "number",
+         "minimum": 1.0,
+         "maximum": 13.9
+        },
+        "jmTimegapMinor": {
+         "type": "number",
+         "minimum": 0.5,
+         "maximum": 3.0
+        }
+       }
+      },
+      "rationale": {
+       "type": "string"
+      }
+     }
+    }
+   },
+   "traci_rules": {
+    "type": "array",
+    "items": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "rule_type",
+        "applies_to",
+        "params",
+        "rationale"
+       ],
+       "properties": {
+        "rule_type": {
+         "enum": [
+          "early_start"
+         ]
+        },
+        "applies_to": {
+         "type": "array",
+         "minItems": 1,
+         "items": {
+          "type": "string"
+         }
+        },
+        "params": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "t_before_green",
+          "p",
+          "v_max"
+         ],
+         "properties": {
+          "t_before_green": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 10.0
+          },
+          "p": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 1.0
+          },
+          "v_max": {
+           "type": "number",
+           "minimum": 0.5,
+           "maximum": 5.0
+          }
+         }
+        },
+        "rationale": {
+         "type": "string"
+        }
+       }
+      },
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "rule_type",
+        "applies_to",
+        "params",
+        "rationale"
+       ],
+       "properties": {
+        "rule_type": {
+         "enum": [
+          "swarm_red_running"
+         ]
+        },
+        "applies_to": {
+         "type": "array",
+         "minItems": 1,
+         "items": {
+          "type": "string"
+         }
+        },
+        "params": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "p0",
+          "k",
+          "p_max",
+          "dt"
+         ],
+         "properties": {
+          "p0": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 1.0
+          },
+          "k": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 0.5
+          },
+          "p_max": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 1.0
+          },
+          "dt": {
+           "type": "number",
+           "minimum": 1.0,
+           "maximum": 30.0
+          }
+         }
+        },
+        "rationale": {
+         "type": "string"
+        }
+       }
+      },
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "rule_type",
+        "applies_to",
+        "params",
+        "rationale"
+       ],
+       "properties": {
+        "rule_type": {
+         "enum": [
+          "queue_space_seeking"
+         ]
+        },
+        "applies_to": {
+         "type": "array",
+         "minItems": 1,
+         "items": {
+          "type": "string"
+         }
+        },
+        "params": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "q",
+          "t_g_s",
+          "est_noise",
+          "p_wrong_lane",
+          "p_right_lane",
+          "p_sidewalk",
+          "v_creep",
+          "merge_zone_m"
+         ],
+         "properties": {
+          "q": {
+           "type": "number",
+           "minimum": 5.0,
+           "maximum": 80.0
+          },
+          "t_w": {
+           "type": "number",
+           "minimum": 5.0,
+           "maximum": 120.0
+          },
+          "t_g_s": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 20.0
+          },
+          "est_noise": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 1.0
+          },
+          "p_wrong_lane": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 1.0
+          },
+          "p_right_lane": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 1.0
+          },
+          "p_sidewalk": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 1.0
+          },
+          "v_creep": {
+           "type": "number",
+           "minimum": 0.5,
+           "maximum": 5.0
+          },
+          "merge_zone_m": {
+           "type": "number",
+           "minimum": 3.0,
+           "maximum": 20.0
+          }
+         }
+        },
+        "rationale": {
+         "type": "string"
+        }
+       }
+      },
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "rule_type",
+        "applies_to",
+        "params",
+        "rationale"
+       ],
+       "properties": {
+        "rule_type": {
+         "enum": [
+          "illegal_left_box"
+         ]
+        },
+        "applies_to": {
+         "type": "array",
+         "minItems": 1,
+         "items": {
+          "type": "string"
+         }
+        },
+        "params": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "release_lag_s"
+         ],
+         "properties": {
+          "release_lag_s": {
+           "type": "number",
+           "minimum": 0.0,
+           "maximum": 4.0
+          }
+         }
+        },
+        "rationale": {
+         "type": "string"
+        }
+       }
+      },
+      {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "rule_type",
+        "applies_to",
+        "params",
+        "rationale"
+       ],
+       "properties": {
+        "rule_type": {
+         "enum": [
+          "slow_lane_center"
+         ]
+        },
+        "applies_to": {
+         "type": "array",
+         "minItems": 1,
+         "items": {
+          "type": "string"
+         }
+        },
+        "params": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "lat_offset"
+         ],
+         "properties": {
+          "lat_offset": {
+           "type": "number",
+           "minimum": -1.0,
+           "maximum": 1.0
+          }
+         }
+        },
+        "rationale": {
+         "type": "string"
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

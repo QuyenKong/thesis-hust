@@ -1,0 +1,92 @@
+{
+ "content": {
+  "description": "Iteration 2: same structure as the best it01 spec (s01), with faster discharge (lower tau/sigma), much stronger early start and red running (it01 gave 0.02 and 0.006 shares against 0.13 and 0.098 observed), fewer sidewalk riders, lane-change gain to spread straight vehicles out of lane 0, and the box-waiter parameters of it01_s02, which matched M7b.",
+  "driver_archetypes": [
+   {
+    "id": "car_std",
+    "base_vclass": "passenger",
+    "distribution": "car",
+    "share": 1.0,
+    "params": {"tau": 0.6, "minGap": 1.5, "accel": 3.5, "sigma": 0.2, "impatience": 0.1, "lcSpeedGain": 3.0},
+    "rationale": "Targets M1/car (sim 0.50-0.63 s vs obs 0.347 s) and the queue length M5/length (38-44 m vs 15.8 m): lower tau, sigma and minGap and higher accel shorten the discharge headway and the queue (it01_s03 with tau 0.9/sigma 0.4 was already closest); lcSpeedGain 3 lets cars leave the lane-0 queue for faster lanes, targeting M9a/M9b (17 straight vehicles/cycle in the right-turn lane vs 0.57 obs)."
+   },
+   {
+    "id": "moto_std",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.75,
+    "params": {"tau": 0.5, "minGap": 1.0, "sigma": 0.3, "minGapLat": 0.4, "maxSpeedLat": 1.5, "latAlignment": "compact", "lcSublane": 3.0, "lcPushy": 0.5, "lcMaxSpeedLatStanding": 1.5, "impatience": 0.3, "lcSpeedGain": 3.0},
+    "rationale": "Targets M1/moto (sim 0.38-0.48 s vs obs 0.296 s) with a smaller tau and sigma (it01_s03 style, defaults for accel/decel kept since they scored better than accel 4); minGap 1.0 m with compact lateral packing targets M5/moto_density (0.097-0.099 vs 0.052 veh/m2, too dense); lcSpeedGain 3 spreads riders out of lane 0 for M9a/M9b."
+   },
+   {
+    "id": "moto_slow",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.10,
+    "params": {"tau": 0.8, "minGap": 1.0, "sigma": 0.3, "speedFactor": 0.8, "speedDev": 0.1, "latAlignment": "center", "impatience": 0.1},
+    "rationale": "Targets M6/approach s/moto (sim 38-46 s vs obs 35.7 s): the 0.10 share and speedFactor 0.8 keep the slow lane-centre riders as a minority so approach times do not rise further above the observed means."
+   },
+   {
+    "id": "moto_seek",
+    "base_vclass": "custom1",
+    "distribution": "moto",
+    "share": 0.15,
+    "params": {"tau": 0.5, "minGap": 1.0, "sigma": 0.3, "minGapLat": 0.4, "maxSpeedLat": 1.5, "latAlignment": "compact", "lcSublane": 3.0, "lcPushy": 0.5, "lcMaxSpeedLatStanding": 1.5, "impatience": 0.3, "lcSpeedGain": 3.0},
+    "rationale": "Targets M10a/per_cycle (sim 1.7-3.6 vs obs 0.56 sidewalk riders/cycle): the seeker share goes from 0.25-0.30 to 0.15, with the same filtering parameters as moto_std so the other metrics do not move."
+   },
+   {
+    "id": "moto_viol",
+    "base_vclass": "custom1",
+    "distribution": "moto_violator",
+    "share": 1.0,
+    "params": {"tau": 0.8, "minGap": 1.0, "accel": 4.0, "decel": 8.0, "minGapLat": 0.4, "jmTimegapMinor": 1.0},
+    "rationale": "Targets M7a/M7b: these are the it01_s02 values (no impatience), which gave the best box result (M7b/clear_lag 5.453 vs 5.459 s, M7a/n_waiting 4.3 vs 5.6) while impatience 0.3-0.5 in s01/s03 made waiters leave early (n_waiting 1.6-1.9, negative release_time); kept unchanged."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "early_start",
+    "applies_to": ["moto_std", "moto_slow", "moto_seek"],
+    "params": {"t_before_green": 10.0, "p": 0.7, "v_max": 2.0},
+    "rationale": "Targets M2/early/moto (sim 0.017-0.024 vs obs 0.130) and M4/overshoot_share (sim 0 vs obs 0.62): p 0.13-0.15 gave about one seventh of p as an observed share, so p is raised to 0.7 and the window to the full 10 s so front-row riders creep over the stop line; v_max 2.0 kept since it01_s02 had the best M2/first_delay (1.18 s vs 2.83)."
+   },
+   {
+    "rule_type": "early_start",
+    "applies_to": ["car_std"],
+    "params": {"t_before_green": 8.0, "p": 0.07, "v_max": 2.0},
+    "rationale": "Targets M2/early/car (sim 0.001-0.005 vs obs 0.0111): by the same one-seventh scaling p 0.07 gives about 0.01 and cars stay almost compliant."
+   },
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": ["moto_std", "moto_slow", "moto_seek"],
+    "params": {"p0": 0.5, "k": 0.1, "p_max": 0.9, "dt": 10.0},
+    "rationale": "Targets M3/share/moto (sim 0.005-0.007 vs obs 0.098) and M3/per_cycle (0.2-0.3 vs 3.9): p0 0.06 produced about a tenth of p0 as a share, so p0 0.5 (the front-row value of Saval et al. 2023 given in the dictionary) with k 0.1 raises it to the observed order; var/mean was already near 1.14 and the modest k keeps the clustering."
+   },
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": ["car_std"],
+    "params": {"p0": 0.04, "k": 0.0, "p_max": 0.05, "dt": 10.0},
+    "rationale": "Targets M3/share/car (sim 0 vs obs 0.0041): by the same one-tenth scaling p0 0.04 gives about 0.004 with no swarm effect, so cars stay almost compliant."
+   },
+   {
+    "rule_type": "queue_space_seeking",
+    "applies_to": ["moto_seek"],
+    "params": {"q": 15.0, "t_g_s": 7.0, "est_noise": 0.3, "p_wrong_lane": 0.3, "p_right_lane": 0.0, "p_sidewalk": 0.03, "v_creep": 3.0, "merge_zone_m": 10.0},
+    "rationale": "Targets M10a/per_cycle (sim 1.7-3.6 vs obs 0.56) and M10b/queue_at_choice (sim 43-56 m vs obs 15.3 m): p_sidewalk is lowered from 0.05-0.1 to 0.03 and the trigger q raised to 15 m, near the observed choice queue 15.3 m, so riders only seek space in short queues; p_wrong_lane stays at 0.3 as in it01_s02 and p_right_lane is 0 because the option does not exist on this site."
+   },
+   {
+    "rule_type": "illegal_left_box",
+    "applies_to": ["moto_viol"],
+    "params": {"release_lag_s": 1.0},
+    "rationale": "Targets M7a/release_time (sim 3.7 vs obs 2.78 s) and M7b/clear_lag (5.453 vs 5.459 s): 1.0 s is the it01_s02 value that matched the clear lag, so it is not changed to avoid fitting noise."
+   },
+   {
+    "rule_type": "slow_lane_center",
+    "applies_to": ["moto_slow"],
+    "params": {"lat_offset": 0.0},
+    "rationale": "Targets M6/approach moto times (behaviour 10): slow riders keep the lane centre (offset 0); no measured offset is available, so the base value is kept."
+   }
+  ]
+ },
+ "reasoning": "I started from it01_s01 (lowest S 1.234) and from the best parts of s02/s03 (violator parameters that gave M7b 5.453 vs 5.459 s; tau/sigma that gave the lowest M1 and M5/length). The largest errors are the signal-compliance metrics (M2/early/moto 0.02 vs 0.13, M3/share/moto 0.006 vs 0.098, M4/overshoot_share 0 vs 0.62), where the simulated share was about one tenth of the rule probability, so I raised p and p0 accordingly. Queues are 2-3 times too long (M5/length 38-44 m vs 15.8 m) and 70 percent of right-turners are blocked (M9b/share_blocked 0.70 vs 0.065), so I lowered tau, sigma and minGap and added lcSpeedGain 3 to spread straight vehicles out of lane 0. Sidewalk use is 3-6 times too high (M10a 1.7-3.6 vs 0.56), so I cut the seeker share to 0.15 and p_sidewalk to 0.03; wrong_lane and right_lane stay unmodelled on this site and I could not target M8."
+}

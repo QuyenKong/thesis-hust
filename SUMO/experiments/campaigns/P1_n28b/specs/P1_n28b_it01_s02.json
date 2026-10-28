@@ -1,0 +1,128 @@
+{
+ "spec_id": "P1_n28b_it01_s02",
+ "source": "llm",
+ "provenance": {
+  "model": "claude-sonnet (stand-in)",
+  "prompt_version": "v002",
+  "iteration": 1,
+  "sample_idx": 2,
+  "runtime": "file"
+ },
+ "description": "P1 it01: keep Saval car-following values; lower red-running to the observed moto share, switch early_start on at the observed M2 share, and make 30% of motorcycles space seekers with wrong-lane and sidewalk options sized from the F2 targets.",
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.9,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Unchanged (Saval et al. 2023 Table 11). Cars already match M3/share/car (0.0041, cars stop at red) and no feedback shows a car car-following error, so nothing is moved."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.1,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Unchanged: no rule applies to custom2 on the proxy net, so it must behave like car_saval; the share has no effect on M8/car or M3/share/car."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.7,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Car-following values unchanged (Saval Table 11; M1/moto discharge headway 0.2957 s). Share lowered 0.9 -> 0.7 so that 30% of motorcycles are moto_seeker and can use wrong lane or sidewalk, targeting M8/moto (0.249) and M10a (0.56 veh/cycle)."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.3,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Same riding values as moto_saval. Share raised 0.1 -> 0.3 because M8/moto = 0.249 of turning motorcycles use a wrong lane and F2/p/wrong_lane is 0.19-0.23; with p_wrong_lane 0.5 about 15% of motorcycles seek space, the same order of magnitude, without overshooting before any feedback."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 1.0
+   },
+   "rationale": "Unchanged: the prompt contains no M7a/M7b/M7c or M6/illegal_l simulated value, so jmTimegapMinor stays at the base 1.0 s until feedback shows whether box waiters leave too early or too late."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.15,
+    "k": 0.0,
+    "p_max": 0.15,
+    "dt": 10.0
+   },
+   "rationale": "Targets M3/share/moto = 0.098 (observed). Saval's 0.5 applies to front-row motorcycles only, and across all motorcycles the observed share is about 0.1; p0 = p_max = 0.15 lowers red running toward M3/share/moto and M3/per_cycle = 3.9 (red runners also come from early start and the box). k stays 0 (no swarm evidence beyond M3/var_to_mean 1.14, near Poisson)."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 7.0,
+    "p": 0.13,
+    "v_max": 2.0
+   },
+   "rationale": "Targets M2/early/moto = 0.1302 share in the last 10 s of red (cars 0.011 stay at p = 0 as the rule applies to motorcycles only): p = 0.13 matches the observed share, t_before_green = 7 s lies inside the 4-10 s target lead time, and v_max = 2 m/s is a slow creep that does not distort M2/first_delay (2.83 s)."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker"
+   ],
+   "params": {
+    "q": 15.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.5,
+    "p_right_lane": 0.0,
+    "p_sidewalk": 0.1,
+    "v_creep": 3.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "q = 15 m is the observed queue at choice (M10b/queue_at_choice 15.3 m, M9c 15.7 m, M5/length 15.8 m); F2/p/wrong_lane is 0.19-0.23 at q 0-40 m so p_wrong_lane = 0.5 among seekers (30% share) gives roughly M8/moto 0.25 order. p_sidewalk = 0.1 targets F2/p/sidewalk 0.009-0.049 and M10a 0.56 veh/cycle; p_right_lane stays 0 (option absent on this site); green check off and v_creep, merge_zone_m kept at base."
+  }
+ ]
+}

@@ -1,0 +1,210 @@
+{
+ "spec_id": "P2_n28b_it01_s00",
+ "source": "llm",
+ "provenance": {
+  "model": "claude-sonnet (stand-in)",
+  "prompt_version": "v002",
+  "iteration": 1,
+  "sample_idx": 0,
+  "runtime": "file"
+ },
+ "description": "Iteration 1 baseline-structure spec: cars as one compliant archetype; motorcycles split into standard, slow lane-centre and space-seeking custom1 riders; illegal-left riders as a separate custom1 distribution; per-class early-start and swarm red-running rules.",
+ "driver_archetypes": [
+  {
+   "id": "car_std",
+   "base_vclass": "passenger",
+   "distribution": "car",
+   "share": 1.0,
+   "params": {
+    "tau": 1.0,
+    "minGap": 2.0,
+    "accel": 2.6,
+    "decel": 4.5,
+    "sigma": 0.5,
+    "speedFactor": 1.0,
+    "speedDev": 0.1,
+    "impatience": 0.1
+   },
+   "rationale": "Cars are nearly compliant (M3/share/car 0.0041, M2/early/car 0.0111), so near-default car-following values and low impatience keep red running and early start low; tau 1.0 and accel 2.6 target M1/car discharge headway."
+  },
+  {
+   "id": "moto_std",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.5,
+   "params": {
+    "tau": 0.6,
+    "minGap": 0.5,
+    "accel": 5.0,
+    "decel": 8.0,
+    "sigma": 0.5,
+    "speedFactor": 1.0,
+    "speedDev": 0.1,
+    "minGapLat": 0.4,
+    "maxSpeedLat": 1.5,
+    "latAlignment": "compact",
+    "lcSublane": 2.0,
+    "lcPushy": 0.5,
+    "lcMaxSpeedLatStanding": 1.0,
+    "impatience": 0.5,
+    "jmDriveAfterRedTime": 3.0,
+    "jmDriveRedSpeed": 5.0
+   },
+   "rationale": "Short tau, small minGap/minGapLat and compact alignment pack motorcycles at the stop line to move M4/overshoot_share (0.62) and M1/moto headway (0.296 s); impatience with jmDriveAfterRedTime 3 s lets a share run the red towards M3/share/moto 0.098."
+  },
+  {
+   "id": "moto_slow",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.2,
+   "params": {
+    "tau": 0.8,
+    "minGap": 0.6,
+    "accel": 3.0,
+    "decel": 6.0,
+    "sigma": 0.5,
+    "speedFactor": 0.75,
+    "speedDev": 0.1,
+    "minGapLat": 0.5,
+    "latAlignment": "center",
+    "impatience": 0.2
+   },
+   "rationale": "Slow riders keeping the lane centre (lower speedFactor, centre alignment) lengthen M6/approach times (e.g. s/moto 35.7 s) and are less likely to red-run; paired with slow_lane_center."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.3,
+   "params": {
+    "tau": 0.6,
+    "minGap": 0.5,
+    "accel": 5.0,
+    "decel": 8.0,
+    "sigma": 0.5,
+    "speedFactor": 1.0,
+    "speedDev": 0.1,
+    "minGapLat": 0.4,
+    "maxSpeedLat": 1.5,
+    "latAlignment": "compact",
+    "lcSublane": 2.0,
+    "lcPushy": 0.6,
+    "lcMaxSpeedLatStanding": 1.0,
+    "impatience": 0.5,
+    "jmDriveAfterRedTime": 3.0,
+    "jmDriveRedSpeed": 5.0
+   },
+   "rationale": "Straight custom1 riders that may seek space when queued, targeting M8/moto wrong-lane share 0.249, M10a sidewalk 0.56 veh/cycle and M4 overshoot; same filtering-oriented values as moto_std, slightly higher lcPushy."
+  },
+  {
+   "id": "moto_violator_left",
+   "base_vclass": "custom1",
+   "distribution": "moto_violator",
+   "share": 1.0,
+   "params": {
+    "tau": 0.6,
+    "minGap": 0.5,
+    "accel": 5.0,
+    "decel": 8.0,
+    "minGapLat": 0.4,
+    "latAlignment": "compact",
+    "impatience": 0.7,
+    "jmTimegapMinor": 1.0
+   },
+   "rationale": "Illegal-left riders from HDT_N/HDT_S wait in the box; default jmTimegapMinor 1.0 s and high impatience target M7a n_waiting (5.59 veh) and M7b clear_lag (5.46 s), kept at base to avoid fitting noise."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_std",
+    "moto_slow",
+    "moto_seeker"
+   ],
+   "params": {
+    "t_before_green": 8.0,
+    "p": 0.13,
+    "v_max": 2.5
+   },
+   "rationale": "Targets M2/early/moto 0.1302 (share of motorcycles starting in the last 10 s of red) with p equal to the observed share; creep speed 2.5 m/s also affects M2/first_delay 2.83 s."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "car_std"
+   ],
+   "params": {
+    "t_before_green": 6.0,
+    "p": 0.011,
+    "v_max": 2.0
+   },
+   "rationale": "Targets M2/early/car 0.0111: p set to the observed car early-start share, so cars stay almost compliant."
+  },
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_std",
+    "moto_slow",
+    "moto_seeker"
+   ],
+   "params": {
+    "p0": 0.06,
+    "k": 0.03,
+    "p_max": 0.3,
+    "dt": 10.0
+   },
+   "rationale": "Targets M3/share/moto 0.098 and M3/var_to_mean 1.14: small base p0 plus a modest group effect k raises the share and the overdispersion of violations per cycle; cap 0.3 prevents runaway."
+  },
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "car_std"
+   ],
+   "params": {
+    "p0": 0.004,
+    "k": 0.0,
+    "p_max": 0.01,
+    "dt": 10.0
+   },
+   "rationale": "Targets M3/share/car 0.0041: p0 at the observed share and no swarm effect keep car red running rare."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker"
+   ],
+   "params": {
+    "q": 12.0,
+    "t_g_s": 7.0,
+    "est_noise": 0.3,
+    "p_wrong_lane": 0.2,
+    "p_right_lane": 0.02,
+    "p_sidewalk": 0.05,
+    "v_creep": 5.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Queue trigger of 12 m sits near the observed choice queues (M10b 15.3 m, M9c 15.7 m); option probabilities follow the targets F2/p/wrong_lane ~0.2, sidewalk ~0.05 (q20-40), right_lane ~0.02, and t_g_s 7 s is the green-check example from the prompt."
+  },
+  {
+   "rule_type": "illegal_left_box",
+   "applies_to": [
+    "moto_violator_left"
+   ],
+   "params": {
+    "release_lag_s": 1.0
+   },
+   "rationale": "Targets M7a/release_time 2.78 s and M7b/clear_lag 5.46 s: a short extra hold of 1 s over SUMO's native release, small because the native release already contributes part of the lag."
+  },
+  {
+   "rule_type": "slow_lane_center",
+   "applies_to": [
+    "moto_slow"
+   ],
+   "params": {
+    "lat_offset": 0.0
+   },
+   "rationale": "Slow motorcycles keep the lane centre (offset 0), which narrows lateral spread for slow riders and lengthens M6/approach times towards the observed values."
+  }
+ ]
+}
