@@ -2,10 +2,10 @@
 `right_lane`) and `right_turn_delay` (definitions in `thesis_sumo.schema_observed`), on the approaches with
 `continuous_right_lane: true`. An event counts when its `t` is in the window, a right turn when its `t_exit` is.
 
-- M9a/per_cycle: right-lane riders (straight vehicles seen in lane 0) per complete cycle (as M3), pooled over
-  approaches. PLAN asks for straight vehicles *standing* in the right lane at green onset; the tables count every
-  straight vehicle seen in lane 0 in the cycle, because riders creep (above the halting speed) and merge back before
-  the bollards, so an onset snapshot would miss most of them. The dependence on the queue is M9c / F2.
+- M9a/per_cycle: straight vehicles standing (halting) in lane 0 per complete cycle (as M3), pooled over approaches.
+  PLAN asks for straight vehicles *standing* in the right lane at green onset; the tables count every straight vehicle
+  seen halting in lane 0 within R in the cycle, not only at the onset snapshot. Driving straight through lane 0 is
+  legal on green since 2026-10-28 (no bollards) and is no event. The dependence on the queue is M9c / F2.
 - M9b/delay_blocked: `t_exit - t_enter` of the blocked right turns (PLAN "right-turn delay distribution"; the delay of
   all right turns is already M6/approach/r, so M9 scores only the blocked ones). M9b/share_blocked: blocked / right
   turns with a `t_enter`.
@@ -36,7 +36,7 @@ def compute(tables: dict, ctx: MetricContext | None = None) -> dict:
     delay = (rt["t_exit"] - rt["t_enter"])[blocked]
     return {
         "M9a/per_cycle": dist(events_per_cycle(tables, "right_lane", apps, ctx),
-                              "straight vehicles seen in the right-turn lane per cycle", "veh/cycle",
+                              "straight vehicles standing in the right-turn lane per cycle", "veh/cycle",
                               "M9_right_lane.right_lane_choice_prob"),
         "M9b/delay_blocked": dist(delay, "delay of blocked right-turners (range entry to stop line)", "s",
                                   "M9_right_lane.lane0_hold_s"),

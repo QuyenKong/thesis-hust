@@ -29,8 +29,8 @@ day_factor:
 
 geometry:
   # path length from the stop line to the start of the outbound lane, by movement
-  path_length_m: {s: 40.6, r: 13.1, l: 40.9, u: 15.9, illegal_l: 36.5}
-  path_length_m_source: "mean internal-lane chain length per movement of scenario/net/site.proxy.net.xml (junction geometry from OSM, Task 2); measure on video"
+  path_length_m: {s: 41.6, r: 13.5, l: 42.3, u: 15.4, illegal_l: 43.4}
+  path_length_m_source: "mean internal-lane chain length per movement over the target TLS links of scenario/net/site.proxy.net.xml (junction geometry from OSM, Task 2), recomputed 2026-10-28 for the three-stage scenario (illegal_l = the HDT_N / HDT_S lefts, l = the LVL_W / LVL_E lefts; was {s: 40.6, r: 13.1, l: 40.9, u: 15.9, illegal_l: 36.5} from the pre-F2 net with the illegal left on LVL_W); measure on video"
   path_length_m_evidence: assumed
   moto_length_m: 1.87
   moto_length_m_source: "[T2] Minh et al. 2005 Table 1 (motorcycle 1.87 x 0.64 m, after Chandra et al. 2003)"
@@ -69,7 +69,7 @@ targets:
     movement_split:
       value:
         legal: {s: 0.70, r: 0.15, l: 0.10, u: 0.05}
-        banned_left: {s: 0.80, r: 0.15, u: 0.05}   # approach with left_turn_banned (illegal lefts: see M7)
+        banned_left: {s: 0.80, r: 0.15, u: 0.05}   # approach with left_turn_banned: HDT_N, HDT_S (illegal lefts: see M7)
       unit: share of the approach's legal vehicles
       family: multinomial per vehicle
       between_day_cv: 0.0
@@ -126,7 +126,7 @@ targets:
         LVL_E: {moto: 0.0945, car: 0.0027}
         HDT_N: {moto: 0.1582, car: 0.0068}
         HDT_S: {moto: 0.1582, car: 0.0068}
-      unit: share of the approach's vehicles of that class that cross the stop line before green onset (early departure)
+      unit: share of the approach's vehicles of that class that cross the stop line before green onset (early departure); vehicles of the approach's straight signal head (movements on an own arrow, the LVL left / U-turn, are left out, thesis_sumo.metrics.common.own_head_tracks; the generator uses the same shares on that arrow)
       family: negative binomial count per cycle (var/mean as M3 per_cycle_var_to_mean), taken from the front of the queue
       between_day_cv: 0.12
       between_day_cv_source: "assumed (spec 4.2); [S5] two sites differ by ~15 %"
@@ -160,7 +160,7 @@ targets:
         LVL_E: {moto: 0.0649, car: 0.0027}
         HDT_N: {moto: 0.1106, car: 0.0050}
         HDT_S: {moto: 0.1106, car: 0.0050}
-      unit: share of the approach's vehicles of that class that cross the stop line during red (excluding early starters)
+      unit: share of the approach's vehicles of that class that cross the stop line during red (excluding early starters); straight signal head only, as early_start_share
       family: negative binomial count per cycle
       between_day_cv: 0.12
       between_day_cv_source: "assumed (spec 4.2)"
@@ -319,12 +319,12 @@ targets:
   M7_illegal_left:
     n_waiting_in_box:
       value: 6.0
-      unit: halting illegal-left motorcycles in the box when the opposing through green ends (per cycle)
+      unit: halting illegal-left motorcycles in the box when the opposing through green ends (per cycle and illegal-left approach; site illegal_left.approaches = HDT_N, HDT_S, each with its own box)
       family: "box entrants per cycle ~ negative binomial(mean value / (1 - early_leave_share), var/mean entrants_var_to_mean); waiting = entrants - early leavers"
       between_day_cv: 0.12
       between_day_cv_source: "assumed (spec 4.2)"
       between_day_cv_evidence: assumed
-      source: "[S5] Lang Ha x Lang: 'a large amount of motorcycle of minor flow runs into the middle of the intersection and wait for passing when time phase changes' (no count given); 6 assumed"
+      source: "[S5] Lang Ha x Lang: 'a large amount of motorcycle of minor flow runs into the middle of the intersection and wait for passing when time phase changes' (no count given); 6 assumed. Since 2026-10-28 (illegal lefts from HDT_N and HDT_S, the minor road, instead of LVL_W alone): the former single-approach value applied to each of the two boxes, unchanged (not re-derived)"
       evidence: assumed
     entrants_var_to_mean:
       value: 1.5
@@ -362,12 +362,12 @@ targets:
       evidence: assumed
     crossing_start_delay_per_waiter_s:
       value: 0.3
-      unit: s added to the crossing road's first-crossing delay at its green onset per vehicle waiting in the box (M7c)
+      unit: s added to the crossing road's first-crossing delay at its green onset per vehicle waiting in the boxes (M7c; waiters of both HDT boxes at the last HDT green end, summed)
       family: deterministic slope
       between_day_cv: 0.12
       between_day_cv_source: "assumed"
       between_day_cv_evidence: assumed
-      source: "assumed: clearing box waiters block the start of the crossing road (no measurement found)"
+      source: "assumed: clearing box waiters block the start of the crossing road (no measurement found); since 2026-10-28 the per-waiter value is kept and the waiters of the two HDT boxes add up"
       evidence: assumed
 
   # ------------------------------------------------------------------ M8: lane vs movement
@@ -418,10 +418,10 @@ targets:
   M10_sidewalk:
     sidewalk_choice_prob:
       value: 0.03
-      unit: probability that a straight motorcycle entering the observed range of a sidewalk approach (site f2_measured_approaches) is seen on the sidewalk, at a queue >= choice_ramp_queue_m
+      unit: probability that a straight motorcycle entering the observed range of a sidewalk approach (site f2_measured_approaches = LVL_W, LVL_E; the same value on each) is seen on the sidewalk, at a queue >= choice_ramp_queue_m
       family: "bernoulli, value x the M9 ramp (same draw as right_lane_choice_prob: right lane first, then sidewalk)"
       between_day_cv: 0.12
       between_day_cv_source: "assumed (spec 4.2)"
       between_day_cv_evidence: assumed
-      source: "assumed: no measured share found. Order of magnitude from simulation settings, not data: F2-behaviours SEEK check 10 % seekers x p_sidewalk 0.3 = 3 % of motorcycles; Phase 3B (docs/research/phase3b_sidewalk.md) toy runs"
+      source: "assumed: no measured share found. Order of magnitude from simulation settings, not data: F2-behaviours SEEK check 10 % seekers x p_sidewalk 0.3 = 3 % of motorcycles; Phase 3B (docs/research/phase3b_sidewalk.md) toy runs. Set for the LVL_W sidewalk; since 2026-10-28 (sidewalk on LVL_E too) LVL_E takes the same value (not re-derived)"
       evidence: assumed

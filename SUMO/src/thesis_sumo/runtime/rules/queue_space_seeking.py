@@ -2,7 +2,9 @@
 
 Trigger and draw
 - A vehicle of the rule's vTypes is a candidate while it is on its approach upstream of the bollard edge (on an
-  approach without segments: on the inbound edge) and not on a sidewalk. Its movement = the link from the stop-line
+  approach without one, e.g. `right_lane_separator: open` or no split: on every segment) and not on a sidewalk. The
+  bollard edge = a split approach's stop-line edge whose lane 0 lets no vClass but `emergency` change left
+  (`lane.getChangePermissions`, net.apply_patches). Its movement = the link from the stop-line
   edge to its next route edge; its queue = the longest queue (`Step.queue_length`, chained across the segments) of
   the lanes whose markings (site `lane_movements`) permit that movement; its wait = time halted on the approach
   inside the controller radius.
@@ -12,7 +14,8 @@ Trigger and draw
   its previous green, measured live: (last - first) / (n - 1) over the stop-line crossings from the signalled lanes
   while green), estimate = needed x exp(N(0, `est_noise`)) (multiplicative lognormal error, median unbiased), against
   the duration of the coming green from the running TLS program. Signalled lanes = stop-line lanes with an open link
-  whose state changes between phases (not the continuous right turn, not the closed lane-0 straight). Estimate >
+  whose state changes between phases (not the continuous right turn, not a closed lane-0 straight; the open lane-0
+  straight of `right_lane_separator: open` counts). Estimate >
   green: the vehicle draws (trigger `green`); no headway yet (first green): no check. Viktor framed it around
   wrong-way riding, which stays deferred (R38): the draw is over the options that exist (wrong_lane, right_lane,
   sidewalk).
@@ -24,7 +27,9 @@ Trigger and draw
   - `wrong_lane`: some lane permitting the movement has an adjacent lane whose markings do not, with a connection to
     the next edge allowing the vClass (`wrong_lane.dodge_targets`, R27);
   - `right_lane`: movement straight, lane 0's markings do not permit it, the bollard edge forbids lane 0 -> 1 for the
-    vClass (`lane.getChangePermissions`) and the upstream lane 0 allows it;
+    vClass (`lane.getChangePermissions`) and the upstream lane 0 allows it. On the proxy net since 2026-10-28
+    (separator open, lane 0 marked [r, s]) it exists nowhere: straight vehicles that wait in lane 0 come from SUMO's
+    own lane choice, and p_right_lane is redistributed;
   - `sidewalk`: the approach has a sidewalk lane that allows the vClass and links to the next edge.
 
 Execution (one intervention per vehicle; no speed or lane-change mode is changed: the default lane-change mode 1621
@@ -112,6 +117,8 @@ class QueueSpaceSeeking(Rule):
         self._merging: set[str] = set()
         self._sw_width: dict[str, float] = {}
         self._veh_width: dict[str, float] = {}  # released right_lane vehicles whose window closes once back in lane >= 1
+        self.bollard = {a for a, segs in self.info.segments.items() if len(segs) > 1
+                        and set(self.b.lane.getChangePermissions(self.info.lanes[a][0], 1)) <= {"emergency"}}
 
     # ------------------------------------------------------------ helpers
     def _vc(self, vtype: str) -> str:
@@ -132,8 +139,7 @@ class QueueSpaceSeeking(Rule):
                      if lk.to_edge == nxt), None)
 
     def _in_zone(self, lane: str, app: str) -> bool:
-        return lane not in self.sidewalk_lanes and (len(self.info.segments[app]) == 1
-                                                    or lane not in self.info.lanes[app])
+        return lane not in self.sidewalk_lanes and (app not in self.bollard or lane not in self.info.lanes[app])
 
     def available(self, app: str, vclass: str, nxt: str, mv: str) -> frozenset:
         key = (app, vclass, nxt)
@@ -243,9 +249,9 @@ class QueueSpaceSeeking(Rule):
 
     # ------------------------------------------------------------ green check
     def _measure_headways(self, s: Step) -> None:
-        for vid, app, st in s.crossings:
-            lane = self._stop_lane.get(vid)
-            if st == "G" and lane is not None and self.info.lanes[app].index(lane) in self.signalled[app]:
+        for vid, app, _st in s.crossings:
+            lane = self._stop_lane.get(vid)  # approach group green (a LVL left in its own arrow is not in it)
+            if s.groups[app] == "G" and lane is not None and self.info.lanes[app].index(lane) in self.signalled[app]:
                 self._green_cross[app].append(s.t)
         for app, (prev, _new) in s.changed.items():
             if prev == "G":  # the green ended: its headway is the estimate for the next one

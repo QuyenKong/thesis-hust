@@ -151,6 +151,7 @@ class Rule:
         self.info, self.cmd, self.b, self.rng = info, cmd, cmd.b, rng
         self.active: dict[str, Active] = {}
         self.counters: Counter = Counter()
+        self._route_next: dict[str, str | None] = {}
 
     # ------------------------------------------------------------ hooks
     def on_step(self, s: Step) -> list[Intervention]:
@@ -163,6 +164,18 @@ class Rule:
     # ------------------------------------------------------------ helpers
     def applies(self, s: Step, vid: str) -> bool:
         return s.vehicles[vid].vtype in self.vtypes and not self.cmd.busy(vid)
+
+    def link_of(self, s: Step, vid: str) -> int | None:
+        """TLS link index of the connection `vid` takes from its stop-line lane to its route's next edge (its own
+        signal, `Step.signal`); None when that lane has no link to the edge: the approach group's signal applies."""
+        lane = s.vehicles[vid].lane
+        if vid not in self._route_next:  # one getRoute per vehicle; the edge after the approach never changes
+            route, edge = list(self.b.vehicle.getRoute(vid)), lane.rsplit("_", 1)[0]
+            i = route.index(edge) if edge in route else -1
+            self._route_next[vid] = route[i + 1] if 0 <= i < len(route) - 1 else None
+        nxt = self._route_next[vid]
+        return next((self.info.link_of_internal[lk.via] for lk in self.info.links.get(lane, ())
+                     if lk.to_edge == nxt and lk.via in self.info.link_of_internal), None)
 
     def start(self, vid: str, action: str, t: float, **data) -> Active:
         self.cmd.begin(vid, self.rule_type, t)
@@ -204,10 +217,11 @@ class Rule:
         return [self.finish(vid, s.t, False, "left_zone") for vid in sorted(self.active) if vid not in s.vehicles]
 
 
-def start_red_pass(rule: Rule, s: Step, vid: str, app: str, action: str, v_max: float | None = None) -> Intervention | None:
-    """Let `vid` pass the red stop line of `app`: clear speedMode bit4 (and cap the speed with setSpeed(v_max)).
-    Returns a record only when SUMO refused the command (TraCIException)."""
-    a = rule.start(vid, action, s.t, app=app)
+def start_red_pass(rule: Rule, s: Step, vid: str, app: str, action: str, v_max: float | None = None,
+                   link: int | None = None) -> Intervention | None:
+    """Let `vid` pass the red stop line of `app` (red = its own TLS link `link`, `Rule.link_of`): clear speedMode bit4
+    (and cap the speed with setSpeed(v_max)). Returns a record only when SUMO refused the command (TraCIException)."""
+    a = rule.start(vid, action, s.t, app=app, link=link)
     try:
         a.orig_speed_mode = rule.cmd.clear_speed_bits(vid, RED_LIGHT_BIT)
         if v_max is not None:
@@ -219,7 +233,7 @@ def start_red_pass(rule: Rule, s: Step, vid: str, app: str, action: str, v_max: 
 
 
 def settle_red_passes(rule: Rule, s: Step) -> list[Intervention]:
-    """Outcome of the running red passes: executed when the vehicle crossed the stop line while its approach was
+    """Outcome of the running red passes: executed when the vehicle crossed the stop line while its own link was
     red (SUMO moved it onto an internal lane); not executed when the red ended first or the vehicle left the zone.
     The overrides are undone at the outcome."""
     out = rule.left_zone(s)
@@ -228,6 +242,6 @@ def settle_red_passes(rule: Rule, s: Step) -> list[Intervention]:
         a = rule.active[vid]
         if vid in crossed:
             out.append(rule.finish(vid, s.t, crossed[vid] == "r", "crossed_after_red"))
-        elif s.groups[a.data["app"]] != "r":
+        elif s.signal(a.data["app"], a.data["link"]) != "r":
             out.append(rule.finish(vid, s.t, False, "red_ended_before_crossing"))
     return out

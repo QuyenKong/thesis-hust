@@ -31,11 +31,11 @@ INTERVAL_S = 900
 SMALL_COUNTS = [
     # interval_start, interval_end, approach, movement, vclass, count
     (0, 900, "LVL_W", "s", "moto", 40), (0, 900, "LVL_W", "s", "car", 12),
-    (0, 900, "LVL_W", "r", "moto", 9), (0, 900, "LVL_W", "illegal_l", "moto", 5),
+    (0, 900, "LVL_W", "r", "moto", 9), (0, 900, "HDT_N", "illegal_l", "moto", 5),
     (0, 900, "LVL_W", "u", "moto", 2), (0, 900, "LVL_E", "l", "car", 3),
-    (0, 900, "LVL_E", "s", "moto", 30), (0, 900, "HDT_N", "l", "moto", 6),
-    (0, 900, "HDT_S", "r", "car", 4),
-    (900, 1800, "LVL_W", "s", "moto", 55), (900, 1800, "LVL_W", "illegal_l", "moto", 8),
+    (0, 900, "LVL_E", "s", "moto", 30), (0, 900, "LVL_W", "l", "moto", 6),
+    (0, 900, "HDT_S", "r", "car", 4), (0, 900, "HDT_S", "illegal_l", "moto", 3),
+    (900, 1800, "LVL_W", "s", "moto", 55), (900, 1800, "HDT_N", "illegal_l", "moto", 8),
     (900, 1800, "LVL_E", "s", "car", 10), (900, 1800, "HDT_N", "s", "moto", 20),
     (900, 1800, "HDT_S", "u", "car", 1),
 ]
@@ -89,12 +89,14 @@ def test_candidate_routes_cover_all_movements(net, candidates):
     for (app, mv), edges in cands.items():
         assert approach_of[edges[-2]] == app
         assert list(edges[:-1]) == [e.getID() for e in reversed(approach_segments(net, edges[-2]))]
-        assert len(edges) >= 3  # split on the proxy net (bollards everywhere)
+        assert len(edges) == (3 if app in ("LVL_W", "LVL_E") else 2)  # split at the sidewalk start only (no bollards)
         assert mv in MOVEMENTS
-    # LVL_W left is banned and re-added for custom1 only (Task 2) -> the illegal left movement
-    assert ("LVL_W", "illegal_l") in cands and ("LVL_W", "l") not in cands
-    for app in ("LVL_E", "HDT_N", "HDT_S"):
-        assert {(app, m) for m in ("l", "s", "r", "u")} <= set(cands)
+    # HDT_N / HDT_S lefts are banned and re-added for custom1 only (site illegal_left, 2026-10-28) -> illegal_l;
+    # the LVL lefts are legal (protected arrow)
+    for app in ("HDT_N", "HDT_S"):
+        assert {(app, m) for m in ("illegal_l", "s", "r", "u")} <= set(cands) and (app, "l") not in cands
+    for app in ("LVL_W", "LVL_E"):
+        assert {(app, m) for m in ("l", "s", "r", "u")} <= set(cands) and (app, "illegal_l") not in cands
 
 
 def test_routesampler_matches_counts(sampled, candidates):
@@ -133,15 +135,15 @@ def test_violator_type_mapping(sampled, candidates):
 # --- further behaviour ---------------------------------------------------------------------------
 
 def test_car_illegal_left_rejected(tmp_path, candidates):
-    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "LVL_W", "illegal_l", "car", 1)])
+    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "HDT_N", "illegal_l", "car", 1)])
     with pytest.raises(ValueError, match="illegal_l"):
         build_demand(counts, candidates, tmp_path / "r.rou.xml", seed=1)
 
 
 def test_banned_movement_rejected(tmp_path, candidates):
     """A legal `l` count on the banned approach has no route; it must fail, not be dropped."""
-    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "LVL_W", "l", "moto", 1)])
-    with pytest.raises(ValueError, match="LVL_W"):
+    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "HDT_S", "l", "moto", 1)])
+    with pytest.raises(ValueError, match="HDT_S"):
         build_demand(counts, candidates, tmp_path / "r.rou.xml", seed=1)
 
 

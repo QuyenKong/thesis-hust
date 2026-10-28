@@ -161,14 +161,16 @@ def test_field_observation_evidence_only_on_continuous_right_lane():
 
 def test_continuous_right_lane_in_both_site_files():
     """PLAN 0: every approach has a continuous right-turn lane (field-confirmed in site.yaml, field_observation in
-    the proxy); in the proxy its lane 0 marks the right turn only. The F2 geometry stays TODO_MEASURE."""
+    the proxy); no separator (Viktor 2026-10-28), so in the proxy its lane 0 marks right and straight. The F2 geometry
+    stays TODO_MEASURE."""
     measured, proxy = load_site(SITE), load_site(PROXY)
     for m, p in zip(measured["approaches"], proxy["approaches"]):
         assert m["continuous_right_lane"] is True and p["continuous_right_lane"] is True
         assert p["continuous_right_lane_evidence"] == FIELD_OBSERVATION_EVIDENCE
         assert p["continuous_right_lane_source"].strip()
-        assert p["lane_movements"][0] == ["r"] and all("s" in lane for lane in p["lane_movements"][1:])
-        assert m["right_lane_separator"] == p["right_lane_separator"] == "bollards"  # Viktor, 2026-10-26
+        assert p["lane_movements"][0] == ["r", "s"] and all("s" in lane for lane in p["lane_movements"][1:])
+        assert m["right_lane_separator"] == p["right_lane_separator"] == "open"  # Viktor, 2026-10-28
+        assert p["bollard_length_m"] is None  # no bollards: not read
         assert p["right_lane_separator_evidence"] == FIELD_OBSERVATION_EVIDENCE
         for key in ("sidewalk_width_m", "hard_median_length_m"):
             assert m[key] is None, key

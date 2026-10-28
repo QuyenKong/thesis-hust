@@ -47,17 +47,31 @@ def _signal(n_cycles: int = 10) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=TABLES["signal_events"]).sort_values(["t", "approach_group"], kind="stable")
 
 
+def _signal3(n_cycles: int = 10) -> pd.DataFrame:
+    """Three stages as site.proxy.yaml (straight heads only, schema_observed): LVL_W/LVL_E G [0,42) y [42,46) r [46,120)
+    (their left arrow is G [48,64)); HDT_N/HDT_S r [0,70) G [70,114) y [114,118) r [118,120).
+    Green onsets: LVL 120, 240, ...; HDT 70, 190, 310, ..."""
+    rows = [(0.0, a, "r") for a in ("HDT_N", "HDT_S")]
+    for c in range(n_cycles):
+        b = c * CYCLE
+        for a in ("LVL_W", "LVL_E"):
+            rows += [(b, a, "G"), (b + 42, a, "y"), (b + 46, a, "r")]
+        for a in ("HDT_N", "HDT_S"):
+            rows += [(b + 70, a, "G"), (b + 114, a, "y"), (b + 118, a, "r")]
+    return pd.DataFrame(rows, columns=TABLES["signal_events"]).sort_values(["t", "approach_group"], kind="stable")
+
+
 def _state(ev: pd.DataFrame, app: str, t: float) -> str:
     e = ev[(ev["approach_group"] == app) & (ev["t"] <= t)].sort_values("t", kind="stable")
     return e["state"].iloc[-1]
 
 
 def _tables(vehicles=(), lateral=(), queue=(), box=(), counts=(), n_cycles: int = 10, qts=(), events=(),
-            rtd=()) -> dict[str, pd.DataFrame]:
+            rtd=(), three_phase: bool = False) -> dict[str, pd.DataFrame]:
     """vehicles: (track_id, approach, vclass, movement, t_stopline, lat, t_exit, t_range_entry);
     lateral: (cycle_id, approach, track_id, vclass, lat_m, long_m); queue / box / counts / qts (queue_timeseries) /
     events (space_seeking_events) / rtd (right_turn_delay): schema rows."""
-    ev = _signal(n_cycles)
+    ev = _signal3(n_cycles) if three_phase else _signal(n_cycles)
     tr = pd.DataFrame([(i, vc, a, mv, "X", lat, t_rng, t, t_ex) for i, a, vc, mv, t, lat, t_ex, t_rng in vehicles],
                       columns=TABLES["traversals"])
     tr = tr.sort_values(["t_stopline", "track_id"], kind="stable").reset_index(drop=True)
@@ -79,15 +93,23 @@ def _tables(vehicles=(), lateral=(), queue=(), box=(), counts=(), n_cycles: int 
     }
 
 
-def _site(continuous: bool = False, sidewalk=None) -> Site:
+def _site(continuous: bool = False, sidewalk=None, three_phase: bool = False) -> Site:
+    """Two stages (every movement of an approach with its straight, as `_signal`) or the three stages of
+    site.proxy.yaml (LVL left and U-turn on their own arrow, as `_signal3`)."""
     lanes = [["r", "s"], ["s"], ["s", "l", "u"]]
-    return Site({"site_source": "LITERATURE_PROXY", "f2_measured_approaches": sidewalk, "approaches": [
-        {"id": a, "lane_widths_m": [3.5, 3.5, 3.5], "lane_movements": lanes, "continuous_right_lane": continuous}
-        for a in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")]}, PROXY_SITE)
+    mv = {a: [f"{a}:{d}" for d in "rslt"] for a in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")}
+    phases = ([{"green_movements": [m for a in ("LVL_W", "LVL_E") for m in mv[a] if m[-1] in "rs"]},
+               {"green_movements": [m for a in ("LVL_W", "LVL_E") for m in mv[a] if m[-1] in "lt"]},
+               {"green_movements": mv["HDT_N"] + mv["HDT_S"]}] if three_phase else
+              [{"green_movements": mv["LVL_W"] + mv["LVL_E"]}, {"green_movements": mv["HDT_N"] + mv["HDT_S"]}])
+    return Site({"site_source": "LITERATURE_PROXY", "f2_measured_approaches": sidewalk, "signal": {"phases": phases},
+                 "approaches": [{"id": a, "lane_widths_m": [3.5, 3.5, 3.5], "lane_movements": lanes,
+                                 "continuous_right_lane": continuous} for a in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")]},
+                PROXY_SITE)
 
 
-def _ctx(window=(0.0, 1000.0), continuous: bool = False, sidewalk=None) -> MetricContext:
-    return MetricContext(window=window, queue_range_m=80.0, site=_site(continuous, sidewalk))
+def _ctx(window=(0.0, 1000.0), continuous: bool = False, sidewalk=None, three_phase: bool = False) -> MetricContext:
+    return MetricContext(window=window, queue_range_m=80.0, site=_site(continuous, sidewalk, three_phase))
 
 
 def V(i, a, vc, mv, t, lat=1.0, t_exit=np.nan, t_range=np.nan):
@@ -185,6 +207,30 @@ def test_continuous_right_lane_flag_required():
                                MetricContext(window=(0.0, 240.0), queue_range_m=80.0, site=site))
 
 
+def test_left_arrow_movements_not_classified_on_the_straight_head():
+    """Three stages (site.proxy.yaml): LVL l / u have their own arrow (G [48, 64) mod 120) while signal_events holds
+    the straight head (schema_observed), so their crossings are neither red runners, early starts, first crossings nor
+    discharge (M1-M3). LVL_W onsets 120, 240, ...; straight red from 46."""
+    veh = [V("L1", "LVL_W", "moto", "l", 50.0),    # arrow green, straight red: would be a red runner
+           V("L2", "LVL_W", "moto", "l", 112.0),   # 8 s before the straight onset: would be an early start
+           V("L3", "LVL_W", "moto", "l", 121.0),   # arrow red, straight green: would be the first crossing
+           V("U1", "LVL_W", "car", "u", 170.0),    # arrow green, straight red
+           V("W1", "LVL_W", "moto", "l", 172.0),   # waits through the straight onset 120 for the arrow
+           V("S1", "LVL_W", "moto", "s", 60.0),    # straight red runner
+           V("S2", "LVL_W", "moto", "s", 125.0), V("S3", "LVL_W", "moto", "s", 125.6)]
+    lat = [(0, "LVL_W", t, "moto", 8.0, d) for t, d in (("S2", 0.0), ("W1", 0.5), ("S3", 1.0))]
+    tables, ctx = _tables(veh, lat, n_cycles=6, three_phase=True), _ctx(window=(0.0, 600.0), three_phase=True)
+    m1, m2, m3 = (m.compute(tables, ctx) for m in (m1_headway, m2_early_start, m3_red_running))
+    assert m3["M3/share/moto"].values == pytest.approx(1 / 3)   # S1 red; S2, S3 go
+    assert m2["M2/early/moto"].values == 0.0
+    assert np.isnan(m3["M3/share/car"].values)                  # U1 is the only car
+    assert list(m2["M2/first_delay"].values) == pytest.approx([5.0])
+    assert list(m1["M1/moto"].values) == pytest.approx([0.6])  # queue S2, S3 (W1 waits for the arrow)
+    # two stages (LVL G [0, 64)): the left turns are on the straight head and classified (L2 early start of 7)
+    two = m2_early_start.compute(_tables(veh, lat, n_cycles=6), _ctx(window=(0.0, 600.0)))
+    assert two["M2/early/moto"].values == pytest.approx(1 / 7)
+
+
 # ------------------------------------------------------------------ M4 / M5 / M6 / M8
 
 
@@ -278,6 +324,26 @@ def test_m7_box_count():
     # crossing road onsets 190 (box row 184: n 2) and 310 (row 304: n 1); delays 2.0, 2.3 | 1.5, 1.4 -> slope 0.7
     assert out["M7c/slope"].values == pytest.approx(0.7)
     assert out["M7c/slope"].kind == "scalar"
+
+
+def test_m7_two_illegal_left_approaches():
+    """site.proxy.yaml since 2026-10-28: illegal lefts from HDT_N and HDT_S, each the other's opposing approach (same
+    road, green together); one box_queue row per approach at the HDT green end 114 (+120 k). Crossing road = LVL_W,
+    LVL_E (onsets 120, 240); M7c pairs each onset with the waiters of BOTH boxes at the last box time (5, then 1)."""
+    veh = [V("n1", "HDT_N", "moto", "illegal_l", 80.0, t_exit=116.0), V("n2", "HDT_N", "moto", "illegal_l", 90.0, t_exit=120.0),
+           V("s1", "HDT_S", "moto", "illegal_l", 85.0, t_exit=117.0),
+           V("os", "HDT_S", "moto", "s", 112.0), V("on", "HDT_N", "moto", "s", 113.0),   # opposing straights
+           V("w1", "LVL_W", "moto", "s", 122.0), V("e1", "LVL_E", "moto", "s", 123.0),
+           V("w2", "LVL_W", "moto", "s", 241.0), V("e2", "LVL_E", "moto", "s", 241.5)]
+    box = [(0, 114.0, "HDT_N", 3, 116.0, 120.0), (0, 114.0, "HDT_S", 2, 117.0, 117.0),
+           (1, 234.0, "HDT_N", 1, np.nan, np.nan), (1, 234.0, "HDT_S", 0, np.nan, np.nan)]
+    out = m7_illegal_left.compute(_tables(veh, box=box, three_phase=True), _ctx(three_phase=True))
+    assert sorted(out["M7a/n_waiting"].values) == [0, 1, 2, 3]
+    assert sorted(out["M7a/release_time"].values) == pytest.approx([2.0, 3.0, 6.0])
+    # HDT_N: 116 - max(114, 112 HDT_S straight); HDT_S: 117 - max(114, 113 HDT_N straight)
+    assert sorted(out["M7b/clear_lag"].values) == pytest.approx([2.0, 3.0])
+    # x = [5, 5, 1, 1], delays [2, 3, 1, 1.5] -> slope 5 / 16
+    assert out["M7c/slope"].values == pytest.approx(5 / 16)
 
 
 def test_m7_day_past_window_same_as_truncated():
@@ -487,6 +553,10 @@ def test_m10_sidewalk_known():
     assert list(out["M10a/per_cycle"].values) == [2.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
     assert sorted(out["M10b/queue_at_choice"].values) == [15.0, 25.0, 35.0]
     assert not out["M10b/queue_at_choice"].scored  # R43
+    # both Le Van Luong sidewalks (site.proxy.yaml since 2026-10-28): LVL_E's rider i joins, cycles pooled (7 + 7)
+    both = m10_sidewalk.compute(_f2_tables(), _ctx(sidewalk=["LVL_W", "LVL_E"]))
+    assert len(both["M10a/per_cycle"].values) == 14 and both["M10a/per_cycle"].values.sum() == 4
+    assert sorted(both["M10b/queue_at_choice"].values) == [5.0, 15.0, 25.0, 35.0]
     # no sidewalk approach (measured site: f2_measured_approaches null): empty on both sides -> 0, not scored
     rep = distance.compare([_f2_tables()], [_f2_tables(), _f2_tables()], weights={f"M{k}": 1.0 for k in range(1, 11)},
                            ctx=_ctx())
@@ -527,7 +597,8 @@ def test_f2_groups_weighted_like_the_others():
 def test_f2_metrics_on_proxy_days_match_targets():
     """Pooled over D1-D5 in the window: right-lane riders and sidewalk riders occur, the blocked share is small,
     every blocked right-turner waited, the right-lane events never on a non-continuous approach (all are here),
-    sidewalk events only on LVL_W; F2 probabilities below the full-ramp targets."""
+    sidewalk events on both Le Van Luong approaches (f2_measured_approaches); F2 probabilities below the full-ramp
+    targets."""
     ctx = MetricContext.from_config(site=load_site(PROXY_SITE))
     days = [distance.compute_all(read_tables(OBSERVED / f"PROXY_D{k}"), ctx) for k in range(1, 6)]
 
@@ -543,7 +614,7 @@ def test_f2_metrics_on_proxy_days_match_targets():
     assert np.nanmax(p) < 0.05
     for d in range(1, 6):
         ev = pd.read_csv(OBSERVED / f"PROXY_D{d}" / "space_seeking_events.csv")
-        assert set(ev.loc[ev["space"] == "sidewalk", "approach"]) == {"LVL_W"}
+        assert set(ev.loc[ev["space"] == "sidewalk", "approach"]) == {"LVL_W", "LVL_E"}
         assert "opposite" not in set(ev["space"])
 
 

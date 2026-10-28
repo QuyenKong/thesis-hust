@@ -169,8 +169,8 @@ def test_schema_columns(proxy_run, observed):
 
 def test_signal_events_follow_program(observed):
     ev = observed["signal_events"]
-    lvl = ev[ev["approach_group"] == "LVL_W"][["t", "state"]].values.tolist()
-    assert lvl == [[0, "G"], [64, "y"], [68, "r"], [120, "G"], [184, "y"], [188, "r"], [240, "G"]]
+    lvl = ev[ev["approach_group"] == "LVL_W"][["t", "state"]].values.tolist()  # the LVL straight head (3 stages)
+    assert lvl == [[0, "G"], [42, "y"], [46, "r"], [120, "G"], [162, "y"], [166, "r"], [240, "G"], [282, "y"], [286, "r"]]
     hdt = ev[ev["approach_group"] == "HDT_N"][["t", "state"]].values.tolist()
     assert hdt == [[0, "r"], [70, "G"], [114, "y"], [118, "r"], [190, "G"], [234, "y"], [238, "r"]]
     assert sorted(ev["approach_group"].unique()) == ["HDT_N", "HDT_S", "LVL_E", "LVL_W"]
@@ -202,11 +202,37 @@ def test_snapshots_at_green_onsets(observed):
 
 def test_box_queue_rows(observed):
     b = observed["box_queue"]
-    # opposing (LVL_E) straight green ends at 64 s and 184 s
-    assert b["approach"].unique().tolist() == ["LVL_W"] and b["t"].tolist() == [64, 184]
-    assert b["cycle_id"].tolist() == [-1, 0] and (b["n_waiting_in_box"] >= 0).all()
-    # B0: violators halt in the box during cycle 0 and leave through gaps before the opposing green ends
-    assert b.iloc[1]["t_clear_start"] <= b.iloc[1]["t_clear_end"] < 240
+    # illegal lefts on HDT_N and HDT_S; the opposing (HDT_S / HDT_N) straight green ends at 114 s and 234 s
+    assert sorted(b["approach"].unique()) == ["HDT_N", "HDT_S"]
+    for _, rows in b.groupby("approach"):
+        assert rows["t"].tolist() == [114, 234] and rows["cycle_id"].tolist() == [0, 1]
+    assert (b["n_waiting_in_box"] >= 0).all()
+    # B0: the cycle-0 box waiters have all left before the next HDT green onset (190 s)
+    c0 = b[(b["cycle_id"] == 0) & b["t_clear_start"].notna()]
+    assert len(c0) and (c0["t_clear_start"] <= c0["t_clear_end"]).all() and (c0["t_clear_end"] < 190).all()
+
+
+def test_shared_green_check_needs_both_greens():
+    """A record shorter than the first HDT green (70 s on the proxy program) cannot tell whether HDT_N and HDT_S
+    share a green: no error (and no box_queue row)."""
+    ev = pd.DataFrame([(0, "HDT_N", "r"), (0, "HDT_S", "r"), (0, "LVL_W", "G")], columns=["t", "approach_group", "state"])
+    outputs.check_shared_green(ev, "HDT_N", "HDT_S")
+
+
+def test_crossing_state_is_own_link():
+    """signal_state_at_t = the state of the crossing vehicle's own TLS link (proxy net, its program): the LVL left in
+    the LVL_left stage is G while the LVL straight head is red; the HDT illegal left follows the HDT green; the
+    continuous right turn is G in every stage; a sidewalk straight follows the LVL straight."""
+    geo = outputs.junction_geometry(PROXY_NET)
+    (prog,) = sumolib.net.readNet(str(PROXY_NET), withPrograms=True).getTrafficLights()[0].getPrograms().values()
+    starts = np.cumsum([0] + [p.duration for p in prog.getPhases()])[:-1]
+    tls = pd.DataFrame({"t": starts, "state": [p.state for p in prog.getPhases()]})
+    w, n, e = "711526326#1", "953158817#2", "37876499#0"
+    cr = pd.DataFrame([(50, f"{w}_2", "LVL_W", "408823207#0"), (50, f"{w}_2", "LVL_W", "37877893#0"),
+                       (80, f"{n}_2", "HDT_N", "37877893#0"), (50, f"{n}_2", "HDT_N", "37877893#0"),
+                       (50, f"{w}_0", "LVL_W", "37871458#0"), (10, f"{e}.sidewalk_0", "LVL_E", "711526328#0"),
+                       (50, f"{e}.sidewalk_0", "LVL_E", "711526328#0")], columns=["t", "lane", "approach", "exit_edge"])
+    assert list(outputs.crossing_states(cr, tls, geo)) == ["G", "r", "G", "r", "G", "G", "r"]
 
 
 # ---------------------------------------------------------------- derivations on hand-made data

@@ -11,10 +11,11 @@ traversals of its approach whose stop-line crossing falls in the row's cycle (`c
   opposing approach's straight movement before that exit). Rows without such an exit give no value. SUMO SSM PET
   is not used.
 - M7c/slope (scalar): least-squares slope of the crossing road's start delay (green onset to its first stop-line
-  crossing, `m2_early_start.first_delays`) on `n_waiting_in_box` of the last box row at or before that onset, if
-  that row is less than one cycle (the median onset spacing) before it. Crossing roads = approaches that are
-  neither an illegal-left approach nor its opposing approach. NaN (undefined) with fewer than two distinct
-  `n_waiting_in_box` values.
+  crossing, `m2_early_start.first_delays`) on the box waiters at the last box time at or before that onset (sum of
+  `n_waiting_in_box` over the rows at that time: with illegal lefts from both approaches of one road, HDT_N and
+  HDT_S, both boxes hold the crossing road), if that time is less than one cycle (the median onset spacing) before
+  it. Crossing roads = approaches that are neither an illegal-left approach nor its opposing approach. NaN
+  (undefined) with fewer than two distinct x values.
 """
 
 from __future__ import annotations
@@ -53,7 +54,7 @@ def release_and_lag(tables: dict, ctx: MetricContext) -> tuple[list[float], list
 
 
 def start_delay_points(tables: dict, ctx: MetricContext) -> tuple[np.ndarray, np.ndarray]:
-    """(n_waiting_in_box of the last box row, crossing-road start delay) per crossing-road onset in the window."""
+    """(box waiters at the last box time, crossing-road start delay) per crossing-road onset in the window."""
     box = tables["box_queue"].sort_values("t", kind="stable")
     if not len(box):
         return np.array([]), np.array([])
@@ -67,7 +68,7 @@ def start_delay_points(tables: dict, ctx: MetricContext) -> tuple[np.ndarray, np
         cycle = float(np.median(np.diff(onsets(tables, app, ctx))))
         i = np.searchsorted(bt, g, side="right") - 1
         if i >= 0 and g - bt[i] < cycle:
-            x.append(bn[i])
+            x.append(bn[bt == bt[i]].sum())
             y.append(delay)
     return np.array(x), np.array(y)
 

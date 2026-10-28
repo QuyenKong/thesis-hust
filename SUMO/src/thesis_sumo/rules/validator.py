@@ -25,7 +25,9 @@ Codes:
                   probability, PLAN 4.5). Options per archetype: wrong_lane = `runtime.wrong_lane.usable_dodges` with
                   the site's lane_movements and the net's connections and their vClass permissions; right_lane = an
                   approach with a bollard edge (split node `<edge>.bollard`, net.apply_patches) whose upstream lane 0
-                  allows the vclass; sidewalk = a sidewalk edge allowing the vclass. An archetype in moto_violator
+                  allows the vclass (none on the proxy net since 2026-10-28, `right_lane_separator: open`: p_right_lane
+                  is then redistributed like any absent option); sidewalk = a sidewalk edge allowing the vclass. An
+                  archetype in moto_violator
                   drives only the illegal left (build_demand), so only wrong_lane counts for it
 - `structure_locked` (`structure_issues`, LLM loop mode params_only = P1, PLAN 7.2) the spec changes the structure
                   of the locked base spec: archetype ids, base_vclass, distribution, the param names of an archetype

@@ -110,8 +110,7 @@
     {
       "rule_type": "queue_space_seeking",
       "applies_to": [
-        "moto_seeker",
-        "car_seeker"
+        "moto_seeker"
       ],
       "params": {
         "q": 30.0,
@@ -123,7 +122,7 @@
         "v_creep": 3.0,
         "merge_zone_m": 15.0
       },
-      "rationale": "Not in Saval et al. 2023 (assumed): the paper has no space seeking (wrong lane, right-turn-lane blocking, sidewalk), so every p = 0 and the green check is off (t_g_s = 0), like early_start p = 0. It is part of the fixed structure (Viktor 2026-10-27) so that P1/B2 can tune behaviours 5-7. q = 30 m, v_creep = 3 m/s and merge_zone_m = 15 m (the Phase 3A setting) are assumed mid-range values without effect while every p = 0."
+      "rationale": "Not in Saval et al. 2023 (assumed): the paper has no space seeking (wrong lane, right-turn-lane blocking, sidewalk), so every p = 0 and the green check is off (t_g_s = 0), like early_start p = 0. It is part of the fixed structure (Viktor 2026-10-27) so that P1/B2 can tune behaviours 5-7. q = 30 m, v_creep = 3 m/s and merge_zone_m = 15 m (the Phase 3A setting) are assumed mid-range values without effect while every p = 0. Not applied to car_seeker (custom2) since 2026-10-28: without bollards no option exists for custom2 on the proxy net (right_lane needs bollards, wrong_lane none (R27), the sidewalk is custom1 only), so the validator would reject every spec with p > 0 (R27)."
     }
   ]
 }

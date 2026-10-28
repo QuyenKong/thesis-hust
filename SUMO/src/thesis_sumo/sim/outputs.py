@@ -31,8 +31,11 @@ Definitions (R = `observation.queue_range_m` from experiment.yaml, a modelling c
   state; group state = normalised state of the approach's straight links (`signal_events`).
 - **stopline_crossings**: the first `enter` event per vehicle on any `in__` loop; `t` = SUMO's
   interpolated crossing time; lateral position from the vehicle's last fcd row on an inbound lane (one
-  step before the crossing at most; NaN if it has none); `signal_state_at_t` = the approach group's state
-  at `t`.
+  step before the crossing at most; NaN if it has none); `signal_state_at_t` = the normalised state at `t` (last
+  tlsStates record at or before it) of the vehicle's own TLS link: the connection from the crossed lane to the next
+  edge of its route (`Geometry.link_index`). Since the protected LVL left (site signal, 2026-10-28) the LVL left and
+  U-turn have their own stage, so a left in its arrow is `G` although the LVL straight group is red; the continuous
+  right turn is `G` in every phase (its link is `g`).
 - **turn_counts**: stop-line crossings binned by crossing time into `INTERVAL_S` bins from the sim begin,
   movement from the vehicle's route (`build_demand.movement_table`); the full grid of
   (bin, approach, movement, vclass) is written with zeros (no `car` x `illegal_l`); the last bin is partial
@@ -47,7 +50,7 @@ Definitions (R = `observation.queue_range_m` from experiment.yaml, a modelling c
   the front within R upstream of the stop line, or anywhere past it on the approach's internal lanes
   (stop-line overshoot, red runners, box waiters).
 - **box_queue**: see `schema_observed` (binding). Box = the internal-lane chain of the approach's
-  `illegal_l` link(s) (proxy net: TLS link 16, `:<junction>_16_0` + `_28_0`); exits = first fcd row off the
+  `illegal_l` link(s) (proxy net: the custom1-only lefts of HDT_N and HDT_S, opposing each other); exits = first fcd row off the
   box lanes. A vehicle that **disappears while in the box** (absent from the next fcd step before the
   record ends: collision teleport, removal) has no box exit: it still counts in `n_waiting_in_box` when it
   was halting at `t`, but it is left out of `t_clear_start` / `t_clear_end` and does not make `t_clear_end`
@@ -138,6 +141,7 @@ class Geometry:
     sidewalk_lanes: frozenset = frozenset()
     lane_bounds: dict[str, np.ndarray] = field(default_factory=dict)  # approach -> cumulative stop-line lane widths
     lane_marks: dict[str, list[set]] = field(default_factory=dict)    # approach -> movements per stop-line lane
+    link_index: dict[tuple[str, str], int] = field(default_factory=dict)  # (stop-line lane, outbound edge) -> TLS link
 
     def opposing_of(self, approach: str) -> str:
         try:
@@ -212,9 +216,12 @@ def junction_geometry(net_path: Path) -> Geometry:
         for lane in net.getEdge(sw).getLanes():
             lane_info[lane.getID()] = (app, lane.getLength(), -lane.getWidth() / 2)
     approach_of.update(sidewalks)
-    internal, box_lanes, group_links = {}, {}, {a: [] for a in inbound}
+    internal, box_lanes, group_links, link_index = {}, {}, {a: [] for a in inbound}, {}
     for in_lane, out_lane, idx in tls.getConnections():
         (conn,) = [c for c in in_lane.getOutgoing() if c.getToLane() == out_lane]
+        key = (in_lane.getID(), out_lane.getEdge().getID())
+        if link_index.setdefault(key, idx) != idx:
+            raise ValueError(f"lane {key[0]} has two TLS links to {key[1]}; a crossing's own signal is ambiguous")
         app = approach_of[in_lane.getEdge().getID()]
         if in_lane.getEdge().getID() in sidewalks:
             mv = {"t": "u"}.get(movement_of(conn.getDirection()), movement_of(conn.getDirection()))
@@ -247,7 +254,7 @@ def junction_geometry(net_path: Path) -> Geometry:
     return Geometry(inbound, lane_info, internal, road_width, {a: sorted(v) for a, v in group_links.items()},
                     box_lanes, opposing, movements, _exit_arms(net, node, inbound), stop_dist,
                     frozenset(ln.getID() for sw in sidewalks for ln in net.getEdge(sw).getLanes()),
-                    lane_bounds, lane_marks)
+                    lane_bounds, lane_marks, link_index)
 
 
 # ---------------------------------------------------------------- readers
@@ -368,6 +375,16 @@ def signal_events(tls_states: pd.DataFrame, group_links: dict[str, list[int]]) -
     return ev.sort_values(["t", "approach_group"], kind="stable").reset_index(drop=True)
 
 
+def link_states_at(tls_states: pd.DataFrame, links, t) -> np.ndarray:
+    """Normalised state of TLS link `links[i]` at time `t[i]` (last tlsStates record at or before it)."""
+    times = tls_states["t"].to_numpy(dtype=float)
+    idx = np.searchsorted(times, np.asarray(t, dtype=float), side="right") - 1
+    if (idx < 0).any():
+        raise ValueError("times before the first tlsStates record")
+    states = tls_states["state"].to_numpy()
+    return np.array([normalise_state(states[k][i]) for k, i in zip(idx, links)], dtype=object)
+
+
 def state_at(signal_events_df: pd.DataFrame, group: str, t) -> np.ndarray:
     """State of `group` at each time in `t` (last event at or before t)."""
     ev = signal_events_df[signal_events_df["approach_group"] == group].sort_values("t", kind="stable")
@@ -386,9 +403,12 @@ def opposing_green_ends(signal_events_df: pd.DataFrame, group: str) -> np.ndarra
 
 def check_shared_green(signal_events_df: pd.DataFrame, a: str, b: str) -> None:
     """Raise unless groups `a` and `b` are green together at some time (the illegal left of `a` waits in the
-    box during its own through green, which must also be the opposing through green of `b`)."""
+    box during its own through green, which must also be the opposing through green of `b`). A record in which one of
+    them is never green (a run shorter than the first HDT green of the 3-stage proxy program) cannot tell, and gives
+    no box_queue row either: no check."""
     times = signal_events_df["t"].unique()
-    if not ((state_at(signal_events_df, a, times) == "G") & (state_at(signal_events_df, b, times) == "G")).any():
+    green_a, green_b = state_at(signal_events_df, a, times) == "G", state_at(signal_events_df, b, times) == "G"
+    if green_a.any() and green_b.any() and not (green_a & green_b).any():
         raise ValueError(f"illegal-left approach {a} and its opposing approach {b} never share a green phase; "
                          f"the box_queue definition (wait during the opposing through green) does not apply")
 
@@ -480,7 +500,8 @@ def to_observed_schema(run_dir: Path) -> dict[str, pd.DataFrame]:
                          f"(sim.fcd_radius_m {sim['fcd_radius_m']} m) for approaches (stop line distance) {too_far}")
     vinfo = _vtype_info(run_dir)
 
-    ev = signal_events(read_tls_states(run_dir / "tls_states.xml"), geo.group_links)
+    tls = read_tls_states(run_dir / "tls_states.xml")
+    ev = signal_events(tls, geo.group_links)
     onsets = {a: green_onsets(ev, a) for a in geo.inbound}
     illegal = sorted(set(geo.box_lanes.values()))
     opp_ends = {}
@@ -493,10 +514,11 @@ def to_observed_schema(run_dir: Path) -> dict[str, pd.DataFrame]:
     entries, exits = read_loop_crossings(run_dir / "detectors.xml")
     routes = read_route_edges(routes_path)
 
-    cr = _crossings(entries, geo, ev, scan, vinfo)
+    cr = _crossings(entries, geo, scan, vinfo)
     moves = [_route_movement(r, routes, geo) for r in cr.itertuples()]
     cr["movement"] = [m for m, _ in moves]
     cr["exit_edge"] = [e for _, e in moves]
+    cr["signal_state_at_t"] = crossing_states(cr, tls, geo)
     tables = {"signal_events": ev, "stopline_crossings": cr,
               "turn_counts": _turn_counts(cr, geo, sim["begin_s"], sim["end_s"]),
               "traversals": _traversals(cr, exits, scan, geo)}
@@ -515,7 +537,22 @@ def to_observed_schema(run_dir: Path) -> dict[str, pd.DataFrame]:
     return tables
 
 
-def _crossings(cr: pd.DataFrame, geo: Geometry, ev: pd.DataFrame, scan: FcdScan, vinfo: dict) -> pd.DataFrame:
+def crossing_states(cr: pd.DataFrame, tls_states: pd.DataFrame, geo: Geometry) -> np.ndarray:
+    """`signal_state_at_t` of stop-line crossings (columns t, lane, approach, exit_edge): the state of the crossing
+    vehicle's own TLS link (module docstring). A crossing from a lane with no link to its exit edge (hand-made data: in
+    SUMO a vehicle leaves by a link of its lane) takes that movement's link from another lane of its approach."""
+    def link(lane: str, app: str, exit_edge: str) -> int:
+        if (lane, exit_edge) in geo.link_index:
+            return geo.link_index[(lane, exit_edge)]
+        for (ln, e), i in sorted(geo.link_index.items()):
+            if e == exit_edge and geo.lane_info[ln][0] == app:
+                return i
+        raise ValueError(f"approach {app} has no TLS link to {exit_edge}")
+    links = [link(*x) for x in zip(cr["lane"], cr["approach"], cr["exit_edge"])]
+    return link_states_at(tls_states, links, cr["t"])
+
+
+def _crossings(cr: pd.DataFrame, geo: Geometry, scan: FcdScan, vinfo: dict) -> pd.DataFrame:
     cr = cr.copy()
     unknown = sorted(set(cr["lane"]) - set(geo.lane_info))
     if unknown:
@@ -530,9 +567,6 @@ def _crossings(cr: pd.DataFrame, geo: Geometry, ev: pd.DataFrame, scan: FcdScan,
 
     cr["lane_or_lat_m"] = cr["track_id"].map(lat).astype(float)
     cr["vclass"] = _schema_vclass(cr["type"], vinfo)
-    cr["signal_state_at_t"] = ""
-    for app, idx in cr.groupby("approach").groups.items():
-        cr.loc[idx, "signal_state_at_t"] = state_at(ev, app, cr.loc[idx, "t"])
     return cr.sort_values(["t", "track_id"], kind="stable").reset_index(drop=True)
 
 
@@ -625,8 +659,10 @@ def _f2_tables(geo: Geometry, fr: pd.DataFrame, grid: list[float], cr: pd.DataFr
     g = g.assign(movement=[movement(v, a) for v, a in zip(g["track_id"], g["approach"])])
     w0 = g["approach"].map(lambda a: geo.lane_bounds[a][0])
     lane0 = g[~on_sw & (g["lat_m"] >= 0) & (g["lat_m"] < w0)]
+    # straight vehicles standing in lane 0 (behaviour 6): driving through it on green is legal since 2026-10-28
+    stand0 = lane0[(lane0["movement"] == "s") & (lane0["speed"] < HALT_SPEED_MPS)]
     ev = []
-    for space, sub in (("right_lane", lane0[lane0["movement"] == "s"]), ("sidewalk", g[on_sw])):
+    for space, sub in (("right_lane", stand0), ("sidewalk", g[on_sw])):
         first = sub.sort_values("t", kind="stable").drop_duplicates("track_id")
         ev += [(r.t, r.approach, r.track_id, r.vclass, space) for r in first.itertuples()]
     turning = cr[cr["movement"].isin(("r", "l", "u")) & ~cr["lane"].isin(geo.sidewalk_lanes) & cr["lane_or_lat_m"].notna()]
@@ -643,11 +679,10 @@ def _f2_tables(geo: Geometry, fr: pd.DataFrame, grid: list[float], cr: pd.DataFr
         ev.loc[idx, "queue_length_m_at_t"] = queue_at_times(qts, a, ev.loc[idx, "t"])
     ev = ev.sort_values(["t", "approach", "track_id", "space"], kind="stable")[TABLES["space_seeking_events"]]
 
-    blocked = set()  # right-turners in lane 0 with a straight vehicle in lane 0 ahead of them at a grid time
-    for _, grp in lane0.groupby(["t", "approach"]):
-        s = grp.loc[grp["movement"] == "s", "dist_m"]
-        if len(s):
-            blocked |= set(grp.loc[(grp["movement"] == "r") & (grp["dist_m"] > s.min()), "track_id"])
+    # right-turners in lane 0 with a standing straight vehicle in lane 0 ahead of them at a grid time
+    first = stand0.groupby(["t", "approach"], as_index=False)["dist_m"].min()
+    rt0 = lane0[lane0["movement"] == "r"].merge(first, on=["t", "approach"], suffixes=("", "_s"))
+    blocked = set(rt0.loc[rt0["dist_m"] > rt0["dist_m_s"], "track_id"])
     rt = cr[(cr["movement"] == "r") & ~cr["lane"].isin(geo.sidewalk_lanes)]
     rtd = pd.DataFrame({"track_id": rt["track_id"], "approach": rt["approach"], "vclass": rt["vclass"],
                         "t_enter": rt["track_id"].map(lambda v: range_entry.get(v, np.nan)).astype(float),

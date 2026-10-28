@@ -11,8 +11,9 @@ sim:
   fcd_radius_m: 220            # fcd output is filtered to this radius around the intersection centre, and the
                                # TraCI controller subscribes to the same radius (runner). Must cover
                                # observation.queue_range_m + stop line distance (~24 m) and, since F2-behaviours fix
-                               # round 1 (Viktor), the proxy sidewalk start (170 m before the LVL_W stop line, ~193 m
-                               # from the centre) plus a TraCI decision zone upstream of it (was 120)
+                               # round 1 (Viktor), the proxy sidewalk starts (170 m before the LVL_W / LVL_E stop lines,
+                               # ~193 m from the centre: stop lines 22.8 / 23.4 m on site.proxy.net.xml) plus a TraCI
+                               # decision zone upstream of them (was 120)
   device_rerouting: false
   ssm:
     mode: "off"                # R22: off | violators | all (quoted: YAML reads a bare off as false).

@@ -157,6 +157,34 @@ def test_cli_pending_exit_code(env, capsys):
         _run(b0_lane_collisions_per_hour=None)
 
 
+def test_new_campaign_id_has_own_budget_and_state(env):
+    """A new campaign id (e.g. P1_n28) never shares budget.json, loop state or LLM logs with an old campaign; 2
+    planned iterations x 4 specs x 3 calibration days x seed 1 = 24 runs."""
+    evaluate.RunBudget(36, "P1").consume(12)   # an old, partly spent campaign
+    res = _drive(env, "P1_n28", budget_runs=24, n_iter=2)
+    assert (res.runs_used, len(res.iterations), res.stop_reason) == (24, 2, "budget")
+    assert evaluate.RunBudget(24, "P1_n28").used == 24 and evaluate.RunBudget(36, "P1").used == 12
+    assert (evaluate.CAMPAIGNS_DIR / "P1_n28" / "loop" / "loop.json").is_file()
+    assert not (evaluate.CAMPAIGNS_DIR / "P1" / "loop").exists()
+    assert {p.parent.name for p in env["logs"].glob("*/*.json")} == {"P1_n28"}
+
+
+def test_prompt_version_default_override_and_lock(env):
+    res = _drive(env, "P1_n28", n_iter=1, budget_runs=12)
+    lock = json.loads((evaluate.CAMPAIGNS_DIR / "P1_n28" / "loop" / "loop.json").read_text(encoding="utf-8"))
+    assert lock["llm"]["prompt_version"] == "v002" and res.best_spec["provenance"]["prompt_version"] == "v002"
+    with pytest.raises(ValueError, match="other settings"):   # a campaign keeps its prompt version
+        _run("P1_n28", n_iter=1, budget_runs=12, prompt_version="v001")
+    with pytest.raises(ValueError, match="prompt"):
+        _run("Px", prompt_version="v999")
+    assert not (evaluate.CAMPAIGNS_DIR / "Px" / "loop").exists()
+    rc = loop.main(["--campaign", "P1_old", "--mode", "params_only", "--base",
+                    str(REPO_ROOT / "rules" / "specs" / "B1_manual.json"), "--budget", "36", "--site", str(PROXY_SITE),
+                    "--b0-lane-collisions", "1.333", "--prompt-version", "v001"])
+    lock = json.loads((evaluate.CAMPAIGNS_DIR / "P1_old" / "loop" / "loop.json").read_text(encoding="utf-8"))
+    assert rc == 3 and lock["llm"]["prompt_version"] == "v001"
+
+
 def test_invalid_sample_costs_zero(env):
     def fn(it, j):
         a = _good(it, j)

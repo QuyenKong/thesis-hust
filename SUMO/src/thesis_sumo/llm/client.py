@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from thesis_sumo.config import REPO_ROOT, Site, load_llm
-from thesis_sumo.llm.feedback import build_retry
+from thesis_sumo.llm.feedback import PROMPTS_DIR, build_retry
 from thesis_sumo.rules.schema import DISTRIBUTIONS, TRACI_RULE_PARAMS, VCLASSES, Bound, load_bounds
 from thesis_sumo.rules.validator import ValidityLog, structure_issues, validate
 
@@ -184,6 +184,8 @@ class LLMClient:
         for key in ("model", "prompt_version", "max_attempts") + (openai_keys if cfg["runtime"] == "openai" else ()):
             if cfg.get(key) is None:
                 raise ValueError(f"llm.yaml {cfg.get('profile', '?')}.{key} is null (TODO_DECIDE); no default")
+        if not (PROMPTS_DIR / str(cfg["prompt_version"])).is_dir():
+            raise ValueError(f"prompt_version {cfg['prompt_version']!r}: no directory {PROMPTS_DIR} / <version>")
         if not NAME_RE.match(campaign):
             raise ValueError(f"campaign {campaign!r}: use letters, digits, '_', '.', '-' (it becomes part of spec ids)")
         self.log_dir = Path(log_root if log_root is not None else LOGS_DIR) / campaign

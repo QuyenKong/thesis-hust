@@ -3,11 +3,13 @@ probability p = min(p_max, p0 + k * n), n = vehicles (any type) that crossed the
 within the last `dt` s (window (t - dt, t]).
 
 - Arrival at the stop line = the vehicle is in the front row (front within `state.FRONT_ROW_M` of the stop line)
-  while its approach group is red (yellow is SUMO's own jmDriveAfterYellowTime business).
-- The decision is drawn once per vehicle and red phase, at its first front-row step on red (Task 7 note: drawing
-  every step would make p a per-step hazard and overshoot the red-running share).
-- A red violation (for n) = a stop-line crossing (inbound lane -> internal lane) while the group is red, whoever
-  caused it (this rule, early_start, SUMO's jmDriveAfterRedTime).
+  while its own signal is red: the TLS link it takes (`Rule.link_of`; the approach group if its lane has no link to
+  its next edge), so a LVL left-turner in its left arrow is not on red (protected left, 2026-10-28) and one waiting
+  during the LVL straight green is (yellow is SUMO's own jmDriveAfterYellowTime business).
+- The decision is drawn once per vehicle and red phase of its signal, at its first front-row step on red (Task 7
+  note: drawing every step would make p a per-step hazard and overshoot the red-running share).
+- A red violation (for n) = a stop-line crossing (inbound lane -> internal lane) while the crossing vehicle's own link
+  is red, whoever caused it (this rule, early_start, SUMO's jmDriveAfterRedTime).
 - Command and `executed`: as `early_start` (speedMode bit4 cleared, no speed cap; undone at the outcome).
 """
 
@@ -25,7 +27,7 @@ class SwarmRedRunning(Rule):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self._violations = {app: deque() for app in self.info.lanes}
-        self._drawn: dict[str, tuple[int, set]] = {}
+        self._drawn: dict[tuple[str, int | None], tuple[int, set]] = {}  # (approach, own link) -> (red id, drawn)
         self.draw_log: list[tuple[float, str, int, float, bool]] = []  # (t, vehicle, n, p, runs) per draw
 
     def n_recent(self, app: str, t: float) -> int:
@@ -41,14 +43,17 @@ class SwarmRedRunning(Rule):
         out = settle_red_passes(self, s)
         for app in self.info.lanes:
             n = self.n_recent(app, s.t)
-            if s.groups[app] != "r":
-                continue
-            rid, drawn = self._drawn.get(app, (None, set()))
-            if rid != s.red_id[app]:
-                drawn = set()
-                self._drawn[app] = (s.red_id[app], drawn)
             for vid in s.front_row(app):
-                if vid in drawn or not self.applies(s, vid):
+                if not self.applies(s, vid):
+                    continue
+                link = self.link_of(s, vid)
+                if s.signal(app, link) != "r":
+                    continue
+                rid, drawn = self._drawn.get((app, link), (None, set()))
+                if rid != s.red_id_of(app, link):
+                    drawn = set()
+                    self._drawn[(app, link)] = (s.red_id_of(app, link), drawn)
+                if vid in drawn:
                     continue
                 drawn.add(vid)
                 p = min(self.p["p_max"], self.p["p0"] + self.p["k"] * n)
@@ -57,7 +62,7 @@ class SwarmRedRunning(Rule):
                 self.draw_log.append((s.t, vid, n, p, runs))
                 if runs:
                     self.counters["decided_run"] += 1
-                    rec = start_red_pass(self, s, vid, app, "run_red")
+                    rec = start_red_pass(self, s, vid, app, "run_red", link=link)
                     if rec is not None:
                         out.append(rec)
         return out

@@ -516,7 +516,9 @@ def test_queue_space_seeking_redistribution_is_valid(spec, site):
 
 def test_queue_space_seeking_inapplicable_on_proxy_site(spec, site):
     """Ruling R27: wrong_lane is the only option with p > 0 and it does not exist on the proxy net; a custom1
-    archetype in moto_violator drives only the illegal left, so right_lane / sidewalk do not exist for it either."""
+    archetype in moto_violator drives only the illegal left, so right_lane / sidewalk do not exist for it either.
+    right_lane exists nowhere since 2026-10-28 (no bollards, straight from lane 0 legal): p_right_lane alone is
+    inapplicable too."""
     vio = _arch(spec, "custom1")["id"]
     issues = validate(_with_seek(spec, [vio], p_wrong_lane=0.5, p_right_lane=0.3, p_sidewalk=0.2), site)
     assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]")]
@@ -524,22 +526,24 @@ def test_queue_space_seeking_inapplicable_on_proxy_site(spec, site):
     spec = json.loads(B1.read_text(encoding="utf-8"))
     rid = _sidewalk_rider(spec)
     issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5), site)
-    assert _codes(issues) == ["logic"] and "existing: right_lane, sidewalk" in issues[0]["message"]
+    assert _codes(issues) == ["logic"] and "existing: sidewalk)" in issues[0]["message"]
+    issues = validate(_with_seek(spec, [rid], p_right_lane=0.5), site)
+    assert _codes(issues) == ["logic"] and "existing: sidewalk)" in issues[0]["message"]
 
 
 def test_queue_space_seeking_params_checked(spec, site):
     rid = _sidewalk_rider(spec)
     issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5, p_right_lane=0.4, p_sidewalk=0.3), site)
     assert _codes(issues) == ["rule_params"] and "<= 1" in issues[0]["message"]
-    for name, value in (("q", 100), ("q", 1), ("t_w", 500), ("merge_zone_m", 50), ("v_creep", 9), ("p_sidewalk", -0.1),
+    for name, value in (("q", 100), ("q", 1), ("t_w", 500), ("merge_zone_m", 50), ("v_creep", 9), ("p_right_lane", -0.1),
                         ("t_g_s", 30), ("est_noise", 2)):
         bad = json.loads(B1.read_text(encoding="utf-8"))
         r = _sidewalk_rider(bad)
-        issues = validate(_with_seek(bad, [r], p_right_lane=0.2, **{name: value}), site)
+        issues = validate(_with_seek(bad, [r], **{"p_sidewalk": 0.2, name: value}), site)
         assert [(i["code"], i["path"]) for i in issues] == [("rule_params", f"traci_rules[2].params.{name}")], name
     bad = json.loads(B1.read_text(encoding="utf-8"))
     r = _sidewalk_rider(bad)
-    rule = _with_seek(bad, [r], p_right_lane=0.2)["traci_rules"][-1]
+    rule = _with_seek(bad, [r], p_sidewalk=0.2)["traci_rules"][-1]
     del rule["params"]["merge_zone_m"]  # only t_w may be left out
     assert [i["path"] for i in validate(bad, site)] == ["traci_rules[2].params"]
 

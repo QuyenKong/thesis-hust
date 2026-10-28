@@ -5,7 +5,7 @@
 
 - `build_candidate_routes`: one `<route>` per approach edge -> outbound edge pair the net connects at the target
   junction (any vClass), starting at the upstream end of the approach (`build_net.approach_segments`: the site
-  patches split an approach into a bollard edge and the segments upstream of it), tagged with `<param key="approach">` / `<param key="movement">`. Movement codes
+  patches may split an approach at the bollards and at the sidewalk start), tagged with `<param key="approach">` / `<param key="movement">`. Movement codes
   follow the turn_counts schema (PLAN 5.1): r, s, l, u (SUMO dir `t`), and `illegal_l` for a left turn
   whose connections allow neither `passenger` nor `motorcycle` (the banned left, re-added for custom1 only).
 - `build_demand`: reads `turn_counts.csv` (columns `TURN_COUNT_COLUMNS`, intervals of 900 s in simulation

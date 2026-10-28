@@ -41,11 +41,11 @@ class DayDataLeak(ValueError):
     """A prompt text names an observed day (PLAN 5.4: the LLM never sees validation-day data)."""
 
 
-def load_prompt(name: str, version: str = "v001") -> Template:
+def load_prompt(name: str, version: str = "v002") -> Template:
     return Template((PROMPTS_DIR / version / f"{name}.md").read_text(encoding="utf-8"))
 
 
-def system_prompt(version: str = "v001") -> str:
+def system_prompt(version: str = "v002") -> str:
     return load_prompt("system", version).template.strip()
 
 
@@ -76,7 +76,11 @@ def _site_text(site: Site) -> str:
                  f"{_ev(a, 'lane_movements')} (r right, s straight, l left, u U-turn)"]
         if a.get("left_turn_banned"):
             parts.append(f"left turn banned{_ev(a, 'left_turn_banned')}")
-        if a.get("continuous_right_lane"):
+        if a.get("continuous_right_lane") and a.get("right_lane_separator") == "open":
+            parts.append(f"lane 0 is a continuous right-turn lane: right turn at any time (not signal controlled), "
+                         f"straight from it legal on the approach's straight green (no separator)"
+                         f"{_ev(a, 'right_lane_separator')}")
+        elif a.get("continuous_right_lane"):
             parts.append(f"lane 0 is a continuous right-turn lane (not signal controlled), separated by "
                          f"{a.get('right_lane_separator')} over the last {a.get('bollard_length_m')} m"
                          f"{_ev(a, 'bollard_length_m')}")
@@ -85,10 +89,23 @@ def _site_text(site: Site) -> str:
                          f"{a.get('sidewalk_width_m')} m wide{_ev(a, 'sidewalk_start_m')}")
         lines.append("; ".join(parts) + ".")
     sig = site["signal"]
-    phases = ", ".join(f"{p['name']} {p['duration_s']} s" for p in sig["phases"])
-    lines.append(f"- Signal: fixed time, cycle {sig['cycle_s']} s{_ev(sig, 'cycle_s')}; phases {phases}"
-                 f"{_ev(sig, 'phases')}.")
     il = site.get("illegal_left") or {}
+    apps = {a["id"]: a for a in site["approaches"]}
+
+    def green(p) -> str:
+        out = []
+        for m in p.get("green_movements") or []:
+            a = apps.get(m.split(":")[0], {})
+            if m.endswith(":r") and a.get("continuous_right_lane"):
+                continue   # that right turn is green in every phase (stated per approach above)
+            out.append(m + (f" (banned, {il.get('vclass')} only)" if m.endswith(":l") and a.get("left_turn_banned")
+                            else ""))
+        return f" (green {', '.join(out)})" if out else ""
+
+    phases = ", ".join(f"{p['name']} {p['duration_s']} s{green(p)}" for p in sig["phases"])
+    lines.append(f"- Signal: fixed time, cycle {sig['cycle_s']} s{_ev(sig, 'cycle_s')}; phases {phases}"
+                 f"{_ev(sig, 'phases')} (movement <approach>:<r right, s straight, l left, t U-turn>; not listed = "
+                 f"red).")
     if il.get("approaches"):
         lines.append(f"- Illegal left turns ({il.get('vclass')} riders, distribution moto_violator) from "
                      f"{', '.join(il['approaches'])}: they enter the junction on their own green, wait inside the box "
@@ -138,7 +155,7 @@ def _targets_text(targets_calib: dict) -> str:
 
 
 def build_context(mode: str, base_spec: dict | None, site: Site, bounds: dict[str, Bound], targets_calib: dict,
-                  *, schema: dict, prompt_version: str = "v001", exp: dict | None = None) -> str:
+                  *, schema: dict, prompt_version: str = "v002", exp: dict | None = None) -> str:
     """The context message. `targets_calib` = `calibration_targets(...)` (key -> label, unit, obs_mean, evidence,
     scored); `schema` = `client.llm_schema(mode, base_spec)`."""
     if mode not in MODE_RULES:
@@ -213,7 +230,7 @@ def _result_text(r, interventions: dict | None) -> str:
 
 
 def build_feedback(prev_results: list, issues: dict[str, list[dict]] | None = None,
-                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v001",
+                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v002",
                    exp: dict | None = None) -> str:
     """Feedback message on the previous iteration. `prev_results`: `evaluate.EvalResult`s (calibration days only);
     `issues`: spec_id -> validator issues of specs that never reached evaluation (the client gave up), merged with
@@ -236,5 +253,5 @@ def build_feedback(prev_results: list, issues: dict[str, list[dict]] | None = No
     return assert_no_day_data(text, exp)
 
 
-def build_retry(issues: list[dict], *, prompt_version: str = "v001") -> str:
+def build_retry(issues: list[dict], *, prompt_version: str = "v002") -> str:
     return load_prompt("retry", prompt_version).substitute(issues=_issues_text(issues))

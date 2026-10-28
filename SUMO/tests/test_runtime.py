@@ -211,6 +211,55 @@ def test_swarm_probability_rises(one_lane, tmp_path):
     assert all(float(r["t_end"]) < W_GREEN_ONSET for r in runs)
 
 
+# protected-left program (the proxy's 3 stages in miniature): W/E straight + right, W/E left + turnaround, N/S
+LEFT_PROGRAM = [(20, {"WC": "rs", "EC": "rs"}, "G"), (3, {"WC": "rs", "EC": "rs"}, "y"),
+                (10, {"WC": "lt", "EC": "lt"}, "g"), (3, {"WC": "lt", "EC": "lt"}, "y"),
+                (20, {"NC": "rslt", "SC": "rslt"}, "g"), (3, {"NC": "rslt", "SC": "rslt"}, "y")]
+LEFT_GREEN = (23.0, 33.0)  # W/E left green; the W straight is red then, the W left red in 0-23 and 36-82 s
+
+
+@pytest.fixture(scope="module")
+def left_phase_net(tmp_path_factory):
+    """The one-lane cross with a static 3-stage program: the W left has its own green, apart from the W straight."""
+    d = tmp_path_factory.mktemp("left3")
+    base = _cross(d)
+    tls = sumolib.net.readNet(str(base)).getTrafficLights()[0]
+    links = sorted((idx, i.getEdge().getID(), [c for c in i.getOutgoing() if c.getToLane() == o][0].getDirection())
+                   for i, o, idx in tls.getConnections())
+    states = ["".join(ch if dir_ in stage.get(edge, "") else "r" for _, edge, dir_ in links)
+              for _, stage, ch in LEFT_PROGRAM]
+    phases = "".join(f'<phase duration="{p[0]}" state="{s}"/>' for p, s in zip(LEFT_PROGRAM, states))
+    (d / "p.tll.xml").write_text(f'<tlLogics><tlLogic id="{tls.getID()}" programID="0" type="static" offset="0">'
+                                 f'{phases}</tlLogic></tlLogics>', encoding="utf-8")
+    subprocess.run([sumolib.checkBinary("netconvert"), "-s", str(base), "-i", str(d / "p.tll.xml"),
+                    "-o", str(d / "left3.net.xml")], check=True, capture_output=True)
+    return d / "left3.net.xml"
+
+
+def test_swarm_uses_own_link_signal(left_phase_net, tmp_path):
+    """A W left-turner faces its own arrow, not the W straight head: L1 at the line during the W straight green (its
+    left red) is drawn and runs the red; L2 arriving in the left green (W straight red) is not drawn, and its crossing
+    is no red crossing."""
+    import libsumo
+    xml = ('<vehicle id="L1" type="rule_moto" depart="0" departSpeed="max"><route edges="WC CN"/></vehicle>'
+           '<vehicle id="L2" type="rule_moto" depart="14" departSpeed="max"><route edges="WC CN"/></vehicle>')
+    rule = _rule("swarm_red_running", ["rule_moto"], p0=1.0, k=0.0, p_max=1.0, dt=30.0)  # dt: red crossings since 10 s
+    ctl, rows = _simulate(libsumo, left_phase_net, xml, [rule], _site(tmp_path), tmp_path, 40)
+    assert [(r["veh_id"], r["action"], r["executed"]) for r in rows] == [("L1", "run_red", "True")]
+    assert float(rows[0]["t_end"]) < LEFT_GREEN[0]
+    assert len(ctl.rules[0]._violations["LVL_W"]) == 1  # L1's red crossing only
+
+
+def test_early_start_waits_for_own_link_green(left_phase_net, tmp_path):
+    """A W left-turner halted on red creeps in the last t_before_green s before its left green (82 s), not before the
+    W straight green (59 s)."""
+    import libsumo
+    xml = '<vehicle id="L3" type="rule_moto" depart="30" departSpeed="max"><route edges="WC CN"/></vehicle>'
+    ctl, rows = _simulate(libsumo, left_phase_net, xml, [EARLY], _site(tmp_path), tmp_path, 90)
+    assert [(r["veh_id"], r["executed"]) for r in rows] == [("L3", "True")]
+    assert 82.0 - 10.0 - 1e-6 <= float(rows[0]["t"]) < float(rows[0]["t_end"]) < 82.0
+
+
 def test_intervened_window_until_past_junction(one_lane, tmp_path):
     """R30: a red runner whose intervention ended at the stop-line crossing (overrides undone) and that collides
     inside the junction is still counted as intervened. The foe is a test-only vehicle inserted near the N stop line
@@ -477,20 +526,36 @@ def test_junction_info_on_proxy_net():
     net = sumolib.net.readNet(str(net_path), withInternal=True)
     libsumo.start([sumolib.checkBinary("sumo"), "-n", str(net_path), "--no-step-log", "true"])
     try:
-        info = JunctionInfo.build(libsumo, site, need_lane_movements=True)
+        info = JunctionInfo.build(libsumo, site, need_lane_movements=True, need_box=True)
         from thesis_sumo.runtime.rules.base import Commands
         from thesis_sumo.runtime.rules.queue_space_seeking import QueueSpaceSeeking
         rule = QueueSpaceSeeking({"q": 30, "t_g_s": 7, "est_noise": 0, "p_wrong_lane": 0, "p_right_lane": 0,
                                   "p_sidewalk": 0, "v_creep": 3, "merge_zone_m": 15}, ["x"], info,
                                  Commands(libsumo, info.approach_lanes), random.Random(0))
+        info_links = libsumo.trafficlight.getControlledLinks(info.tls_id)
     finally:
         libsumo.close()
-    # green check: the continuous right turn (g in every phase) and the closed lane-0 straight do not count
-    assert all(rule.signalled[a] == {1, 2} for a in info.lanes), rule.signalled
+    # green check: the continuous right turn (g in every phase) does not count, the open lane-0 straight does
+    assert all(rule.signalled[a] == {0, 1, 2} for a in info.lanes), rule.signalled
     x = "711526326#1"
-    assert info.segments["LVL_W"] == [x, x + ".mid", x + ".up"]
-    assert info.segments["LVL_E"] == ["37876499#0", "37876499#0.up"]
-    assert info.sidewalk == {"LVL_W": x + ".sidewalk_0"}
+    assert info.segments["LVL_W"] == [x, x + ".up"]  # split at the sidewalk start only: no bollards (2026-10-28)
+    e = "37876499#0"  # split like LVL_W since the LVL_E sidewalk (2026-10-28)
+    assert info.segments["LVL_E"] == [e, e + ".up"]
+    assert info.segments["HDT_N"] == ["953158817#2"]
+    # no bollard edge: the seeking zone is the whole approach, the stop-line edge included
+    assert rule.bollard == set() and rule._in_zone(f"{x}_1", "LVL_W") and rule._in_zone(f"{x}.up_1", "LVL_W")
+    assert not rule._in_zone(x + ".sidewalk_0", "LVL_W")
+    assert info.sidewalk == {"LVL_W": x + ".sidewalk_0", "LVL_E": e + ".sidewalk_0"}
+    assert info.approach_lanes[e + ".sidewalk_0"] == "LVL_E" and e + ".sidewalk_0" in info.lane_approach
+    # the illegal lefts (site illegal_left.approaches) wait in the box of HDT_N and HDT_S, each against the other
+    assert set(info.hold_lanes) == {"HDT_N", "HDT_S"} and all(info.hold_lanes.values())
+    assert info.opposing["HDT_N"] == "HDT_S" and info.opposing["HDT_S"] == "HDT_N"
+    # every link's internal lanes map to its TLS link index (the signal a crossing vehicle faces)
+    for idx, conns in enumerate(info_links):
+        for _in, _out, via in conns:
+            assert info.link_of_internal[via] == idx
+    for lane in info.box_lanes["HDT_N"]:
+        assert info.link_of_internal[lane] == info.link_of_internal[info.box_lanes["HDT_N"][0]]
     assert x + ".sidewalk_0" in info.lane_approach and x + ".up_0" not in info.lane_approach
     assert info.approach_lanes[x + ".up_0"] == "LVL_W" and info.approach_lanes[x + ".sidewalk_0"] == "LVL_W"
     chain = info.chains["LVL_W"][1]
@@ -500,10 +565,10 @@ def test_junction_info_on_proxy_net():
         assert info.lane_offset[ln] == pytest.approx(want), ln
         want += net.getLane(ln).getLength()
     assert len(info.group_links["LVL_W"]) == 3  # the road's straight links only (not the sidewalk's)
-    # the closed lane-0 straight (R37) is allowed for nobody, so no wrong-lane dodge exists here: runtime = validator (R27)
+    # the lane-0 straight is open (lane 0 marked [r, s]): not a wrong lane, so no dodge exists: runtime = validator (R27)
     from thesis_sumo.runtime.wrong_lane import usable_dodges
-    (closed,) = [lk for lk in info.links[f"{x}_0"] if lk.direction == "s"]
-    assert closed.allowed == frozenset()
+    (open_s,) = [lk for lk in info.links[f"{x}_0"] if lk.direction == "s"]
+    assert {"passenger", "motorcycle", "custom1", "custom2"} <= open_s.allowed
     links = {a: info.lane_links(a) for a in info.lanes}
     assert all(usable_dodges(links, info.lane_movements, v) == [] for v in ("custom1", "custom2", "motorcycle"))
 

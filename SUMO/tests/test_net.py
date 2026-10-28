@@ -151,6 +151,35 @@ def test_illegal_left_green_in_own_through_phase(site_net, proxy):
             assert all(p.state[i] == "g" for i in lefts)
 
 
+def test_box_waiting_point_clear_of_concurrent_foes(built, site_net, proxy):
+    """D2 (2026-10-28): a vehicle waiting at the internal junction of an illegal left, at any lateral position in its
+    lane (sublane model), is clear of every foe lane green at the same time (the opposing through). netconvert's
+    default `--internal-junctions.vehicle-width` (1.8 m) left the HDT waiting points 2.69 m from the opposing lane-2
+    centre (half-widths 1.75 + 1.75): opposing through vehicles hit the waiters."""
+    out_dir, _ = built
+    int_lanes = {j.get("id"): j.get("intLanes").split() for j in etree.parse(str(out_dir / "site.proxy.net.xml"))
+                 .getroot().iter("junction") if j.get("type") == "internal"}
+    (program,) = target_tls(site_net).getPrograms().values()
+    link_of = {c.getViaLaneID(): c.getTLLinkIndex() for e in inbound_edges(target_node(target_tls(site_net)))
+               for c in _conns_from(site_net, e.getID())}
+    n = 0
+    for a in (a for a in proxy["approaches"] if a["left_turn_banned"]):
+        for c in (c for c in _conns_from(site_net, a["edge"]) if movement_of(c.getDirection()) == "l"):
+            via = site_net.getLane(c.getViaLaneID())
+            (nxt,) = via.getOutgoing()
+            assert nxt.getViaLaneID(), f"{a['id']}: illegal left without an internal junction (box waiting point)"
+            wait_xy = via.getShape()[-1]
+            for foe_id in int_lanes[nxt.getViaLaneID()]:
+                if not any(p.state[c.getTLLinkIndex()] in "gG" and p.state[link_of[foe_id]] in "gG"
+                           for p in program.getPhases()):
+                    continue
+                foe = site_net.getLane(foe_id)
+                d = sumolib.geomhelper.distancePointToPolygon(wait_xy, foe.getShape(), perpendicular=False)
+                assert d >= (via.getWidth() + foe.getWidth()) / 2 - 0.05, (a["id"], foe_id, round(d, 2))
+                n += 1
+    assert n, "no concurrent foe checked"
+
+
 def test_edges_mapped_and_inbound(site_net, proxy):
     incoming = {e.getID() for e in inbound_edges(target_node(target_tls(site_net)))}
     edges = [a["edge"] for a in proxy["approaches"]]
@@ -348,8 +377,9 @@ def test_committed_outputs_match_build(built):
     assert abs(shift["LVL_W"]) <= 0.2 and abs(shift["HDT_S"]) <= 0.2 and shift.abs().max() <= 2.0, shift
     for name in ("edge_table.csv", "removed_nodes.csv", "stopline_shift.csv", "patches/site.proxy/signal.tll.xml",
                  "patches/site.proxy/turns.con.xml", "patches/site.proxy/lanes.edg.xml",
-                 "patches/site.proxy/split.edg.xml", "patches/site.proxy/bollards.edg.xml",
-                 "patches/site.proxy/sidewalk.edg.xml", "patches/site.proxy/sidewalk.con.xml"):
+                 "patches/site.proxy/split.edg.xml",
+                 "patches/site.proxy/sidewalk.edg.xml", "patches/site.proxy/sidewalk.con.xml",
+                 "patches/site.proxy/box_pins.con.xml"):
         assert (COMMITTED / name).read_text(encoding="utf-8") == (out_dir / name).read_text(encoding="utf-8"), name
 
 
@@ -387,10 +417,68 @@ def _lane0_check(net, approaches, expected: set):
                 assert c.allows("passenger") and c.allows("motorcycle"), (a["id"], c.getTLLinkIndex())
 
 
-def test_lane0_straight_closed_by_bollards(site_net, proxy):
-    """Viktor: the continuous right lane is separated by bollards, so nobody goes straight from lane 0."""
-    assert {a["right_lane_separator"] for a in _continuous(proxy)} == {"bollards"}
-    _lane0_check(site_net, _continuous(proxy), set())
+def test_lane0_straight_open_on_the_straight_signal(site_net, proxy):
+    """Viktor 2026-10-28: no separator; going straight from the continuous right lane on green is legal. The lane-0
+    straight is open to every class (the lane's permissions) and shows the approach's straight state in every phase
+    (lane 1's straight; `g` instead of `G` beside a sidewalk: it merges with the sidewalk straight into one exit lane,
+    SUMO's "unsafe green" otherwise); the lane-0 right turn stays `g` (test_continuous_right_turn_never_red)."""
+    assert {a["right_lane_separator"] for a in _continuous(proxy)} == {"open"}
+    for a in _continuous(proxy):
+        conns = _conns_from(site_net, a["edge"])
+        lane0_s = [c for c in conns if c.getFromLane().getIndex() == 0 and movement_of(c.getDirection()) == "s"]
+        (lane1_s,) = [c.getTLLinkIndex() for c in conns
+                      if c.getFromLane().getIndex() == 1 and movement_of(c.getDirection()) == "s"]
+        assert lane0_s, a["id"]
+        for c in lane0_s:
+            assert all(c.allows(v) for v in ("passenger", "motorcycle", "custom1", "custom2")), a["id"]
+            sw = a["id"] in proxy["f2_measured_approaches"]
+            assert all(st[c.getTLLinkIndex()] == (st[lane1_s].replace("G", "g") if sw else st[lane1_s])
+                       for st in _states(site_net)), a["id"]
+            assert ("g" if sw else "G") in {st[c.getTLLinkIndex()] for st in _states(site_net)}, a["id"]
+
+
+def test_no_bollard_split_when_open(built, site_net, proxy):
+    """Without bollards no approach is split at a bollard node and no lane change is restricted; only the sidewalk
+    approaches are split (at the sidewalk start: `<edge>.up` -> `<edge>`)."""
+    out_dir, _ = built
+    for a in proxy["approaches"]:
+        segs = [e.getID() for e in approach_segments(site_net, a["edge"])]
+        sw = a["id"] in proxy["f2_measured_approaches"]
+        assert segs == ([a["edge"], a["edge"] + ".up"] if sw else [a["edge"]]), segs
+        assert not site_net.getEdge(a["edge"]).getFromNode().getID().endswith(".bollard")
+        attrs = _lane_attrs(out_dir / "site.proxy.net.xml", {f"{e}_{k}" for e in segs for k in range(3)})
+        assert not any(k in at for at in attrs.values() for k in ("changeLeft", "changeRight")), a["id"]
+    assert not (out_dir / "patches" / "site.proxy" / "bollards.edg.xml").exists()
+
+
+def test_gui_highlight_on_every_continuous_lane(built, proxy):
+    """sumo-gui only: lane 0 of every continuous_right_lane approach (stop-line edge, no bollards needed) is painted in
+    a pale, half-transparent colour (Viktor 2026-10-28: vehicles on it must stay visible)."""
+    out_dir, _ = built
+    polys = etree.parse(str(out_dir / "site.proxy.gui.add.xml")).getroot().findall("poly")
+    ids = {p.get("id") for p in polys}
+    assert all(f"continuous_right_{a['edge']}_0" in ids for a in _continuous(proxy))
+    assert {p.get("color") for p in polys} == {"255,243,176,128"}
+
+
+@pytest.fixture(scope="module")
+def bollard_net(built, proxy, tmp_path_factory):
+    """The proxy net with `right_lane_separator: bollards` (the 2026-10-26 layout; code path kept); bollard_length_m 30
+    is the former proxy setting (Phase 3A), a test value only."""
+    out_dir, _ = built
+    data = dict(proxy)
+    data["approaches"] = [dict(a, right_lane_separator="bollards", bollard_length_m=30) for a in proxy["approaches"]]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ProxySiteWarning)
+        path = build_site_net(Site(data, proxy.path), out_dir / "base.net.xml",
+                              tmp_path_factory.mktemp("bollards") / "site.proxy.net.xml")
+    return path, sumolib.net.readNet(str(path), withInternal=True, withPrograms=True), Site(data, proxy.path)
+
+
+def test_lane0_straight_closed_by_bollards(bollard_net):
+    """With bollards nobody goes straight from lane 0."""
+    _, net, site = bollard_net
+    _lane0_check(net, _continuous(site), set())
 
 
 def test_lane0_straight_only_violators_with_paint(built, site_net, proxy, tmp_path):
@@ -464,10 +552,14 @@ def test_f2_site_values_checked(built, proxy, tmp_path, key, value, err, match):
     data = dict(proxy)
     if key in ("continuous_right_lane", "right_lane_separator", "bollard_length_m"):
         data["approaches"] = [dict(a) for a in proxy["approaches"]]
+        if key == "bollard_length_m":  # read only with bollards (the proxy is open since 2026-10-28)
+            data["approaches"][1]["right_lane_separator"] = "bollards"
         data["approaches"][1][key] = value
     elif key.startswith("sidewalk_"):
         data["approaches"] = [dict(a) for a in proxy["approaches"]]
         data["approaches"][0][key] = value  # LVL_W, the proxy f2 approach
+        if value == 20:  # the sidewalk must start upstream of the bollards
+            data["approaches"][0].update(right_lane_separator="bollards", bollard_length_m=30)
     else:
         data[key] = value
     with warnings.catch_warnings():
@@ -486,11 +578,14 @@ def _lane_attrs(path: Path, lane_ids: set[str]) -> dict[str, dict]:
     return out
 
 
-def test_bollard_edge_bans_lane_change_0_1(built, site_net, proxy):
+def test_bollard_edge_bans_lane_change_0_1(bollard_net):
     """Phase 3A / R39: every bollards approach is split at stop line - bollard_length_m; the stop-line part keeps the
     approach id and bans lane changes between lane 0 and 1 (`emergency` only: netconvert drops `ignoring`); upstream
     and between lanes 1-2 lane changes stay free; R37's closed lane-0 straight is kept."""
-    out_dir, _ = built
+    path, site_net, proxy = bollard_net
+    assert sorted(p.name for p in (path.parent / "patches" / "site.proxy").iterdir()) == [
+        "bollards.edg.xml", "box_pins.con.xml", "lanes.edg.xml", "sidewalk.con.xml", "sidewalk.edg.xml",
+        "signal.tll.xml", "split.edg.xml", "turns.con.xml"]
     for a in proxy["approaches"]:
         segs = [e.getID() for e in approach_segments(site_net, a["edge"])]
         assert segs[0] == a["edge"] and segs[-1] == a["edge"] + ".up", segs
@@ -501,7 +596,7 @@ def test_bollard_edge_bans_lane_change_0_1(built, site_net, proxy):
         for s in segs[1:]:
             assert [round(ln.getWidth(), 2) for ln in site_net.getEdge(s).getLanes()] == a["lane_widths_m"]
         ids = {f"{e}_{k}" for e in segs for k in range(3)}
-        attrs = _lane_attrs(out_dir / "site.proxy.net.xml", ids)
+        attrs = _lane_attrs(path, ids)
         e = a["edge"]
         assert attrs[f"{e}_0"].get("changeLeft") == "emergency" and attrs[f"{e}_1"].get("changeRight") == "emergency"
         assert "changeRight" not in attrs[f"{e}_0"] and "changeLeft" not in attrs[f"{e}_1"]
@@ -529,9 +624,8 @@ def test_sidewalk_edge_custom1_only_with_pinned_links(built, site_net, proxy):
         assert lane.getPermissions() == {"custom1"} and not sw.getName()
         assert round(lane.getWidth(), 2) == app["sidewalk_width_m"] and round(lane.getSpeed(), 2) == app["sidewalk_speed_mps"]
         assert sw.getFromNode().getID() == app["edge"] + ".sidewalk_start"
-        mid, up = site_net.getEdge(app["edge"] + ".mid"), site_net.getEdge(app["edge"] + ".up")
-        start = sum(e.getLanes()[0].getLength() for e in (site_net.getEdge(app["edge"]), mid)) + 0.1  # + bollard node
-        assert abs(start - app["sidewalk_start_m"]) <= 0.25
+        mid, up = site_net.getEdge(app["edge"]), site_net.getEdge(app["edge"] + ".up")  # no bollards: no `.mid`
+        assert abs(mid.getLanes()[0].getLength() - app["sidewalk_start_m"]) <= 0.25
         into_sw = [c for c in up.getOutgoing()[sw]]
         assert [(c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in into_sw] == [(0, 0)]
         assert sorted((c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in up.getOutgoing()[mid]) ==             [(0, 0), (1, 1), (2, 2)]
@@ -550,22 +644,42 @@ def test_sidewalk_edge_custom1_only_with_pinned_links(built, site_net, proxy):
             for x in c:
                 assert site_net.getLane(x.getViaLaneID()).getPermissions() == {"custom1"}
     assert sorted(p.name for p in (out_dir / "patches" / "site.proxy").iterdir()) == [
-        "bollards.edg.xml", "lanes.edg.xml", "sidewalk.con.xml", "sidewalk.edg.xml", "signal.tll.xml",
-        "split.edg.xml", "turns.con.xml"]
+        "box_pins.con.xml", "lanes.edg.xml", "sidewalk.con.xml", "sidewalk.edg.xml",
+        "signal.tll.xml", "split.edg.xml", "turns.con.xml"]
+
+
+def test_sidewalk_right_yields_one_way(site_net, proxy):
+    """Riders leaving the sidewalk to the right yield to the cross street's straight into the same exit, and no road
+    link yields back to them except the lane-0 right turn beside the sidewalk. Mutual right of way (both links in each
+    other's response) deadlocked: an HDT red runner (TraCI, speedMode bit4 cleared) waiting at its stop line yields to
+    the rider, the rider yields to it, the lane-0 right turn yields to the rider (D3 debug, 2026-10-28)."""
+    node = target_node(target_tls(site_net))
+    apps = [a for a in proxy["approaches"] if a["id"] in proxy["f2_measured_approaches"]]
+    links = [c for e in [a["edge"] for a in proxy["approaches"]] + list(sidewalk_edges(site_net))
+             for c in _conns_from(site_net, e)]
+    for app in apps:
+        (sw_r,) = [c for c in _conns_from(site_net, app["edge"] + ".sidewalk") if movement_of(c.getDirection()) == "r"]
+        exit_ = sw_r.getTo().getID()
+        cross = [c for c in links if c.getTo().getID() == exit_ and movement_of(c.getDirection()) == "s"
+                 and not c.getFrom().getID().endswith(".sidewalk")]
+        assert cross and all(node.forbids(c, sw_r) for c in cross)  # the rider yields to the straight stream
+        yielding = [c for c in links if node.forbids(sw_r, c)]
+        assert [(c.getFrom().getID(), c.getFromLane().getIndex(), movement_of(c.getDirection())) for c in yielding] \
+            == [(app["edge"], 0, "r")], yielding
 
 
 def test_short_run_on_new_net(built):
-    """120 s of PROXY_D1 with the B0 vTypes (incl. car_violator) loads and runs on the new net: no passenger /
-    motorcycle ever drives the violator-only lane-0 straight, and right turns move while their approach is red."""
+    """120 s of PROXY_D1 with the B0 vTypes (incl. car_violator) loads and runs on the new net: compliant classes
+    drive the open lane-0 straight, and right turns move while their approach is red."""
     import libsumo
 
     out_dir, _ = built
     net = sumolib.net.readNet(str(out_dir / "site.proxy.net.xml"), withInternal=True, withPrograms=True)
-    vio_lanes, right_lanes = set(), {}
+    lane0_s, right_lanes, used = set(), {}, set()
     for edge in (a["edge"] for a in load_site(PROXY)["approaches"]):
         for c in _conns_from(net, edge):
             if c.getFromLane().getIndex() == 0 and movement_of(c.getDirection()) == "s":
-                vio_lanes.add(c.getViaLaneID())
+                lane0_s.add(c.getViaLaneID())
             if movement_of(c.getDirection()) == "r":
                 straight = next(x.getTLLinkIndex() for x in _conns_from(net, edge)
                                 if x.getFromLane().getIndex() == 1 and movement_of(x.getDirection()) == "s")
@@ -585,13 +699,13 @@ def test_short_run_on_new_net(built):
             state = libsumo.trafficlight.getRedYellowGreenState(tls)
             for v in libsumo.vehicle.getIDList():
                 lane = libsumo.vehicle.getLaneID(v)
-                if lane in vio_lanes:
-                    assert libsumo.vehicle.getVehicleClass(v) in ("custom1", "custom2"), (v, lane)
+                if lane in lane0_s:
+                    used.add(libsumo.vehicle.getVehicleClass(v))
                 if lane in right_lanes and state[right_lanes[lane]] == "r":
                     on_red += 1
     finally:
         libsumo.close()
-    assert on_red > 0 and teleports == 0
+    assert on_red > 0 and teleports == 0 and used & {"passenger", "motorcycle"}
 
 
 # --- helpers ---------------------------------------------------------------------------------------

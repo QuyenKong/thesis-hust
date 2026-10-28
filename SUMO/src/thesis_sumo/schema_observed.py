@@ -7,7 +7,13 @@ Conventions every producer of `data/observed/<day>/` and of `observed_schema/` f
   (simulation seconds on the SUMO side).
 - `approach` is a site approach id (`LVL_W`, `LVL_E`, `HDT_N`, `HDT_S`). `approach_group` in
   `signal_events.csv` is the approach id as well: the state of the approach's main signal head, i.e. of
-  its straight movement (`thesis_sumo.sim.outputs.signal_events` checks that all straight links agree).
+  its straight movement (`thesis_sumo.sim.outputs.signal_events` checks that all straight links agree). Movements on
+  a head of their own (green in other phases, e.g. the LVL left / U-turn arrow of the three-stage proxy plan) have no
+  group, so their cycles and onsets are not in the record and M1-M3 leave them out
+  (`thesis_sumo.metrics.common.own_head_tracks`).
+- `stopline_crossings.signal_state_at_t` is the state of the crossing vehicle's own movement (its own TLS link,
+  `thesis_sumo.sim.outputs.crossing_states`): the approach group's state for movements on the straight head, the
+  arrow's for an own-head movement, `G` in every phase for the right turn of a `continuous_right_lane` approach.
 - Signal states are `G` (green, incl. SUMO's yielding `g`), `y` (yellow) and `r` (everything else that
   stops traffic: red, red-yellow) -- `normalise_state`.
 - `vclass` is `car` or `moto` (`moto_violator` vehicles are motorcycles: `moto`; `car_violator` ones are `car`).
@@ -45,9 +51,10 @@ F2 tables (PLAN 5.1, Task F2-metrics; M9, M10 and the space-choice probability).
   front within R upstream of the stop line; `t` = that time (on the video sampling grid, `QUEUE_TS_STEP_S`);
   `cycle_id` = the approach's cycle at `t`; `queue_length_m_at_t` = the approach's queue_timeseries value at the
   last grid time <= `t` (NaN before the first). Spaces:
-  - `right_lane`: a straight vehicle (movement `s`) whose centre is in lane 0's band (0 <= lat_m < width of lane 0,
-    the continuous right-turn lane) -- upstream of the bollards or on them; no queue condition (the metrics condition
-    on the queue);
+  - `right_lane`: a straight vehicle (movement `s`) halting (speed < 5 km/h, as the queue) with its centre in lane 0's
+    band (0 <= lat_m < width of lane 0, the continuous right-turn lane): it stands in the right-turn lane (behaviour
+    6). Driving straight through lane 0 is no event: legal on green since 2026-10-28 (no bollards, site
+    `right_lane_separator: open`). No queue condition (the metrics condition on the queue);
   - `sidewalk`: any vehicle on the sidewalk (lat_m < 0 on the simulation side: the sidewalk lane);
   - `wrong_lane`: a turning vehicle (r, l, u) that crosses the stop line in a lane whose markings do not permit its
     movement (exactly the M8 rule); it is observed at the stop line, so `t` = its `t_range_entry` (the queue it met
@@ -56,8 +63,8 @@ F2 tables (PLAN 5.1, Task F2-metrics; M9, M10 and the space-choice probability).
 - right_turn_delay: one row per right-turn (`r`) stop-line crossing from the road (not from the sidewalk);
   `t_enter` = its traversals `t_range_entry` (front crosses R upstream; NaN if first seen inside R), `t_exit` = its
   stop-line crossing time (traversals `t_stopline`), so the delay is the time over the last R m; `blocked` = at some
-  grid time while its centre was in lane 0's band within R, a straight vehicle was in lane 0's band ahead of it
-  (0 <= its distance < the right-turner's).
+  grid time while its centre was in lane 0's band within R, a halting straight vehicle was in lane 0's band ahead of
+  it (0 <= its distance < the right-turner's).
 """
 
 from __future__ import annotations

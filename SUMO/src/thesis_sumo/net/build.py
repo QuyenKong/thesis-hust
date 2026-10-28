@@ -5,7 +5,7 @@
 writes into `scenario/net/` (or `--out-dir`): `base.net.xml`, `removed_nodes.csv`, `edge_table.csv`,
 `patches/base/*`, `patches/<site net stem>/*`, `site.proxy.net.xml` (proxy) or `site.net.xml`
 (measured), `stopline_shift.csv` (stop line to junction centre, site net without / with the sidewalk), `diagram.svg`,
-`<site net stem>.gui.add.xml` (sumo-gui only: continuous right-turn lanes drawn in yellow), and netconvert logs in `logs/`. A required null in the site file stops the
+`<site net stem>.gui.add.xml` (sumo-gui only: continuous right-turn lanes drawn in pale yellow), and netconvert logs in `logs/`. A required null in the site file stops the
 build before anything is written.
 """
 
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
                  (site.require("violator_classes.moto"), site.require("violator_classes.car")),
                  title=f"{site['intersection']['name']} - {net.name} ({site.source})")
     gui = write_gui_highlight(site, net, out_dir / gui_highlight_name(site))
-    print(f"Wrote {net}, {out_dir / 'diagram.svg'} and {gui} (sumo-gui: continuous right-turn lanes in yellow)")
+    print(f"Wrote {net}, {out_dir / 'diagram.svg'} and {gui} (sumo-gui: continuous right-turn lanes in pale yellow)")
     return 0
 
 

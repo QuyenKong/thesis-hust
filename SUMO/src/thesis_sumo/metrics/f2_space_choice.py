@@ -7,7 +7,7 @@ and M9c/M10b (at which queue).
 F2/p/<space>/<bin> = (candidates with an event of that space) / candidates, where a candidate is a vehicle whose
 `t_range_entry` is in the window and the queue it met there (`queue_timeseries` of its approach at the last grid
 time <= `t_range_entry`) falls in the bin; NaN without candidates. Candidates: `right_lane` -- straight vehicles of
-continuous-right-lane approaches; `sidewalk` -- straight motorcycles of sidewalk approaches; `wrong_lane` -- turning
+continuous-right-lane approaches (event: seen standing in lane 0, `schema_observed`); `sidewalk` -- straight motorcycles of sidewalk approaches; `wrong_lane` -- turning
 vehicles (r, l, u). Bins of 20 m up to `observation.queue_range_m` R, plus `ge<R>` for censored queues (>= R).
 `opposite` is not reported (ruling R38).
 """

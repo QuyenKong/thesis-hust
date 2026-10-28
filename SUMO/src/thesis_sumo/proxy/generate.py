@@ -21,22 +21,33 @@ which the CLI normalises to mean 1 over D1-D5, `campaign_day_factors`):
   (position = cumulative footprint / width of the signal-controlled lanes, `Approach.queue_width`). Discharge starts `first_crossing_delay` after green (plus the
   M7c box effect on the crossing road) with headways `h_sat[vclass] * ramp(position) * lognormal noise`;
   vehicles arriving in green cross at max(arrival, previous crossing + headway); after yellow use, they wait.
+- signal heads: the approach state (`signal_events`) is that of its straight movement. Movements whose green phases
+  differ (site `signal.phases`; the LVL left / U-turn arrow, PLAN 0 three stages) are served the same way on their own
+  cycle, with the approach's red-run / early-start shares over their own flow; they wait in the approach queue, so the
+  ones still waiting at a green onset of the approach are in its snapshot (packed in arrival order with the others).
+  `signal_state_at_t` is the state of the vehicle's own movement (sim.outputs: its own TLS link; the continuous right
+  turn is G in every phase).
 - continuous right-turn lane (`continuous_right_lane: true`, PLAN 0): right-turners of that approach are not
   signal controlled. They cross at `t_reach` (unimpeded), never queue and are never drawn as red runners or early
   starters; the red-run / early-start counts per cycle use the approach's rate without them (the M2/M3 shares are
   over the signal-controlled vehicles, as the metrics count them).
 - lateral position: lane from the movement and `lane_movements` (turning vehicles in a non-permitting lane with
   `wrong_lane_share`; illegal lefts from the leftmost lane), uniform within the lane band (motorcycles) or normal
-  around the lane centre (cars); kept from the queue to the stop line.
+  around the lane centre (cars); kept from the queue to the stop line. Straight vehicles never take the continuous
+  right-turn lane 0, although it is marked [r, s] (no bollards, 2026-10-28): the position is the one in the red queue,
+  and a straight vehicle waiting in lane 0 is behaviour 6, drawn only as a `right_lane` event (F2 tables).
 - exit: `path_length_m[movement] / crossing speed` after the stop line. Illegal lefts wait in the box: a share
   leaves early through gaps; the others leave `clear_lag` after max(opposing green end, last opposing straight
   crossing) and then one per `box_exit_headway`. Halting box waiters at a green onset of their approach are in
-  that onset's lateral snapshot, as in sim.outputs.
+  that onset's lateral snapshot, as in sim.outputs. Each illegal-left approach (site `illegal_left.approaches`) has
+  its own box; the opposing approach is the other one of the same road. The crossing road's first-crossing delay
+  grows by `crossing_start_delay_per_waiter_s` x the waiters of all boxes at the last opposing green end (M7c).
 - F2 tables (`f2_tables`, PLAN 5.1; its own random stream, child 2 of the day's seed, so the other tables keep their
   draws): queue_timeseries = the snapshot packing (vehicles that reached the stop line and have not crossed,
   overshooters left out) every `QUEUE_TS_STEP_S` s. Each straight vehicle entering the range is seen in lane 0
-  (`right_lane`) or, a motorcycle on a sidewalk approach (`f2_measured_approaches`), on the sidewalk, with probability
-  target x min(queue / `choice_ramp_queue_m`, 1) at the first grid time after its range entry (one draw).
+  (`right_lane`, approaches with a continuous right-turn lane) or, a motorcycle on a sidewalk approach
+  (`f2_measured_approaches`), on the sidewalk, with probability target x min(queue / `choice_ramp_queue_m`, 1) at the
+  first grid time after its range entry (one draw).
   A right-lane rider holds lane 0 for `lane0_hold_s`; a right-turner in lane 0's band entering the range during that
   hold is blocked until it ends: its range entry moves earlier by the wait (its stop-line crossing, and so every
   count, is unchanged). `wrong_lane` events = the M8 wrong-lane crossings (no draw). right_turn_delay = the right turns.
@@ -78,6 +89,7 @@ DAY_SEEDS = {f"PROXY_D{k}": 100 + k for k in range(1, 6)}  # spec item 10: indep
 HALT_LEAD_S = 3.0  # a box entrant halts (speed < 5 km/h) once it has been in the box this long
 TURNING = ("r", "l", "u")
 SITE_DIR = {"r": "r", "s": "s", "l": "l", "t": "u"}  # edge_table connection dir -> turn_counts movement
+SITE_DIR_OF = {m: d for d, m in SITE_DIR.items()}  # turn_counts movement -> site signal plan dir
 LAT_DECIMALS = 2
 
 
@@ -171,10 +183,10 @@ class Approach:
 
     @property
     def queue_width(self) -> float:
-        """Width the signal queue spreads over: without the continuous right lane(s) (marked [r] only), which
-        right-turners pass without queueing. `area_m2` stays length x roadway width, as on the sim side."""
-        skip = self.continuous_right
-        return float(sum(w for w, m in zip(self.widths, self.lane_movements) if not (skip and list(m) == ["r"])))
+        """Width the signal queue spreads over: without the continuous right lane (lane 0), which right-turners pass
+        without queueing and straight vehicles do not wait in (module docstring). `area_m2` stays length x roadway
+        width, as on the sim side."""
+        return float(sum(self.widths[1:] if self.continuous_right else self.widths))
 
 
 def approaches_of(site: Site, edge_table: Path = EDGE_TABLE) -> dict[str, Approach]:
@@ -213,20 +225,35 @@ def approaches_of(site: Site, edge_table: Path = EDGE_TABLE) -> dict[str, Approa
     return out
 
 
+def movement_segments(site: Site, key: str) -> list[tuple[float, str]]:
+    """(offset, state) segments of one cycle of the site movement `key` ("<approach>:<connection dir>")."""
+    seg, t = [], 0.0
+    for p in site.require("signal.phases"):
+        s = "G" if key in (p["green_movements"] or []) else "y" if key in (p["yellow_movements"] or []) else "r"
+        if not seg or seg[-1][1] != s:
+            seg.append((t, s))
+        t += float(p["duration_s"])
+    return seg
+
+
 def signal_segments(site: Site, approaches) -> tuple[float, dict[str, list[tuple[float, str]]]]:
     """Cycle length and, per approach, the (offset, state) segments of one cycle (state of its straight movement)."""
     cycle = float(site.require("signal.cycle_s"))
-    seg: dict[str, list[tuple[float, str]]] = {a: [] for a in approaches}
-    t = 0.0
-    for p in site.require("signal.phases"):
-        for a in approaches:
-            s = "G" if f"{a}:s" in p["green_movements"] else "y" if f"{a}:s" in (p["yellow_movements"] or []) else "r"
-            if not seg[a] or seg[a][-1][1] != s:
-                seg[a].append((t, s))
-        t += float(p["duration_s"])
+    t = sum(float(p["duration_s"]) for p in site.require("signal.phases"))
     if not math.isclose(t, cycle):
         raise ValueError(f"signal phases sum to {t} s, cycle_s is {cycle} s")
-    return cycle, seg
+    return cycle, {a: movement_segments(site, f"{a}:s") for a in approaches}
+
+
+def own_heads(site: Site, ap: "Approach", straight: list[tuple[float, str]]) -> dict[tuple, set[str]]:
+    """Segments -> movements of `ap` on a signal head of their own (green, but in other phases than the straight)."""
+    out: dict[tuple, set[str]] = {}
+    for m in ap.movements:
+        if m != "illegal_l":
+            seg = movement_segments(site, f"{ap.id}:{SITE_DIR_OF[m]}")
+            if seg != straight and any(s == "G" for _, s in seg):
+                out.setdefault(tuple(seg), set()).add(m)
+    return out
 
 
 def signal_events_table(cycle: float, seg: dict, window: float) -> pd.DataFrame:
@@ -306,7 +333,8 @@ def _lane_lat(rng, ap: Approach, vclass: str, movement: str, p: Params) -> float
     if movement == "illegal_l":
         lanes = [n - 1]  # leftmost lane (assumed)
     else:
-        ok = [i for i, mv in enumerate(ap.lane_movements) if movement in mv]
+        ok = [i for i, mv in enumerate(ap.lane_movements) if movement in mv and not (i == 0 and movement == "s"
+                                                                                 and ap.continuous_right)]
         bad = [i for i in range(n) if i not in ok]
         lanes = bad if movement in TURNING and bad and rng.random() < p("M8_wrong_lane.wrong_lane_share")[vclass] else ok
     i = lanes[int(rng.integers(len(lanes)))]
@@ -373,6 +401,9 @@ def arrivals(rng, ap: Approach, p: Params, cyc: Cycles, t0: float, window: float
         j = int(math.floor((t0 - cyc.g0) / cyc.cycle))
         while cyc.stop(j - 1) < window:
             lo, hi = max(cyc.stop(j - 1), t0 + range_m / (10 / 3.6)), opposing_end(j) - HALT_LEAD_S - 0.5
+            if hi <= lo:  # cycle ends before the first arrival can reach the stop line (start of the warm-up)
+                j += 1
+                continue
             for t_reach in np.sort(rng.uniform(lo, hi, _count(rng, mean, vm))):
                 v = _speed_ms(rng, "M6_traversal.approach_speed_kmh", "moto", p, 10, 50)
                 out.append(Veh(ids(ap.id), ap.id, "moto", "illegal_l", float(t_reach) - range_m / v, float(t_reach),
@@ -429,8 +460,10 @@ class Snapshot:
 
 
 def serve(rng, ap: Approach, vehicles: list[Veh], cyc: Cycles, p: Params, window: float,
-          start_extra=lambda g: 0.0) -> list[Snapshot]:
-    """Assign `t_cross` to the vehicles of one approach (cycle by cycle); return the queue at each green onset."""
+          start_extra=lambda g: 0.0, movements=None, others: list[Veh] = ()) -> list[Snapshot]:
+    """Assign `t_cross` to the vehicles of one signal head of an approach (cycle by cycle; `movements` = the head's
+    movements, None = all); return the queue at each green onset, with the vehicles of the approach's other heads
+    (`others`, already served) still waiting then."""
     a = ap.id
     excl = p("M3_red_running.early_start_exclusion_s")
     lead = p("M2_early_start.early_start_lead_s")
@@ -441,7 +474,7 @@ def serve(rng, ap: Approach, vehicles: list[Veh], cyc: Cycles, p: Params, window
     vehicles = [v for v in vehicles if math.isnan(v.t_cross)]
     rates = {}
     for (vc, m), r in _legal_rates(ap, p, cyc).items():
-        if not (ap.continuous_right and m == "r"):
+        if not (ap.continuous_right and m == "r") and (movements is None or m in movements):
             rates[vc] = rates.get(vc, 0.0) + r
     area = {"moto": p("M5_queue.moto_area_m2"), "car": p("M5_queue.car_area_m2")}
     depth = p("M4_lateral.overshoot_depth_m")
@@ -470,10 +503,11 @@ def serve(rng, ap: Approach, vehicles: list[Veh], cyc: Cycles, p: Params, window
             v.over = o
         front = [v for v, o in zip(queue, over) if o]
         back = [v for v, o in zip(queue, over) if not o]
+        wait = [v for v in others if v.t_reach < g and not v.t_cross < g]
         rows, cum = [], 0.0
-        for v in front:
+        for v in front + [v for v in wait if v.over]:
             rows.append((v, min(-rng.uniform(depth["low"], depth["high"]), -0.01)))  # never -0.0 after rounding
-        for v in back:
+        for v in sorted(back + [v for v in wait if not v.over], key=lambda v: (v.t_reach, v.id)):
             rows.append((v, cum / ap.queue_width))
             cum += area[v.vclass]
         snaps.append(Snapshot(g, rows))
@@ -625,7 +659,7 @@ def f2_tables(rng, aps: dict[str, Approach], vehicles: dict[str, list[Veh]], ev:
             if t >= window:
                 continue
             ramp = min(q_at[(a, t)] / ramp_m, 1.0)
-            p_rl = p("M9_right_lane.right_lane_choice_prob")[v.vclass] * ramp
+            p_rl = p("M9_right_lane.right_lane_choice_prob")[v.vclass] * ramp if ap.continuous_right else 0.0
             p_sw = p("M10_sidewalk.sidewalk_choice_prob") * ramp if v.vclass == "moto" and a in sidewalk else 0.0
             u = rng.random()
             if u < p_rl:
@@ -655,7 +689,10 @@ def f2_tables(rng, aps: dict[str, Approach], vehicles: dict[str, list[Veh]], ev:
 
 
 def _tables(aps: dict[str, Approach], vehicles: list[Veh], snaps: dict[str, list[Snapshot]], ev: pd.DataFrame,
-            illegal: dict[str, str], window: float, range_m: float, lengths: dict[str, float]) -> dict[str, pd.DataFrame]:
+            illegal: dict[str, str], window: float, range_m: float, lengths: dict[str, float],
+            mv_ev: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """`mv_ev`: signal_events-like rows per "<approach>:<movement>" group, the state of each vehicle's own movement
+    (`signal_state_at_t`, as sim.outputs: its own TLS link)."""
     seen = [v for v in vehicles if 0 <= v.t_cross < window]
     df = pd.DataFrame({
         "track_id": [v.id for v in seen], "vclass": [v.vclass for v in seen], "approach": [v.approach for v in seen],
@@ -667,9 +704,8 @@ def _tables(aps: dict[str, Approach], vehicles: list[Veh], snaps: dict[str, list
         "t_exit": [_rt(v.t_exit) if v.t_exit < window else np.nan for v in seen],
     }).sort_values(["t_stopline", "track_id"], kind="stable").reset_index(drop=True)
     state = pd.Series("", index=df.index)
-    for app in aps:
-        e = ev[ev["approach_group"] == app].sort_values("t", kind="stable")
-        idx = df.index[df["approach"] == app]
+    for (app, m), idx in df.groupby(["approach", "movement"]).groups.items():
+        e = mv_ev[mv_ev["approach_group"] == f"{app}:{m}"].sort_values("t", kind="stable")
         k = np.searchsorted(e["t"].to_numpy(), df.loc[idx, "t_stopline"].to_numpy(), side="right") - 1
         state[idx] = e["state"].to_numpy()[k]
     cr = pd.DataFrame({"t": df["t_stopline"], "approach": df["approach"], "lane_or_lat_m": df["lat_m_at_stopline"],
@@ -775,33 +811,50 @@ def generate_day(targets: dict, site: Site, day_id: str, seed: int, out_dir: Pat
     for a in aps:
         vehicles[a] = arrivals(rng, aps[a], p, cyc[a], -warmup, window, range_m, ids, ends.get(a))
     crossing_road = [a for a in aps if a not in illegal and a not in illegal.values()]
-    order = list(illegal.values()) + list(illegal) + crossing_road
+    order = list(dict.fromkeys([*illegal.values(), *illegal]))  # each once: opposing approaches may be illegal too
     waiting: list[tuple[float, int]] = []  # (opposing green end, n waiting) of all illegal-left boxes
     beta = p("M7_illegal_left.crossing_start_delay_per_waiter_s")
 
-    def extra(g):
-        prior = [n for t, n in waiting if 0 <= g - t < cycle]
-        return beta * prior[-1] if prior else 0.0
+    def extra(g):  # waiters of every box at the last opposing green end less than a cycle before g
+        prior = [t for t, _ in waiting if 0 <= g - t < cycle]
+        return beta * sum(n for t, n in waiting if t == max(prior)) if prior else 0.0
+
+    yellow_use = p("M6_traversal.yellow_use_s")
+    heads = {a: own_heads(site, aps[a], seg[a]) for a in aps}
+
+    def serve_approach(a, start_extra):
+        others = []
+        for parts, mvs in heads[a].items():  # own-head movements first: they wait in the approach queue
+            vs = [v for v in vehicles[a] if v.movement in mvs]
+            serve(rng, aps[a], vs, Cycles.of(cycle, list(parts), yellow_use), p, window, movements=mvs)
+            others += vs
+        main = set(aps[a].movements) - {m for mvs in heads[a].values() for m in mvs}
+        snaps[a] = serve(rng, aps[a], [v for v in vehicles[a] if v.movement in main], cyc[a], p, window, start_extra,
+                         main, others)
+        exits(rng, vehicles[a], p)
 
     for a in order:
-        snaps[a] = serve(rng, aps[a], vehicles[a], cyc[a], p, window, extra if a in crossing_road else (lambda g: 0.0))
-        exits(rng, vehicles[a], p)
-        if a in illegal:
-            o = illegal[a]
-            opp_s = np.sort([v.t_cross for v in vehicles[o] if v.movement == "s" and not math.isnan(v.t_cross)])
-            box(rng, vehicles[a], cyc[a], ends[a], opp_s, p)
-            add_box_waiters(snaps[a], vehicles[a])
-            j = int(math.floor((-warmup - cyc[a].g0) / cycle))
-            while cyc[a].g(j) < window:
-                t_e = ends[a](j)
-                n = sum(1 for v in vehicles[a] if v.movement == "illegal_l" and v.t_cross <= t_e - HALT_LEAD_S
-                        and not v.t_exit <= t_e)
-                waiting.append((t_e, n))
-                j += 1
-            waiting.sort()
+        serve_approach(a, lambda g: 0.0)
+    for a, o in illegal.items():
+        opp_s = np.sort([v.t_cross for v in vehicles[o] if v.movement == "s" and not math.isnan(v.t_cross)])
+        box(rng, vehicles[a], cyc[a], ends[a], opp_s, p)
+        add_box_waiters(snaps[a], vehicles[a])
+        j = int(math.floor((-warmup - cyc[a].g0) / cycle))
+        while cyc[a].g(j) < window:
+            t_e = ends[a](j)
+            n = sum(1 for v in vehicles[a] if v.movement == "illegal_l" and v.t_cross <= t_e - HALT_LEAD_S
+                    and not v.t_exit <= t_e)
+            waiting.append((t_e, n))
+            j += 1
+    for a in crossing_road:
+        serve_approach(a, extra)
     f2_rng = np.random.default_rng(np.random.SeedSequence(seed, spawn_key=(2,)))  # = SeedSequence(seed).spawn(3)[2]
     f2 = f2_tables(f2_rng, aps, vehicles, ev, p, window, range_m, lengths, set(site.get("f2_measured_approaches") or []))
-    tables = _tables(aps, [v for a in aps for v in vehicles[a]], snaps, ev, illegal, window, range_m, lengths)
+    mv_seg = {f"{a}:{m}": [(0.0, "G")] if aps[a].continuous_right and m == "r"  # link `g` in every phase
+              else movement_segments(site, f"{a}:{SITE_DIR_OF['l' if m == 'illegal_l' else m]}")
+              for a in aps for m in aps[a].movements}
+    tables = _tables(aps, [v for a in aps for v in vehicles[a]], snaps, ev, illegal, window, range_m, lengths,
+                     signal_events_table(cycle, mv_seg, window))
     tables.update(f2)
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, cols in TABLES.items():

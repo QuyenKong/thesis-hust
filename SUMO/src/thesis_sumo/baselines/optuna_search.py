@@ -330,8 +330,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--site", type=Path, default=None, help="site file (default: the measured config/site.yaml)")
     ap.add_argument("--end", type=float, default=None, help="sim end in s (default: experiment.yaml calib_end_s)")
     ap.add_argument("--b0-lane-collisions", type=float, required=True,
-                    help="B0 mean lane collisions/h for the R10 cap of select_best; R28 B0 runs on the final net: "
-                         "1.333 (b0_lane_collisions_per_hour())")
+                    help="B0 mean lane collisions/h for the R10 cap of select_best: b0_lane_collisions_per_hour() of "
+                         "the B0 runs on the current net (1.333 was the pre-2026-10-28 net)")
     ap.add_argument("--write-best", type=Path, default=None,
                     help="write the best spec here (spec_id = file stem), e.g. rules/specs/B2_best.json")
     args = ap.parse_args(argv)

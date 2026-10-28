@@ -1,6 +1,7 @@
 """M3: red-light running (PLAN 5.2). Red runner = crossing in `r` that is not an early start (classification in
 `m2_early_start.classified`, docs/research/proxy_targets.md §2; right turns of `continuous_right_lane` approaches
-are not signal controlled and never classified).
+are not signal controlled and movements on a signal head of their own, e.g. the LVL left arrow, have no state in
+`signal_events`: neither is ever classified).
 
 - M3/per_cycle: red runners per cycle, one value per approach and complete cycle in the window (onset >= w0, next
   onset before w1); a red crossing belongs to the cycle whose green it follows (`cycle_id_at`).

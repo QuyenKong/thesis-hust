@@ -131,14 +131,17 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
                                   "markings do not permit the movement but which connects to the vehicle's next "
                                   "edge); inapplicable on the proxy net (ruling R27), so it is redistributed"),
         "p_right_lane": RuleParam(0.0, 1.0, "-", "probability of the right_lane option (behaviour 6, straight vehicles "
-                                  "ride the continuous right-turn lane upstream of the bollards, Phase 3A)"),
+                                  "ride the continuous right-turn lane upstream of the bollards, Phase 3A); exists only "
+                                  "where straight is not permitted from lane 0 and bollards separate it; not on the "
+                                  "proxy net (no bollards, straight from lane 0 legal on green, 2026-10-28), so it is "
+                                  "redistributed"),
         "p_sidewalk": RuleParam(0.0, 1.0, "-", "probability of the sidewalk option (behaviour 7, custom1 only, Phase "
                                 "3B); p_wrong_lane + p_right_lane + p_sidewalk <= 1"),
         "v_creep": RuleParam(0.5, 5.0, "m/s", "speed cap while in the alternative space (PLAN 4.5 'tốc độ <= v_creep'); "
                              "5 m/s = the proxy sidewalk speed (Phase 3B setting); assumed"),
         "merge_zone_m": RuleParam(3.0, 20.0, "m", "right_lane: the lane-0 request ends this far upstream of the bollard "
                                   "edge and SL2015 merges the vehicle back (Phase 3A: 'a few metres to ~20 m', 15 m "
-                                  "tested); assumed"),
+                                  "tested); assumed; no effect without bollards"),
     },
     "illegal_left_box": {  # rulings R15, R25: the rule only holds, never pushes through foes
         "release_lag_s": RuleParam(0.0, 4.0, "s", "extra hold added to SUMO's native release of box waiters "
@@ -154,7 +157,7 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
 
 # Ruling R19: early start and red running are observed for cars too (targets M2/M3 have car values), so these rules
 # apply to passenger and motorcycle archetypes; custom1 (moto_violator, the illegal-left riders) keeps early_start
-# and swarm_red_running (they queue at the LVL_W stop line like other motorcycles). queue_space_seeking (PLAN 4.5,
+# and swarm_red_running (they queue at the HDT_N / HDT_S stop lines like other motorcycles). queue_space_seeking (PLAN 4.5,
 # which replaces the former wrong_lane_dodge) is a violator behaviour: custom1 (all three options) and custom2
 # (wrong_lane, right_lane; the sidewalk is custom1 only), PLAN 0 violator_classes; such archetypes reach the demand's
 # legal movements through `distribution` moto / car. The slow-rider rule is a motorcycle behaviour (PLAN 0, I_slow);

@@ -7,8 +7,9 @@ discharge is the first len(queue) stop-line crossings of the approach (all lanes
 queue position n >= 2 is the time since the previous crossing and is filed under the class of the n-th vehicle.
 Added here (no change on the observed days, whose queues always clear in green): the discharge stops at the
 approach's next red onset, so a queue left over into the next cycle does not add one red-long "headway".
-Right turns of `continuous_right_lane` approaches (`common.uncontrolled_tracks`, not signal controlled) are in
-neither the queue nor the discharge.
+Right turns of `continuous_right_lane` approaches (`common.uncontrolled_tracks`, not signal controlled) and the
+movements on a signal head of their own (`common.own_head_tracks`, e.g. the LVL left arrow) are in neither the queue
+nor the discharge.
 Output: one headway distribution per vclass, positions pooled.
 """
 
@@ -16,7 +17,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from thesis_sumo.metrics.common import MetricContext, approaches, dist, onsets, red_onset_after, uncontrolled_tracks
+from thesis_sumo.metrics.common import (
+    MetricContext,
+    approaches,
+    dist,
+    onsets,
+    own_head_tracks,
+    red_onset_after,
+    uncontrolled_tracks,
+)
 from thesis_sumo.schema_observed import VCLASSES
 
 TARGET = {"moto": "M1_headway.moto_saturation_headway_s", "car": "M1_headway.car_headway_factor"}
@@ -24,7 +33,7 @@ TARGET = {"moto": "M1_headway.moto_saturation_headway_s", "car": "M1_headway.car
 
 def headways(tables: dict, ctx: MetricContext) -> list[tuple[str, int, float]]:
     """(vclass, queue position, headway) of every discharged vehicle at position >= 2."""
-    free = uncontrolled_tracks(tables, ctx)
+    free = uncontrolled_tracks(tables, ctx) | own_head_tracks(tables, ctx)
     cr = tables["stopline_crossings"].sort_values(["t", "track_id"], kind="stable")
     cr = cr[~cr["track_id"].isin(free)]
     t_cross = cr.set_index("track_id")["t"]

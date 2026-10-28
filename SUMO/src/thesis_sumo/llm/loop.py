@@ -166,10 +166,10 @@ def pending_requests(campaign: str, log_root: Path | None = None) -> list[Path]:
 def run_loop(campaign: str, mode: str, base_spec: dict | None, *, b0_lane_collisions_per_hour: float,
              n_iter: int = 3, max_iter: int = 5, n_samples: int | None = None, budget_runs: int = 36,
              days: list[str] | None = None, seeds: list[int] = (1,), nproc: int = 1, site_path: Path | None = None,
-             sim_end_s: float | None = None) -> LoopResult:
+             sim_end_s: float | None = None, prompt_version: str | None = None) -> LoopResult:
     """Run (or resume) the loop of `campaign`: `n_iter` planned iterations, then R45 extras up to `max_iter` while
     the budget covers a spec (module doc). `b0_lane_collisions_per_hour` (R10 cap of select_best) is required, as in
-    the Optuna baseline. Raises LoopPending."""
+    the Optuna baseline. `prompt_version` overrides llm.yaml's (locked per campaign). Raises LoopPending."""
     if mode not in BEST_FILES:
         raise ValueError(f"mode must be one of {tuple(BEST_FILES)}, got {mode!r}")
     if mode == "params_only" and base_spec is None:
@@ -185,6 +185,8 @@ def run_loop(campaign: str, mode: str, base_spec: dict | None, *, b0_lane_collis
     seeds = [int(s) for s in seeds]
     evaluate.check_days(days, exp)
     cfg = llm_config()
+    if prompt_version is not None:
+        cfg["prompt_version"] = prompt_version
     n_samples = int(n_samples if n_samples is not None else cfg.get("n_samples") or 0)
     if n_samples < 1:
         raise ValueError(f"llm.yaml {cfg.get('profile')}.n_samples is null (TODO_DECIDE); no default")
@@ -394,6 +396,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--end", type=float, default=None, help="sim end in s (default: experiment.yaml calib_end_s)")
     ap.add_argument("--b0-lane-collisions", type=float, required=True,
                     help="B0 mean lane collisions/h for the R10 cap of select_best (same value as the Optuna run)")
+    ap.add_argument("--prompt-version", default=None,
+                    help="prompts/<version>/ (default: llm.yaml prompt_version); locked per campaign")
     ap.add_argument("--write-best", type=Path, default=None,
                     help=f"write the best spec here (spec_id = file stem), e.g. rules/specs/{BEST_FILES['params_only']}"
                          f".json")
@@ -403,7 +407,8 @@ def main(argv: list[str] | None = None) -> int:
         res = run_loop(args.campaign, args.mode, base, n_iter=args.iters, max_iter=args.max_iters,
                        n_samples=args.samples,
                        budget_runs=args.budget, days=args.days, seeds=args.seeds, nproc=args.nproc,
-                       site_path=args.site, sim_end_s=args.end, b0_lane_collisions_per_hour=args.b0_lane_collisions)
+                       site_path=args.site, sim_end_s=args.end, b0_lane_collisions_per_hour=args.b0_lane_collisions,
+                       prompt_version=args.prompt_version)
     except LoopPending as e:
         print(f"{e}; answer each request file with the response file next to it, then rerun:")
         for p in e.paths:

@@ -101,7 +101,7 @@ def test_output_additional(cfg, net, exp):
     loops = {el.get("lane"): el for el in root.iter("instantInductionLoop")}
     entry = {ln.getID() for e in inbound_edges(node) for ln in e.getLanes()}
     exit_ = {ln.getID() for e in node.getOutgoing() for ln in e.getLanes()}
-    assert set(loops) == entry | exit_ and len(entry) == 13 and len(exit_) == 12  # 12 road + 1 sidewalk lane
+    assert set(loops) == entry | exit_ and len(entry) == 14 and len(exit_) == 12  # 12 road + 2 sidewalk lanes (LVL_W, LVL_E)
     for lane_id, el in loops.items():
         length = net.getLane(lane_id).getLength()
         pos = float(el.get("pos"))

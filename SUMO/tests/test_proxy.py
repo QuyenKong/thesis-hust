@@ -68,12 +68,17 @@ def _onsets(tables, approach):
 
 def _signalled(tables):
     """The tables without the right turns of continuous_right_lane approaches: not signal controlled (PLAN 0), so
-    never early starts, red runners, queued or discharged (proxy_targets.md §2)."""
-    cont = {a["id"] for a in load_site(PROXY_SITE)["approaches"] if a["continuous_right_lane"]}
+    never early starts, red runners, queued or discharged (proxy_targets.md §2); and without the movements on a signal
+    head of their own (the LVL left / U-turn arrow): signal_events holds the straight head only."""
+    from thesis_sumo.metrics.common import MetricContext, own_head_tracks
+    site = load_site(PROXY_SITE)
+    cont = {a["id"] for a in site["approaches"] if a["continuous_right_lane"]}
     tr, cr = tables["traversals"], tables["stopline_crossings"]
     free = set(tr.loc[tr["approach"].isin(cont) & (tr["movement"] == "r"), "track_id"])
+    free |= own_head_tracks(tables, MetricContext.from_config(site=site))
+    lat = tables["lateral_snapshots"]
     return {**tables, "traversals": tr[~tr["track_id"].isin(free)],
-            "stopline_crossings": cr[~cr["track_id"].isin(free)]}
+            "stopline_crossings": cr[~cr["track_id"].isin(free)], "lateral_snapshots": lat[~lat["track_id"].isin(free)]}
 
 
 def _close(got: float, want: float, what: str, tol: float = TOL):
@@ -133,11 +138,12 @@ def test_tables_consistent(five_days, site):
         got = b.groupby(["interval_start", "approach", "movement", "vclass"]).size()
         nz = tc[tc["count"] > 0].set_index(["interval_start", "approach", "movement", "vclass"])["count"]
         assert got.sort_index().to_dict() == nz.sort_index().to_dict()
-        # signal state at crossing = signal_events state at t
-        ev = tables["signal_events"]
+        # signal state at crossing = signal_events state at t, for the movements on the straight head (the others: own
+        # arrow / continuous right, test_three_stages_and_two_illegal_left_approaches, test_continuous_right_turns_...)
+        ev, s = tables["signal_events"], _signalled(tables)["stopline_crossings"]
         for app in APPROACHES:
             e = ev[ev["approach_group"] == app].sort_values("t")
-            c = cr[cr["approach"] == app]
+            c = s[s["approach"] == app]
             idx = np.searchsorted(e["t"].to_numpy(), c["t"].to_numpy(), side="right") - 1
             assert (e["state"].to_numpy()[idx] == c["signal_state_at_t"].to_numpy()).all()
         # queue: behind-line vehicles of the lateral snapshot; length capped at the range
@@ -154,7 +160,10 @@ def test_tables_consistent(five_days, site):
         assert (tr["t_range_entry"].dropna() < tr.loc[tr["t_range_entry"].notna(), "t_stopline"]).all()
 
 
-def _box_expected(tables, approach="LVL_W", opposing="LVL_E", halt_lead=generate.HALT_LEAD_S):
+ILLEGAL = {"HDT_N": "HDT_S", "HDT_S": "HDT_N"}  # illegal-left approach -> opposing (same road, green together)
+
+
+def _box_expected(tables, approach, opposing, halt_lead=generate.HALT_LEAD_S):
     """box_queue recomputed from traversals with the binding definition (schema_observed, ruling R11)."""
     ev, tr = tables["signal_events"], tables["traversals"]
     onsets = _onsets(tables, approach)
@@ -177,10 +186,37 @@ def _box_expected(tables, approach="LVL_W", opposing="LVL_E", halt_lead=generate
 
 def test_box_queue_follows_binding_definition(five_days):
     for tables in five_days.values():
-        exp = _box_expected(tables)
+        exp = pd.concat([_box_expected(tables, a, o) for a, o in ILLEGAL.items()], ignore_index=True)
         got = tables["box_queue"]
-        assert len(got) == len(exp) == 30
+        assert len(got) == len(exp) == 60
         pd.testing.assert_frame_equal(got.reset_index(drop=True), exp, check_dtype=False)
+
+
+def test_three_stages_and_two_illegal_left_approaches(five_days, site):
+    """Scenario of 2026-10-28 (site.proxy.yaml): HDT_N / HDT_S lefts are illegal (moto only, box), LVL_W / LVL_E lefts
+    legal (car + moto) and cross on their own arrow (LVL_left, straight head red); signal_events = the four straight
+    heads of the three stages; sidewalk riders on both LVL approaches."""
+    yellow_use = _t("M6_traversal.yellow_use_s")
+    for tables in five_days.values():
+        tc = tables["turn_counts"].groupby(["approach", "movement", "vclass"])["count"].sum()
+        for a in ILLEGAL:
+            assert tc[(a, "illegal_l", "moto")] > 0 and (a, "l", "moto") not in tc and (a, "illegal_l", "car") not in tc
+        for a in ("LVL_W", "LVL_E"):
+            assert tc[(a, "l", "moto")] > 0 and tc[(a, "l", "car")] > 0 and (a, "illegal_l", "moto") not in tc
+        ev = tables["signal_events"]
+        assert set(ev["approach_group"]) == set(APPROACHES)
+        for a, (g, y, r) in {"LVL_W": (0, 42, 46), "LVL_E": (0, 42, 46), "HDT_N": (70, 114, 118),
+                             "HDT_S": (70, 114, 118)}.items():
+            e = ev[(ev["approach_group"] == a) & (ev["t"] >= 120) & (ev["t"] < 240)]
+            assert list(zip(e["t"] - 120, e["state"])) == [(g, "G"), (y, "y"), (r, "r")], a
+        tr = tables["traversals"].merge(tables["stopline_crossings"][["track_id", "signal_state_at_t"]], on="track_id")
+        left = tr[tr["approach"].isin(["LVL_W", "LVL_E"]) & tr["movement"].isin(["l", "u"])]
+        arrow = ((left["t_stopline"] % 120) >= 48) & ((left["t_stopline"] % 120) < 64 + yellow_use)
+        assert arrow.mean() > 0.8 and left.loc[arrow, "signal_state_at_t"].isin(["G", "y"]).all()
+        assert (left.loc[~arrow, "signal_state_at_t"] == "r").all()  # arrow red runners / early starters
+        assert set(tables["box_queue"]["approach"]) == set(ILLEGAL)
+        sse = tables["space_seeking_events"]
+        assert set(sse.loc[sse["space"] == "sidewalk", "approach"]) == set(site["f2_measured_approaches"])
 
 
 # ------------------------------------------------------------------ generated statistics vs targets
@@ -248,15 +284,8 @@ def _rates(tables, kind):
     return out
 
 
-# Task F2-net: right turns of continuous-right approaches left the M2/M3 denominator, which changed the random stream
-# of the generator. The D1-D5 realisation of two shares is then off by more than 15 % from noise alone (checked:
-# LVL_W moto red over 20 seeds with unit day factors 0.0641 +- 0.0018 vs 0.0649; 8 other 5-day campaigns -5 ... +9 %;
-# car early start over the same 8 campaigns -36 ... +39 %). Strict xfail, as for car red running.
-_NOISE_LVL_W_RED = pytest.mark.xfail(strict=True, reason="D1-D5 realisation +17.6 % (noise, see comment above)")
-
-
 @pytest.mark.parametrize("kind,key,app", [
-    pytest.param(kind, key, app, marks=_NOISE_LVL_W_RED if (kind, app) == ("red", "LVL_W") else ())
+    (kind, key, app)
     for kind, key in (("early", "M2_early_start.early_start_share"), ("red", "M3_red_running.red_run_share"))
     for app in APPROACHES])
 def test_m2_m3_shares_match_targets(five_days, kind, key, app):
@@ -267,12 +296,14 @@ def test_m2_m3_shares_match_targets(five_days, kind, key, app):
 
 @pytest.mark.parametrize("kind,key", [
     pytest.param("early", "M2_early_start.early_start_share", marks=pytest.mark.xfail(
-        strict=True, reason="5 days too few: a handful of car early starts per day; D1-D5 raw mean -19 % vs nominal, "
-                            "8 other campaigns -36 ... +39 % (noise, Task F2-net)")),
+        strict=True, reason="5 days too few: a handful of car early starts per day; D1-D5 raw mean +49 % vs nominal "
+                            "(three-stage scenario 2026-10-28; was -19 % after Task F2-net), 8 other campaigns -36 ... "
+                            "+39 % (noise, Task F2-net)")),
     pytest.param("red", "M3_red_running.red_run_share", marks=pytest.mark.xfail(
         strict=True, reason="5 days too few: ~20 car red-running events over D1-D5 (Poisson SE ~21 %); raw 5-day "
-                            "mean -45 % vs nominal after Task F2-net (was +18.3 %); too few car events to test for bias "
-                            "even over 36000 s; experiments/proxy_bias/bias_check.py: no bias over 200 campaigns")),
+                            "mean -21 % vs nominal in the three-stage scenario 2026-10-28 (-45 % after Task F2-net, "
+                            "+18.3 % before); too few car events to test for bias even over 36000 s; "
+                            "experiments/proxy_bias/bias_check.py: no bias over 200 campaigns")),
 ])
 def test_m2_m3_car_shares_match_targets(five_days, kind, key):
     """Cars: a handful of events per day, pooled over approaches and days."""
@@ -301,7 +332,7 @@ def test_m2_first_crossing_delay(five_days):
     def delay(tables):
         cr = _signalled(tables)["stopline_crossings"]
         d = []
-        for app in ("LVL_W", "LVL_E"):  # HDT has the M7c box effect on top
+        for app in ILLEGAL:  # LVL (the crossing road) has the M7c box effect on top
             t = np.sort(cr.loc[cr["approach"] == app, "t"].to_numpy())
             for g in _onsets(tables, app):
                 d.append(t[np.searchsorted(t, g)] - g)
@@ -333,7 +364,8 @@ def test_m6_speeds(five_days, site):
     # unimpeded approach: crossings in green, >= 30 s after green onset (queue cleared)
     rows = []
     for tables in five_days.values():
-        t = tables["traversals"].merge(tables["stopline_crossings"][["track_id", "signal_state_at_t"]], on="track_id")
+        s = _signalled(tables)
+        t = s["traversals"].merge(s["stopline_crossings"][["track_id", "signal_state_at_t"]], on="track_id")
         for app in APPROACHES:
             on = _onsets(tables, app)
             a = t[(t["approach"] == app) & (t["signal_state_at_t"] == "G") & t["t_range_entry"].notna()]
@@ -350,12 +382,13 @@ def test_m7_box_targets(five_days):
     box = pd.concat([t["box_queue"] for t in five_days.values()])
     _close(box["n_waiting_in_box"].mean(), _t("M7_illegal_left.n_waiting_in_box"), "n_waiting_in_box")
     lags, early, n_ent, exit_h = [], 0, 0, []
-    for tables in five_days.values():
+    for tables, (app, opp_app) in ((t, ao) for t in five_days.values() for ao in ILLEGAL.items()):
         tr = tables["traversals"]
-        opp = np.sort(tr.loc[(tr["approach"] == "LVL_E") & (tr["movement"] == "s"), "t_stopline"].to_numpy())
-        v = tr[tr["movement"] == "illegal_l"]
-        cyc = cycle_id_at(_onsets(tables, "LVL_W"), v["t_stopline"])
-        for r in tables["box_queue"].itertuples():
+        opp = np.sort(tr.loc[(tr["approach"] == opp_app) & (tr["movement"] == "s"), "t_stopline"].to_numpy())
+        v = tr[(tr["approach"] == app) & (tr["movement"] == "illegal_l")]
+        cyc = cycle_id_at(_onsets(tables, app), v["t_stopline"])
+        box = tables["box_queue"]
+        for r in box[box["approach"] == app].itertuples():
             ex = np.sort(v.loc[cyc == r.cycle_id, "t_exit"].dropna().to_numpy())
             n_ent += int((cyc == r.cycle_id).sum())
             early += int((ex < r.t).sum())
@@ -373,16 +406,19 @@ def test_m7c_crossing_start_delay_slope(five_days):
     x, y = [], []
     for tables in five_days.values():
         cr, box = _signalled(tables)["stopline_crossings"], tables["box_queue"]
-        for app in ("HDT_N", "HDT_S"):
+        for app in ("LVL_W", "LVL_E"):  # crossing road of the HDT boxes; waiters of both boxes at the last box time
             t = np.sort(cr.loc[cr["approach"] == app, "t"].to_numpy())
             for g in _onsets(tables, app):
                 prev = box[box["t"] <= g]
-                if len(prev) and g - prev["t"].iloc[-1] < 60:
-                    x.append(prev["n_waiting_in_box"].iloc[-1])
+                if len(prev) and g - prev["t"].max() < 60:
+                    x.append(prev.loc[prev["t"] == prev["t"].max(), "n_waiting_in_box"].sum())
                     y.append(t[np.searchsorted(t, g)] - g)
-    slope, intercept = np.polyfit(x, y, 1)
-    _close(slope, _t("M7_illegal_left.crossing_start_delay_per_waiter_s"), "M7c slope")
-    _close(intercept, _t("M2_early_start.first_crossing_delay_s"), "M7c intercept")
+    slope, _ = np.polyfit(x, y, 1)
+    beta = _t("M7_illegal_left.crossing_start_delay_per_waiter_s")
+    _close(slope, beta, "M7c slope")
+    # the level at the data centre, not the intercept: two boxes put x around 11, so the intercept is extrapolated far
+    # and its noise grows with it (D1-D5 intercept 1.45 vs 1.2 at slope 0.278 vs 0.3)
+    _close(float(np.mean(y)) - beta * float(np.mean(x)), _t("M2_early_start.first_crossing_delay_s"), "M7c level")
 
 
 def test_m8_wrong_lane_share(five_days, site):
@@ -522,8 +558,9 @@ def test_f2_right_turn_delay_and_blocking(five_days, site):
 
 def test_continuous_right_turns_never_wait(five_days, site):
     """Right-turners of continuous_right_lane approaches are not signal controlled: never in a queue snapshot,
-    unimpeded from the range entry to the stop line (approach speed >= 10 km/h), so they cross in red as often
-    as anyone arriving then; the metrics never classify them (M2/M3 classified set has none)."""
+    unimpeded from the range entry to the stop line (approach speed >= 10 km/h), so they cross while the approach is
+    red as often as anyone arriving then, with their own link green (sim.outputs: link `g` in every phase); the
+    metrics never classify them (M2/M3 classified set has none)."""
     from thesis_sumo.metrics.common import MetricContext
     from thesis_sumo.metrics.m2_early_start import classified
     cont = {a["id"] for a in site["approaches"] if a["continuous_right_lane"]}
@@ -538,15 +575,24 @@ def test_continuous_right_turns_never_wait(five_days, site):
         blocked = tables["right_turn_delay"].loc[tables["right_turn_delay"]["blocked"], "track_id"]
         ok = free["t_range_entry"].notna() & ~free["track_id"].isin(blocked)  # F2: blocked behind a right-lane rider
         assert ((free.loc[ok, "t_stopline"] - free.loc[ok, "t_range_entry"]) <= range_m / (10 / 3.6) + 1e-6).all()
-        n_red += int(cr[cr["track_id"].isin(free["track_id"])]["signal_state_at_t"].eq("r").sum())
+        own = cr[cr["track_id"].isin(free["track_id"])]
+        assert (own["signal_state_at_t"] == "G").all()
+        ev = tables["signal_events"]
+        for app, c in own.groupby("approach"):
+            e = ev[ev["approach_group"] == app].sort_values("t")
+            n_red += int((e["state"].to_numpy()[np.searchsorted(e["t"].to_numpy(), c["t"].to_numpy(), "right") - 1]
+                          == "r").sum())
         assert classified(tables, ctx).equals(classified(_signalled(tables), ctx))  # free right turns never classified
-    assert n_red > 0  # they do cross in red, as allowed
+    assert n_red > 0  # they do cross while the approach is red, as allowed
 
 
 def test_straight_only_in_lanes_marked_straight(five_days, site):
-    """Straight vehicles cross the stop line only in lanes whose markings permit `s` (continuous right-turn lane 0
-    is right only, Task F2-net); the committed days too."""
+    """Straight vehicles cross the stop line only in lanes whose markings permit `s`, and never from the continuous
+    right-turn lane 0 although it is marked [r, s] since 2026-10-28: a straight vehicle waiting there is behaviour 6,
+    which the proxy draws only as `right_lane` events (M9); the committed days too."""
     lanes = {a["id"]: (np.cumsum(a["lane_widths_m"]), a["lane_movements"]) for a in site["approaches"]}
+    cont = {a["id"]: a["continuous_right_lane"] for a in site["approaches"]}
+    assert all(a["lane_movements"][0] == ["r", "s"] for a in site["approaches"])
     days = [t["traversals"] for t in five_days.values()]
     days += [pd.read_csv(OBSERVED / day / "traversals.csv") for day in SEEDS]
     for tr in days:
@@ -557,6 +603,7 @@ def test_straight_only_in_lanes_marked_straight(five_days, site):
             idx = np.minimum(np.searchsorted(edges, g["lat_m_at_stopline"].to_numpy(dtype=float), side="right"),
                              len(mv) - 1)
             assert all("s" in mv[i] for i in idx), app
+            assert (idx >= 1).all() or not cont[app], app
 
 
 # ------------------------------------------------------------------ targets file, committed days, routes, split
@@ -606,15 +653,15 @@ def test_lateral_snapshots_include_box_waiters(tmp_path, site):
     """As in sim.outputs: halting illegal lefts still in the box at a green onset of their approach are in that
     onset's lateral snapshot (past the stop line). Clearing is delayed past the next onset to create some."""
     tg = _targets()
-    tg["targets"]["M7_illegal_left"]["clear_lag_s"]["value"] = 70.0  # opposing green ends at 64 s, next onset 120 s
+    tg["targets"]["M7_illegal_left"]["clear_lag_s"]["value"] = 80.0  # opposing green ends at 114 s, next onset 190 s
     generate.generate_day(tg, site, "X", 101, tmp_path, day_factors=FACTORS["PROXY_D1"])
     tables = _read(tmp_path)
     tr, lat = tables["traversals"], tables["lateral_snapshots"]
-    v = tr[tr["movement"] == "illegal_l"]
-    on = _onsets(tables, "LVL_W")
+    v = tr[(tr["movement"] == "illegal_l") & (tr["approach"] == "HDT_N")]
+    on = _onsets(tables, "HDT_N")
     want = {(k, r.track_id) for k, g in enumerate(on) for r in v.itertuples()
             if r.t_stopline <= g - generate.HALT_LEAD_S and not r.t_exit <= g}
-    rows = lat[lat["track_id"].isin(set(v["track_id"])) & (lat["approach"] == "LVL_W")]
+    rows = lat[lat["track_id"].isin(set(v["track_id"])) & (lat["approach"] == "HDT_N")]
     in_box = rows.merge(v[["track_id", "t_stopline"]], on="track_id")
     in_box = in_box[in_box["t_stopline"] < on[in_box["cycle_id"].to_numpy()]]
     assert len(want) > 20

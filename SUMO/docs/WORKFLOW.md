@@ -81,11 +81,11 @@ Mạng được dựng bằng script, không sửa tay tệp `.net.xml`.
 | 3 | `scenario/net/patches/*.xml` | bản vá XML thuần: cắt nút giao, làn rẽ phải liên tục, dải vỉa hè cho `custom1` |
 | 4 | `scenario/net/site.proxy.net.xml` | mạng cuối dùng để chạy |
 
-Nút giao có 4 nhánh `LVL_W`, `LVL_E`, `HDT_N`, `HDT_S`, mỗi nhánh 3 làn rộng 3,5 m. Làn 0 (ngoài cùng bên phải) là làn rẽ phải liên tục, không bị đèn điều khiển, có cọc phân cách trong 30 m cuối. Nhánh `LVL_W` có vỉa hè đi được từ 170 m trước vạch dừng, rộng 3,0 m. Rẽ phải khi đèn đỏ là hợp lệ và không được tính là vi phạm.
+Nút giao có 4 nhánh `LVL_W`, `LVL_E`, `HDT_N`, `HDT_S`, mỗi nhánh 3 làn rộng 3,5 m. Làn 0 (ngoài cùng bên phải) là làn rẽ phải liên tục: rẽ phải từ làn 0 không bị đèn điều khiển, đi thẳng từ làn 0 theo đèn đi thẳng của nhánh và hợp lệ khi xanh (Viktor 28/10: không có cọc phân cách, xe đổi làn tự do giữa làn 0 và làn 1). Xe đi thẳng đứng chờ ở làn 0 khi đèn đỏ chặn xe rẽ phải (hành vi 6); hành vi này nay đến từ việc chọn làn của SUMO và hàng chờ, không còn lựa chọn `right_lane` của luật `queue_space_seeking` trên mạng này. Nhánh `LVL_W` và `LVL_E` có vỉa hè đi được từ 170 m trước vạch dừng, rộng 3,0 m. Rẽ phải khi đèn đỏ là hợp lệ và không được tính là vi phạm.
 
 ### 3.2 Thông số hiện trường
 
-`config/site.yaml` là nơi duy nhất chứa giá trị đo thực tế (bề rộng làn, chu kỳ đèn, cấm rẽ, lưu lượng). Giá trị chưa đo ghi `null  # TODO_MEASURE` và code báo lỗi rõ ràng khi gặp, không điền mặc định. Hiện chưa có video, nên mọi lần chạy dùng `config/site.proxy.yaml` với nhãn nguồn `LITERATURE_PROXY` trên từng giá trị (`literature`, `literature_transferred`, `assumed`). Tín hiệu trong tệp proxy: chu kỳ 120 s, `LVL_green` 64 s, `HDT_green` 44 s, vàng 4 s, đỏ toàn phần 2 s.
+`config/site.yaml` là nơi duy nhất chứa giá trị đo thực tế (bề rộng làn, chu kỳ đèn, cấm rẽ, lưu lượng). Giá trị chưa đo ghi `null  # TODO_MEASURE` và code báo lỗi rõ ràng khi gặp, không điền mặc định. Hiện chưa có video, nên mọi lần chạy dùng `config/site.proxy.yaml` với nhãn nguồn `LITERATURE_PROXY` trên từng giá trị (`literature`, `literature_transferred`, `assumed`). Tín hiệu trong tệp proxy: chu kỳ 120 s, 3 pha: `LVL_straight` 42 s, `LVL_left` 16 s (mũi tên riêng cho cả hai nhánh LVL), `HDT_green` 44 s, mỗi pha thêm vàng 4 s và đỏ toàn phần 2 s.
 
 ### 3.3 Dữ liệu quan sát
 
@@ -170,7 +170,7 @@ Phần `traci_rules` là hành vi có điều kiện, do controller TraCI thực
 |---|---|---|
 | `swarm_red_running` | vượt đèn đỏ, xác suất tăng theo số xe đã vượt trước đó | p0, k, p_max, dt |
 | `early_start` | xuất phát trước khi đèn xanh | t_before_green, p, v_max |
-| `queue_space_seeking` | hàng chờ dài thì đi sai làn, chặn làn rẽ phải, hoặc lên vỉa hè | q, t_g_s, est_noise, p_wrong_lane, p_right_lane, p_sidewalk, v_creep, merge_zone_m |
+| `queue_space_seeking` | hàng chờ dài thì đi sai làn, chặn làn rẽ phải (chỉ khi có cọc; mạng proxy hiện không có), hoặc lên vỉa hè | q, t_g_s, est_noise, p_wrong_lane, p_right_lane, p_sidewalk, v_creep, merge_zone_m |
 | `illegal_left_box` | vào nút trong pha xanh, chờ giữa nút, rẽ khi pha đi thẳng đối diện kết thúc | theo `TRACI_RULE_PARAMS` |
 | `slow_lane_center` | xe máy đi chậm giữa làn | theo `TRACI_RULE_PARAMS` |
 
@@ -284,7 +284,7 @@ LLM trả một JSON gồm `driver_archetypes`, `traci_rules`, `description` tù
 | M6 | thời gian đi qua nút và tốc độ, theo hướng và lớp xe | `traversals` |
 | M7 | M7a: số xe chờ giữa nút và thời điểm xả; M7b: PET; M7c: tổn thất khởi động của hướng giao cắt | `box_queue` |
 | M8 | tỷ lệ xe ở làn không khớp hướng đi ra | `traversals` |
-| M9 | số xe đi thẳng chiếm làn rẽ phải; độ trễ của xe rẽ phải | `right_turn_delay` |
+| M9 | số xe đi thẳng đứng chờ ở làn rẽ phải; độ trễ của xe rẽ phải | `space_seeking_events`, `right_turn_delay` |
 | M10 | số xe máy trên vỉa hè mỗi chu kỳ | `space_seeking_events` |
 | F2 | xác suất chọn từng khoảng trống theo độ dài hàng chờ; chỉ báo cáo, không tính điểm | `space_seeking_events`, `queue_timeseries` |
 

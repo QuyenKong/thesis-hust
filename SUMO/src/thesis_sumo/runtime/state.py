@@ -7,6 +7,10 @@ controller works on any net whose site file names the inbound edges (`approaches
 - approach group links = the TLS link indices of an approach's straight (`s`) links, as
   `thesis_sumo.sim.outputs.junction_geometry` (the signal state of an approach is the state of these links,
   `schema_observed.normalise_state`);
+- own signal of a vehicle = the TLS link it drives from its stop-line lane (`link_of_internal`: every internal lane of
+  a link -> its index). Since the protected LVL left (site signal, 2026-10-28) a lane may carry links of different
+  stages (LVL lane 2: straight and left), so stop-line crossings, red runs and early starts use the vehicle's own link,
+  not the approach group (`Step.signal`); a left in its arrow is no red crossing;
 - stop line of an inbound lane = its end; `dist` = lane length - lanePosition (front bumper);
 - segments of an approach (site patches, `thesis_sumo.net.apply_patches`): the inbound edge plus its straight
   upstream continuation (`<edge>.mid`, `<edge>.up`), found by walking `junction.getIncomingEdges` upstream; `chains`
@@ -19,16 +23,18 @@ controller works on any net whose site file names the inbound edges (`approaches
   `lanes` or the signal group;
 - box of an illegal-left approach (site `illegal_left.approaches`, its left links): the internal-lane chain of the
   left link (as `outputs.junction_geometry.box_lanes`); `hold_lanes` = the chain lanes before the last one, i.e. the
-  lanes that end at the internal junction where the left-turners wait (proxy net: `:<junction>_16_0`). A vehicle on
-  the last chain lane has passed the waiting point and is inside the crossing stream: it is never held;
+  lanes that end at the internal junction where the left-turners wait (proxy net: the first internal lane of the
+  HDT_N / HDT_S left). A vehicle on the last chain lane has passed the waiting point and is inside the crossing
+  stream: it is never held;
 - opposing approach = the other approach of the same road (`<ROAD>_<side>`), as `outputs.Geometry.opposing_of`;
   crossing approaches = the remaining ones.
 
 `Step` is built every step from one junction context subscription (lane, lanePosition, speed, type, posLat of every
 vehicle within the radius) and the TLS subscription (state, phase, next switch). Stop-line crossings are found by
 comparing each vehicle's lane with its lane of the previous step (inbound lane -> internal lane; a teleport is
-none). `Step.t` = `simulation.getTime()` after the step, with the TLS state SUMO reports then: a switch scheduled at
-T is seen from T + step length (checked on the tiny cross: green at 45.0 in the program, reported at 45.1).
+none); a crossing's state is that of the vehicle's own link (its internal lane). `Step.t` = `simulation.getTime()`
+after the step, with the TLS state SUMO reports then: a switch scheduled at T is seen from T + step length (checked
+on the tiny cross: green at 45.0 in the program, reported at 45.1).
 """
 
 from __future__ import annotations
@@ -87,6 +93,7 @@ class JunctionInfo:
     lane_offset: dict[str, float] = field(default_factory=dict)  # approach lane -> distance of its end to the stop line
     sidewalk: dict[str, str] = field(default_factory=dict)  # approach -> sidewalk lane
     approach_lanes: dict[str, str] = field(default_factory=dict)  # every lane of an approach (all segments) -> approach
+    link_of_internal: dict[str, int] = field(default_factory=dict)  # internal lane of a TLS link -> its link index
 
     @classmethod
     def build(cls, backend, site: Site, *, need_lane_movements: bool = False,
@@ -109,9 +116,12 @@ class JunctionInfo:
         if len(junctions) != 1:
             raise ValueError(f"site approaches end at {len(junctions)} junctions {sorted(junctions)}, expected 1")
         tls_id = cls._tls_of(backend, set(lane_approach))
-        group_links = {a: [] for a in approach_edge}
+        group_links, internal = {a: [] for a in approach_edge}, {}
         for idx, conns in enumerate(backend.trafficlight.getControlledLinks(tls_id)):
-            for in_lane, out_lane, _via in conns:
+            for in_lane, out_lane, via in conns:
+                while via:  # the link's internal-lane chain (split at an internal junction)
+                    internal[via] = idx
+                    via = next((x[4] for x in backend.lane.getLinks(via) if x[4]), "")
                 if in_lane in lane_approach:  # road stop-line lanes only (sidewalks are added below)
                     if any(lk.to_lane == out_lane and lk.direction == "s" for lk in links[in_lane]):
                         group_links[lane_approach[in_lane]].append(idx)
@@ -121,7 +131,8 @@ class JunctionInfo:
         program = backend.trafficlight.getProgram(tls_id)
         (logic,) = [lg for lg in backend.trafficlight.getAllProgramLogics(tls_id) if lg.programID == program]
         info = cls(tls_id, junctions.pop(), approach_edge, lanes, lane_approach, lane_length, links,
-                   {a: sorted(v) for a, v in group_links.items()}, [(float(p.duration), p.state) for p in logic.phases])
+                   {a: sorted(v) for a, v in group_links.items()}, [(float(p.duration), p.state) for p in logic.phases],
+                   link_of_internal=internal)
         for app in approach_edge:
             same = [o for o in approach_edge if o != app and o.split("_")[0] == app.split("_")[0]]
             if len(same) == 1:
@@ -217,20 +228,24 @@ class JunctionInfo:
     def crossing_of(self, app: str) -> list[str]:
         return [a for a in self.lanes if a != app and a != self.opposing.get(app)]
 
-    def group_state(self, tls_state: str, app: str) -> str:
+    def group_state(self, tls_state: str, app: str, link: int | None = None) -> str:
+        """State of the approach group, or of TLS link `link` when given (a vehicle's own signal)."""
+        if link is not None:
+            return normalise_state(tls_state[link])
         states = {normalise_state(tls_state[i]) for i in self.group_links[app]}
         if len(states) != 1:
             raise ValueError(f"straight links {self.group_links[app]} of {app} disagree in {tls_state!r}")
         return states.pop()
 
-    def time_to_green(self, app: str, phase: int, next_switch: float, t: float) -> float:
-        """Seconds until the approach group next turns G under the running static program (0 when G now)."""
-        if self.group_state(self.phases[phase][1], app) == "G":
+    def time_to_green(self, app: str, phase: int, next_switch: float, t: float, link: int | None = None) -> float:
+        """Seconds until the approach group (or TLS link `link`) next turns G under the running static program (0
+        when G now)."""
+        if self.group_state(self.phases[phase][1], app, link) == "G":
             return 0.0
         wait = max(next_switch - t, 0.0)
         for k in range(1, len(self.phases) + 1):
             dur, state = self.phases[(phase + k) % len(self.phases)]
-            if self.group_state(state, app) == "G":
+            if self.group_state(state, app, link) == "G":
                 return wait
             wait += dur
         return float("inf")
@@ -259,9 +274,17 @@ class Step:
     changed: dict[str, tuple[str | None, str]]     # approach -> (previous, new) group state, this step only
     vehicles: dict[str, Veh]                       # vehicles within the radius (sorted by id)
     by_lane: dict[str, list[str]]                  # lane -> vehicle ids, front first
-    crossings: list[tuple[str, str, str]]          # (vehicle, approach, group state) that crossed a stop line now
+    crossings: list[tuple[str, str, str]]          # (vehicle, approach, own link state) that crossed a stop line now
     red_id: dict[str, int]                         # approach -> number of red onsets so far (id of the red phase)
     info: JunctionInfo
+    link_red_id: dict[int, int] = field(default_factory=dict)  # TLS link -> number of its red onsets so far
+
+    def signal(self, app: str, link: int | None = None) -> str:
+        """G | y | r of the approach group, or of TLS link `link` (a vehicle's own signal) when given."""
+        return self.groups[app] if link is None else normalise_state(self.tls_state[link])
+
+    def red_id_of(self, app: str, link: int | None = None) -> int:
+        return self.red_id[app] if link is None else self.link_red_id[link]
 
     def dist(self, vid: str) -> float:
         """Front bumper upstream of the stop line, across the segments of a split approach."""
@@ -294,8 +317,8 @@ class Step:
                 tail = max(tail, d + self.info.vtype_length[v.vtype])
         return tail
 
-    def time_to_green(self, app: str) -> float:
-        return self.info.time_to_green(app, self.phase, self.next_switch, self.t)
+    def time_to_green(self, app: str, link: int | None = None) -> float:
+        return self.info.time_to_green(app, self.phase, self.next_switch, self.t, link)
 
 
 class StepReader:
@@ -308,6 +331,8 @@ class StepReader:
         self._prev_lane: dict[str, str] = {}
         self._prev_groups: dict[str, str] = {}
         self._red_id = {a: 0 for a in info.lanes}
+        self._prev_state = ""
+        self._link_red_id: dict[int, int] = {}
 
     def read(self) -> Step:
         b, info = self.b, self.info
@@ -320,6 +345,12 @@ class StepReader:
         for a, (_, new) in changed.items():
             if new == "r":
                 self._red_id[a] += 1
+        if state != self._prev_state:
+            prev = [normalise_state(c) for c in self._prev_state] or [None] * len(state)
+            for i, ch in enumerate(state):
+                if normalise_state(ch) == "r" and prev[i] != "r":
+                    self._link_red_id[i] = self._link_red_id.get(i, 0) + 1
+            self._prev_state = state
         res = b.junction.getContextSubscriptionResults(info.junction_id) or {}
         vehicles, by_lane, crossings, lanes_now = {}, {}, [], {}
         for vid in sorted(res):
@@ -335,10 +366,9 @@ class StepReader:
             # an internal lane is required: a teleport off an inbound lane lands on a normal edge (often the
             # outbound one, in the same step) and is no stop-line crossing (tests/test_runtime.py)
             if prev is not None and prev in info.lane_approach and v.lane.startswith(":"):
-                app = info.lane_approach[prev]
-                crossings.append((vid, app, groups[app]))
+                crossings.append((vid, info.lane_approach[prev], normalise_state(state[info.link_of_internal[v.lane]])))
         for ids in by_lane.values():
             ids.sort(key=lambda i: -vehicles[i].pos)
         self._prev_lane = lanes_now
         return Step(t, state, int(tl[tc.TL_CURRENT_PHASE]), float(tl[tc.TL_NEXT_SWITCH]), groups, changed,
-                    vehicles, by_lane, crossings, dict(self._red_id), info)
+                    vehicles, by_lane, crossings, dict(self._red_id), info, dict(self._link_red_id))

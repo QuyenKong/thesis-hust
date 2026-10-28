@@ -194,6 +194,31 @@ def uncontrolled_tracks(tables: dict, ctx: MetricContext) -> set:
     return set(tr.loc[tr["approach"].isin(cont) & (tr["movement"] == "r"), "track_id"])
 
 
+SITE_DIR = {"r": "r", "l": "l", "u": "t"}  # turn_counts movement -> SUMO connection dir of the site signal plan
+
+
+def own_head_movements(ctx: MetricContext) -> dict[str, set[str]]:
+    """approach -> turning movements (r, l, u) on a signal head of their own: green in other phases than the
+    approach's straight movement (site `signal.phases`; e.g. the LVL left / U-turn arrow of site.proxy.yaml)."""
+    site = ctx.require_site()
+    phases = site.require("signal.phases")
+    out = {}
+    for i in range(len(site.require("approaches"))):
+        a = site.require(f"approaches.{i}.id")
+        green = {d: [f"{a}:{d}" in (p.get("green_movements") or []) for p in phases] for d in ("s", "r", "l", "t")}
+        out[a] = {m for m, d in SITE_DIR.items() if any(green[d]) and green[d] != green["s"]}
+    return out
+
+
+def own_head_tracks(tables: dict, ctx: MetricContext) -> set:
+    """track_ids of the `own_head_movements`. `signal_events` holds each approach's straight head only
+    (schema_observed), so their crossings cannot be classified against it: M1-M3 leave them out, on both sides."""
+    heads = own_head_movements(ctx)
+    tr = tables["traversals"]
+    sel = [m in heads.get(a, ()) for a, m in zip(tr["approach"], tr["movement"])]
+    return set(tr.loc[sel, "track_id"])
+
+
 def crossings(tables: dict) -> pd.DataFrame:
     """stopline_crossings with the vehicle's movement (from traversals, same track_id)."""
     cr = tables["stopline_crossings"]

@@ -3,7 +3,8 @@ the junction box by `release_lag_s`. It only HOLDS vehicles (`setSpeed(0)`, undo
 sends a vehicle into a foe, changes no speed-mode bit and touches no other vehicle, so SUMO's native foe checks
 decide every departure.
 
-Per illegal-left approach A (site `illegal_left.approaches`), with O = its opposing approach:
+Per illegal-left approach A (site `illegal_left.approaches`; proxy since 2026-10-28: HDT_N and HDT_S, each the other's
+opposing approach, green together in the HDT stage), with O = its opposing approach:
 
 - Native release: after O's green ends (G -> y), the first step at which a rule vehicle in the front of a hold lane
   (front within `state.FRONT_ROW_M` of the waiting point) starts moving (speed < `RELEASE_SPEED_MPS` at the
@@ -15,8 +16,9 @@ Per illegal-left approach A (site `illegal_left.approaches`), with O = its oppos
 - Hold lanes = the box lanes before the internal-junction waiting point (`JunctionInfo.hold_lanes`); a vehicle past it
   is never held. A vehicle that cannot stop before the waiting point (speed^2 / (2 decel) > distance left) is not
   held and logged `cannot_stop`.
-- The waiting point is NOT outside the crossing stream: on the proxy net the hold lane `:<junction>_16_0` crosses
-  the three HDT_N through internal lanes and the waiting point is 0.03 m from the lane-2 centreline (ruling R25).
+- The waiting point is NOT outside the crossing stream: on the former proxy net (illegal left on LVL_W) the hold lane
+  `:<junction>_16_0` crossed the three HDT_N through internal lanes and the waiting point was 0.03 m from the lane-2
+  centreline (ruling R25).
   SUMO registers a vehicle's link approach before a TraCI speed override acts, so a held waiter still announces
   that it will pass and crossing vehicles yield to it: a hold that reaches into the crossing green delays the
   crossing start (experiment: tiny cross, a 2 s N-S stream, waiters held through the crossing green: N-S passages
