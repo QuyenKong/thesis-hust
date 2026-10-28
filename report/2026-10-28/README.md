@@ -1,5 +1,7 @@
 # Báo cáo tiến độ — 28/10/2026
 
+> Cập nhật sau báo cáo này: làn 0 đã được mở cho đi thẳng khi xanh và bỏ cọc (vòng 2); các số ở đây là của mạng có cọc. Xem `HANDOFF.md`.
+
 Repo `~/Projects/thesis-hust` (branch `master`), chạy trên **Linux** (SUMO 1.27.0 trong `.venv`). Mọi thay đổi trong ngày **chưa commit** (working tree bẩn so với `685b4fe`).
 
 **Lưu ý chung:**
