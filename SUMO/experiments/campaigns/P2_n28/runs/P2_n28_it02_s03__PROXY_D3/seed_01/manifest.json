@@ -1,0 +1,248 @@
+{
+  "run_id": "P2_n28_it02_s03__PROXY_D3",
+  "spec_id": "P2_n28_it02_s03",
+  "day": "PROXY_D3",
+  "seed": 1,
+  "git_hash": "685b4fe4e5277c692e4e0baa759d50d581829fb9",
+  "git_dirty": true,
+  "sumo_version": "SUMO 1.27.0",
+  "backend": "libsumo",
+  "gui": false,
+  "spec_dir": "experiments/campaigns/P2_n28/compiled/P2_n28_it02_s03",
+  "spec_hash": "9ba76f9bcd7cbbd96a0f0ef34f1a9ea9ba2d4b7436ef1204f5e73be31a5621e2",
+  "spec_files": {
+    "spec.json": "d3faaef7c24516bbf951951c8dd411bf4a92ebe32f366e8f4ad65d13932390cd",
+    "traci_rules.json": "2803d1fd24a06dce69566b082ca9741187580f0dcad4c3554fb8f1e8f40d90c0",
+    "vtypes.add.xml": "53eb4fa46eeec6f51a00b8992c0e2842587766653d076dc0ba14a68569e6367d"
+  },
+  "spec_json_hash": "d3faaef7c24516bbf951951c8dd411bf4a92ebe32f366e8f4ad65d13932390cd",
+  "net": "scenario/net/site.proxy.net.xml",
+  "net_hash": "44496908081fce9b88a8d6ca18f07056773744a801cac0a491e86d494c195724",
+  "routes": "scenario/demand/routes_PROXY_D3.rou.xml",
+  "routes_hash": "deb2d63a646cb226293c01fee9cbc56d3da524822061fb821258251ab8b6ce9d",
+  "site_path": "config/site.proxy.yaml",
+  "site_hash": "6a293a175ee4f72a2837ee2a1cda860a157d6d807049eac8675af914cd5a266c",
+  "site_source": "LITERATURE_PROXY",
+  "config": {
+    "sim": {
+      "begin_s": 0,
+      "end_s": 1800,
+      "calib_end_s": 1800,
+      "step_length_s": 0.1,
+      "lateral_resolution_m": 0.4,
+      "fcd_radius_m": 220,
+      "device_rerouting": false,
+      "ssm": {
+        "mode": "off"
+      },
+      "aggregate_warnings": 20
+    },
+    "seeds": {
+      "dev": [
+        1,
+        2,
+        3
+      ],
+      "benchmark_n": 20
+    },
+    "observation": {
+      "queue_range_m": 80,
+      "metric_window_s": [
+        300,
+        1800
+      ]
+    },
+    "backend": "libsumo",
+    "budget": {
+      "sumo_runs": null
+    },
+    "data_split": {
+      "calibration_days": [
+        "PROXY_D1",
+        "PROXY_D2",
+        "PROXY_D3"
+      ],
+      "validation_days": [
+        "PROXY_D4",
+        "PROXY_D5"
+      ]
+    },
+    "score": {
+      "weights": {
+        "M1": 1,
+        "M2": 1,
+        "M3": 1,
+        "M4": 1,
+        "M5": 1,
+        "M6": 1,
+        "M7": 1,
+        "M8": 1,
+        "M9": 1,
+        "M10": 1
+      },
+      "geh_gate": {
+        "threshold": 5,
+        "min_share": 0.85
+      }
+    },
+    "validity": {
+      "max_noncollision_teleports": 0,
+      "max_end_backlog": 0,
+      "max_collisions_per_hour": 4,
+      "max_junction_collisions_per_hour": 142,
+      "max_intervened_collisions": 1
+    }
+  },
+  "sumo_options": {
+    "net-file": "/home/viktor.quyen@Techvify.Internal/Projects/thesis-hust/SUMO/scenario/net/site.proxy.net.xml",
+    "route-files": "/home/viktor.quyen@Techvify.Internal/Projects/thesis-hust/SUMO/scenario/demand/routes_PROXY_D3.rou.xml",
+    "additional-files": "/home/viktor.quyen@Techvify.Internal/Projects/thesis-hust/SUMO/experiments/campaigns/P2_n28/compiled/P2_n28_it02_s03/vtypes.add.xml,/home/viktor.quyen@Techvify.Internal/Projects/thesis-hust/SUMO/experiments/campaigns/P2_n28/runs/P2_n28_it02_s03__PROXY_D3/seed_01/outputs.add.xml",
+    "fcd-output": "fcd.xml.gz",
+    "fcd-output.attributes": "x,y,angle,type,speed,pos,lane,posLat,speedLat,acceleration",
+    "fcd-output.filter-shapes": "fcd_zone",
+    "tripinfo-output": "tripinfo.xml",
+    "lanechange-output": "lanechange.xml",
+    "collision-output": "collisions.xml",
+    "statistic-output": "statistics.xml",
+    "begin": "0",
+    "end": "1800",
+    "step-length": "0.1",
+    "lateral-resolution": "0.4",
+    "collision.check-junctions": "true",
+    "device.rerouting.probability": "0",
+    "aggregate-warnings": "20",
+    "no-step-log": "true",
+    "seed": "1"
+  },
+  "ssm_n_explicit": 0,
+  "wall_time_s": 523.87,
+  "n_teleports": 83,
+  "n_teleports_noncollision": 16,
+  "teleports": {
+    "total": 83.0,
+    "jam": 11.0,
+    "yield": 5.0,
+    "wrongLane": 0.0
+  },
+  "n_collisions": 67,
+  "collisions": {
+    "statistics": 67,
+    "collision_output_records": 67
+  },
+  "collisions_by_class": {
+    "rear_end": 2,
+    "lateral": 26,
+    "junction": 39,
+    "other": 0
+  },
+  "n_collisions_lane": 5,
+  "n_collisions_junction": 62,
+  "n_collisions_intervened": 22,
+  "interventions": {
+    "early_start": {
+      "attempted": 99,
+      "executed": 55,
+      "not_executed": {
+        "red_ended_before_crossing": 42,
+        "run_ended": 2
+      },
+      "counters": {
+        "draws": 213
+      }
+    },
+    "swarm_red_running": {
+      "attempted": 328,
+      "executed": 293,
+      "not_executed": {
+        "red_ended_before_crossing": 33,
+        "run_ended": 2
+      },
+      "counters": {
+        "decided_run": 328,
+        "draws": 549
+      }
+    },
+    "queue_space_seeking": {
+      "attempted": 195,
+      "executed": 92,
+      "not_executed": {
+        "lane_change_not_done": 99,
+        "left_zone": 1,
+        "past_sidewalk_start": 2,
+        "run_ended": 1
+      },
+      "counters": {
+        "drawn_right_lane": 60,
+        "drawn_sidewalk": 135,
+        "draws": 689,
+        "no_option": 87,
+        "no_seek": 407
+      }
+    },
+    "illegal_left_box": {
+      "attempted": 140,
+      "executed": 139,
+      "not_executed": {
+        "not_held": 1
+      },
+      "counters": {
+        "native_releases": 35
+      }
+    },
+    "slow_lane_center": {
+      "attempted": 2976,
+      "executed": 1916,
+      "not_executed": {
+        "lane_changed": 94,
+        "lateral_target_not_reached": 966
+      },
+      "counters": {}
+    }
+  },
+  "interventions_log": "interventions.csv",
+  "controller_wall_s": 30.27,
+  "safety": {
+    "collisions": 67.0,
+    "emergencyStops": 0.0,
+    "emergencyBraking": 154.0
+  },
+  "insertion_backlog": 0,
+  "insertion_backlog_max": 21,
+  "vehicles": {
+    "loaded": 3760.0,
+    "inserted": 3747.0,
+    "running": 316.0,
+    "waiting": 0.0
+  },
+  "n_warnings": 320,
+  "n_errors": 0,
+  "warnings_top": {
+    "Warning: Vehicle '*' performs emergency braking on lane '*' with decel=#, wished=#, severity=#, time=#.": 154,
+    "Warning: Vehicle '*' ends teleporting on edge '*', time=#.": 82,
+    "Warning: Teleporting vehicle '*'; junction collision with vehicle '*', lane='*', gap=-#, latGap=#, time=#, stage=move.": 39,
+    "Warning: Teleporting vehicle '*'; side collision with vehicle '*', lane='*', gap=-#, latGap=#, time=#, stage=laneChange.": 22,
+    "Warning: Teleporting vehicle '*'; waited too long (jam), lane='*', time=#.": 11,
+    "Warning: Teleporting vehicle '*'; waited too long (yield), lane='*', time=#.": 5,
+    "Warning: Teleporting vehicle '*'; side collision with vehicle '*', lane='*', gap=-#, latGap=-#, time=#, stage=laneChange.": 4,
+    "Warning: Teleporting vehicle '*'; collision with vehicle '*', lane='*', gap=-#, latGap=-#, time=#, stage=move.": 2,
+    "Warning: Vehicle '*' teleports beyond arrival edge '*', time=#.": 1
+  },
+  "valid_strict": false,
+  "valid": false,
+  "invalid_reasons": [
+    "83 teleports",
+    "67 collisions"
+  ],
+  "observed_schema": {
+    "signal_events": 182,
+    "stopline_crossings": 3465,
+    "turn_counts": 60,
+    "traversals": 3465,
+    "queue_snapshots": 58,
+    "lateral_snapshots": 3729,
+    "queue_timeseries": 3600,
+    "space_seeking_events": 105,
+    "right_turn_delay": 503,
+    "box_queue": 30
+  }
+}

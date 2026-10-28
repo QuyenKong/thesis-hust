@@ -1,0 +1,123 @@
+{
+ "content": {
+  "description": "Iteration 2 from s03 (best, S 1.124): car-following of all archetypes made faster to remove the common queue/discharge error (M1, M5, M6), red running and early start raised toward M3/M2, right_lane probability lowered toward M9, jmTimegapMinor lowered toward M7a.",
+  "driver_archetypes": [
+   {
+    "id": "car_saval",
+    "base_vclass": "passenger",
+    "share": 0.9,
+    "params": {
+     "accel": 2.0,
+     "decel": 4.8,
+     "tau": 1.2,
+     "minGap": 1.0
+    },
+    "rationale": "Saval Table 11 base (a 1.2, b 4.8, T 2.5, s0 1.1). Iteration 2: feedback shows every discharge/queue metric far above observed in all four specs (M1/car 1.7 vs 0.35 s, M5/length 72-75 vs 15.8 m, M6/approach 100-400 vs 12-63 s, M5/share_censored 0.65-0.8), i.e. the Saval car-following values discharge too slowly for this demand. tau 2.5 -> 1.2 s, accel 1.2 -> 2.0 (still inside the passenger range), minGap 1.1 -> 1.0 shorten the discharge headway (M1/car) and so the queue (M5, M6); decel unchanged."
+   },
+   {
+    "id": "car_seeker",
+    "base_vclass": "custom2",
+    "distribution": "car",
+    "share": 0.1,
+    "params": {
+     "accel": 2.0,
+     "decel": 4.8,
+     "tau": 1.2,
+     "minGap": 1.0
+    },
+    "rationale": "Same car-following values as car_saval (they are the same drivers apart from the space-seeking permission): tau 1.2, accel 2.0, minGap 1.0 to cut M1/car and M5/length. Share kept at 0.1: s03 (0.1) had the best S and M8/M9 shares show no feedback yet that moves it."
+   },
+   {
+    "id": "moto_saval",
+    "base_vclass": "motorcycle",
+    "share": 0.9,
+    "params": {
+     "accel": 3.0,
+     "decel": 4.6,
+     "tau": 0.5,
+     "minGap": 1.0,
+     "minGapLat": 0.3
+    },
+    "rationale": "Saval Table 11 base (a 1.1, b 4.6, T 0.8, s0 1.9). Iteration 2: M1/moto 0.90 vs 0.30 s and M5/length 72-75 vs 15.8 m in all specs show motorcycles discharge too slowly. tau 0.8 -> 0.5 s, accel 1.1 -> 3.0 m/s2, minGap 1.9 -> 1.0 m cut the discharge headway (M1/moto) and the queue (M5/length, M5/moto_density, M6/approach); minGapLat stays at the 0.3 m bound; decel unchanged."
+   },
+   {
+    "id": "moto_seeker",
+    "base_vclass": "custom1",
+    "distribution": "moto",
+    "share": 0.1,
+    "params": {
+     "accel": 3.0,
+     "decel": 4.6,
+     "tau": 0.5,
+     "minGap": 1.0,
+     "minGapLat": 0.3
+    },
+    "rationale": "Same values as moto_saval (tau 0.5, accel 3.0, minGap 1.0) so seekers ride like the rest apart from the space-seeking option; targets M1/moto and M5. Share kept at 0.1: M10a was 0.65 vs 0.56 per cycle at 0.1 (s03), close to the target."
+   },
+   {
+    "id": "moto_violator_saval",
+    "base_vclass": "custom1",
+    "share": 1.0,
+    "params": {
+     "accel": 3.0,
+     "decel": 4.6,
+     "tau": 0.5,
+     "minGap": 1.0,
+     "minGapLat": 0.3,
+     "jmTimegapMinor": 0.6
+    },
+    "rationale": "Car-following as moto_saval (same riders; M6/junction/illegal_l 48 vs 37 s). jmTimegapMinor 1.0 -> 0.6 s: box waiters accept smaller gaps and leave earlier, targeting M7a/release_time (28.6 vs 2.8 s), M7b/clear_lag (12.5 vs 5.5 s) and M7c/slope; M7a/n_waiting (4.3 vs 5.6) is below target so it is changed only moderately."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": [
+     "moto_saval",
+     "moto_seeker",
+     "moto_violator_saval"
+    ],
+    "params": {
+     "p0": 0.5,
+     "k": 0.05,
+     "p_max": 0.8,
+     "dt": 10.0
+    },
+    "rationale": "M3/share/moto 0.0197 vs 0.098 and M3/per_cycle 0.6 vs 3.9 in all four specs (p0 0.12-0.2): too few red runners. p0 0.2 -> 0.5 (the Saval front-row value) raises both toward the targets; k 0.05 with p_max 0.8 adds mild clustering to lift M3/var_to_mean (0.94-1.04 vs 1.14). Shorter queues in iteration 2 also change how many reach the line on red, so the share is expected to stay below 0.5."
+   },
+   {
+    "rule_type": "early_start",
+    "applies_to": [
+     "moto_saval",
+     "moto_seeker",
+     "moto_violator_saval"
+    ],
+    "params": {
+     "t_before_green": 10.0,
+     "p": 0.6,
+     "v_max": 3.0
+    },
+    "rationale": "M2/early/moto 0.016 vs 0.130 with p 0.13-0.15; early_start executed 57 of 78 attempts and 21 failed with red_ended_before_crossing. p 0.13 -> 0.6 raises the early-start share (executed share was about one eighth of p); t_before_green 6 -> 10 s (top of the 4-10 s lead window) and v_max 2 -> 3 m/s let the creeper cross the line before green, lowering M2/first_delay (4.5 vs 2.8 s) and raising M4/overshoot_share."
+   },
+   {
+    "rule_type": "queue_space_seeking",
+    "applies_to": [
+     "moto_seeker",
+     "car_seeker"
+    ],
+    "params": {
+     "q": 15.0,
+     "t_g_s": 0.0,
+     "est_noise": 0.0,
+     "p_wrong_lane": 0.0,
+     "p_right_lane": 0.1,
+     "p_sidewalk": 0.3,
+     "v_creep": 3.0,
+     "merge_zone_m": 15.0
+    },
+    "rationale": "s03 settings with p_right_lane lowered 0.2 -> 0.1: M9a/per_cycle 1.39 vs 0.57 and M9b/share_blocked 0.22 vs 0.065 are too high, so halving p_right_lane moves both down. p_sidewalk 0.3 kept (M10a 0.65 vs 0.56, near target); q 15 m kept (observed choice queue 15.3-15.7 m; the simulated 70-79 m comes from the common queue error handled by car-following). p_wrong_lane 0 because it is inapplicable on the proxy net (R27); v_creep and merge_zone_m unchanged; sum of p 0.4 <= 1."
+   }
+  ]
+ },
+ "reasoning": "All four iteration-1 specs share the same dominant error: queues and discharge are far too slow (M1 headways 1.7/0.9 s vs 0.35/0.30 s, M5/length 72-75 vs 16 m, M6 approach times 5-10x too high), so I made car-following faster for every archetype (car tau 2.5->1.2, accel 1.2->2.0, minGap 1.0; moto tau 0.8->0.5, accel 1.1->3.0, minGap 1.0). From the best spec s03 I raised red running (p0 0.2->0.5, k 0.05, p_max 0.8) and early start (p 0.13->0.6, t_before_green 10, v_max 3) because M3 and M2 shares were about 5-8x too low, lowered p_right_lane 0.2->0.1 for M9a/M9b (too high), and lowered the box waiters' jmTimegapMinor 1.0->0.6 for M7a/M7b release time. Structure and shares are unchanged (shares sum to 1 per distribution)."
+}

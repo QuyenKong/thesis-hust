@@ -1,0 +1,129 @@
+{
+ "spec_id": "P1_n28_it02_s02",
+ "source": "llm",
+ "provenance": {
+  "model": "claude-sonnet (stand-in)",
+  "prompt_version": "v002",
+  "iteration": 2,
+  "sample_idx": 2,
+  "runtime": "file"
+ },
+ "description": "Iteration 2 from best it01 spec (s03, S 1.12): the sim is oversaturated (queue 72 m, headway 1.7 s car / 0.9 s moto), so lower tau/minGap and raise accel for cars and motorcycles, double early start, reduce right-lane use.",
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.9,
+   "params": {
+    "accel": 2.0,
+    "decel": 4.8,
+    "tau": 1.2,
+    "minGap": 1.0
+   },
+   "rationale": "Iteration 2: tau 2.5 -> 1.2 s, accel 1.2 -> 2.0, minGap 1.1 -> 1.0 m (lower bound) to cut the car discharge headway M1/car (sim 1.7 vs obs 0.35 s) and with it the oversaturated queues (M5/length 72 m vs 16 m, M6 approach times, M5/share_censored); decel kept. "
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "share": 0.1,
+   "params": {
+    "accel": 2.0,
+    "decel": 4.8,
+    "tau": 1.2,
+    "minGap": 1.0
+   },
+   "rationale": "Iteration 2: tau 2.5 -> 1.2 s, accel 1.2 -> 2.0, minGap 1.1 -> 1.0 m (lower bound) to cut the car discharge headway M1/car (sim 1.7 vs obs 0.35 s) and with it the oversaturated queues (M5/length 72 m vs 16 m, M6 approach times, M5/share_censored); decel kept. ",
+   "distribution": "car"
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.9,
+   "params": {
+    "accel": 3.0,
+    "decel": 4.6,
+    "tau": 0.5,
+    "minGap": 1.0,
+    "minGapLat": 0.3
+   },
+   "rationale": "Iteration 2: tau 0.8 -> 0.5 s, accel 1.1 -> 3.0, minGap 1.9 -> 1.0 m so motorcycles discharge faster (M1/moto sim 0.9 vs obs 0.30 s) and the queue shrinks toward M5/length 16 m and M5/moto_density; minGapLat and decel kept. "
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "share": 0.1,
+   "params": {
+    "accel": 3.0,
+    "decel": 4.6,
+    "tau": 0.5,
+    "minGap": 1.0,
+    "minGapLat": 0.3
+   },
+   "rationale": "Iteration 2: tau 0.8 -> 0.5 s, accel 1.1 -> 3.0, minGap 1.9 -> 1.0 m so motorcycles discharge faster (M1/moto sim 0.9 vs obs 0.30 s) and the queue shrinks toward M5/length 16 m and M5/moto_density; minGapLat and decel kept. ",
+   "distribution": "moto"
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 3.0,
+    "decel": 4.6,
+    "tau": 0.5,
+    "minGap": 1.0,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 0.6
+   },
+   "rationale": "Iteration 2: tau 0.8 -> 0.5 s, accel 1.1 -> 3.0, minGap 1.9 -> 1.0 m so motorcycles discharge faster (M1/moto sim 0.9 vs obs 0.30 s) and the queue shrinks toward M5/length 16 m and M5/moto_density; minGapLat and decel kept. For the box waiters jmTimegapMinor 1.0 -> 0.6 s so they leave earlier (M7a/release_time 29 s vs 2.8 s, M7b/clear_lag 12.5 vs 5.5 s)."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.2,
+    "k": 0.0,
+    "p_max": 0.2,
+    "dt": 10.0
+   },
+   "rationale": "M3/share/moto: kept at 0.2 (sim 0.02 vs obs 0.098) because the shorter queues expected from the faster discharge let more riders reach the line on red; changing one lever at a time."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 8.0,
+    "p": 0.3,
+    "v_max": 2.0
+   },
+   "rationale": "M2/early/moto sim 0.016 vs obs 0.13 although p = 0.13: early_start executed only ~70% of attempts and the draw covers few front-row riders, so p 0.13 -> 0.3 and window 6 -> 8 s (in the 4-10 s lead time) raise the share; also M2/first_delay."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker",
+    "car_seeker"
+   ],
+   "params": {
+    "q": 15.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.0,
+    "p_right_lane": 0.1,
+    "p_sidewalk": 0.3,
+    "v_creep": 3.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "p_right_lane 0.2 -> 0.1 because M9a (1.4 vs 0.57 per cycle) and M9b/share_blocked (0.22 vs 0.065) are too high; p_sidewalk 0.3 kept (M10a 0.65 vs 0.56 closest of it01); p_wrong_lane 0 (inapplicable, R27); q 15 m matches M9c/M10b."
+  }
+ ]
+}

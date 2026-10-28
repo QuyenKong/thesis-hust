@@ -1,0 +1,220 @@
+{
+ "content": {
+  "description": "Iteration 2: shorter discharge headways and shorter queues, much higher red-running/early-start probabilities, space seeking redistributed from right lane to sidewalk, longer box hold.",
+  "driver_archetypes": [
+   {
+    "id": "car_normal",
+    "base_vclass": "passenger",
+    "distribution": "car",
+    "share": 0.96,
+    "params": {
+     "tau": 0.4,
+     "minGap": 1.0,
+     "accel": 3.5,
+     "decel": 6,
+     "sigma": 0.2,
+     "minGapLat": 0.6,
+     "lcSublane": 1
+    },
+    "rationale": "M1/car sim 0.74 vs obs 0.35 s and M5/length 48 vs 16 m: tau at its lower bound 0.4, minGap 1.0, accel 3.5 and sigma 0.2 shorten the discharge headway so queues clear faster; decel 6 limits collisions with the short tau."
+   },
+   {
+    "id": "car_seeker",
+    "base_vclass": "custom2",
+    "distribution": "car",
+    "share": 0.04,
+    "params": {
+     "tau": 0.4,
+     "minGap": 1.0,
+     "accel": 3.5,
+     "decel": 6,
+     "sigma": 0.2,
+     "minGapLat": 0.5,
+     "lcSublane": 2,
+     "lcPushy": 0.2
+    },
+    "rationale": "M9a/per_cycle sim 1.0-1.9 vs obs 0.57 and M9b/share_blocked sim 0.11-0.15 vs 0.065: share cut from 0.08 to 0.04 so fewer cars take the right-turn lane."
+   },
+   {
+    "id": "moto_normal",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.67,
+    "params": {
+     "tau": 0.4,
+     "minGap": 0.5,
+     "accel": 6,
+     "decel": 7,
+     "sigma": 0.3,
+     "minGapLat": 0.5,
+     "maxSpeedLat": 1.5,
+     "latAlignment": "compact",
+     "lcSublane": 3,
+     "lcMaxSpeedLatStanding": 1.5,
+     "lcPushy": 0.3,
+     "speedFactor": 1.0,
+     "speedDev": 0.1
+    },
+    "rationale": "M1/moto sim 0.49 vs obs 0.30 s and M5/length: tau 0.4, minGap 0.5, accel 6, sigma 0.3 shorten headway; lcPushy lowered 0.5 to 0.3 and minGapLat raised to 0.5 to reduce lane collisions (excluded runs) while keeping compact lateral packing for M5/moto_density and M4."
+   },
+   {
+    "id": "moto_slow",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.08,
+    "params": {
+     "tau": 0.4,
+     "minGap": 0.5,
+     "accel": 4.5,
+     "decel": 7,
+     "sigma": 0.3,
+     "minGapLat": 0.5,
+     "maxSpeedLat": 1.5,
+     "latAlignment": "center",
+     "lcSublane": 3,
+     "lcMaxSpeedLatStanding": 1.5,
+     "lcPushy": 0.1,
+     "speedFactor": 0.8,
+     "speedDev": 0.05
+    },
+    "rationale": "M6/approach l,u moto sim 145-223 s vs 42-54 s and M5/length: slow riders were too many and too slow (0.12, speedFactor 0.7) and clog the shared left lane; share 0.08 and speedFactor 0.8 keep behaviour 10 with less queue growth."
+   },
+   {
+    "id": "moto_seeker",
+    "base_vclass": "custom1",
+    "distribution": "moto",
+    "share": 0.25,
+    "params": {
+     "tau": 0.4,
+     "minGap": 0.5,
+     "accel": 6,
+     "decel": 7,
+     "sigma": 0.3,
+     "minGapLat": 0.5,
+     "maxSpeedLat": 1.5,
+     "latAlignment": "compact",
+     "lcSublane": 3,
+     "lcMaxSpeedLatStanding": 1.5,
+     "lcPushy": 0.4,
+     "speedFactor": 1.0,
+     "speedDev": 0.1
+    },
+    "rationale": "M10a/per_cycle sim 0.0-0.1 vs obs 0.56: straight riders eligible for space seeking; share kept at 0.25 and pushiness reduced 0.6 to 0.4 to cut collisions under TraCI intervention."
+   },
+   {
+    "id": "moto_illegal_left",
+    "base_vclass": "custom1",
+    "distribution": "moto_violator",
+    "share": 1.0,
+    "params": {
+     "tau": 0.5,
+     "minGap": 0.8,
+     "accel": 5,
+     "decel": 8,
+     "sigma": 0.4,
+     "minGapLat": 0.4,
+     "lcSublane": 3,
+     "jmTimegapMinor": 0.8,
+     "impatience": 0.8
+    },
+    "rationale": "M7a/n_waiting (2.4 vs 5.6), M7b and M6/junction/illegal_l: keep the jmTimegapMinor 0.8 / impatience 0.8 setting whose M7b clear lag (5.3-5.6 s) matched the observed 5.46 s."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "early_start",
+    "applies_to": [
+     "moto_normal",
+     "moto_slow",
+     "moto_seeker"
+    ],
+    "params": {
+     "t_before_green": 10,
+     "p": 0.9,
+     "v_max": 4
+    },
+    "rationale": "M2/early/moto sim 0.011-0.017 vs obs 0.13 (p 0.15 gave ~0.017, i.e. ~10% effective): p 0.9 over the full 10 s window raises it toward 0.13; also lifts M2/first_delay (0.7-1.0 vs 2.8 s) and creates overshoot for M4/overshoot_share."
+   },
+   {
+    "rule_type": "early_start",
+    "applies_to": [
+     "car_normal"
+    ],
+    "params": {
+     "t_before_green": 6,
+     "p": 0.12,
+     "v_max": 2
+    },
+    "rationale": "M2/early/car sim 0 vs obs 0.011: p 0.02 gave no events; p 0.12 (about 10% effective, as for motos) gives ~0.01."
+   },
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": [
+     "moto_normal",
+     "moto_slow",
+     "moto_seeker"
+    ],
+    "params": {
+     "p0": 0.45,
+     "k": 0.03,
+     "p_max": 0.7,
+     "dt": 8
+    },
+    "rationale": "M3/share/moto sim 0.007 vs obs 0.098 and M3/per_cycle 0.29 vs 3.9: p0 0.06 gave ~12% effective; p0 0.45 (Saval 0.5 for front-row motos) with small k 0.03 keeps variance/mean near 1.14."
+   },
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": [
+     "car_normal"
+    ],
+    "params": {
+     "p0": 0.03,
+     "k": 0.0,
+     "p_max": 0.05,
+     "dt": 8
+    },
+    "rationale": "M3/share/car sim 0 vs obs 0.0041: p0 0.004 gave no events; p0 0.03 gives ~0.004 with no swarm effect."
+   },
+   {
+    "rule_type": "queue_space_seeking",
+    "applies_to": [
+     "moto_seeker",
+     "car_seeker"
+    ],
+    "params": {
+     "q": 8,
+     "t_w": 20,
+     "t_g_s": 7,
+     "est_noise": 0.3,
+     "p_wrong_lane": 0.0,
+     "p_right_lane": 0.02,
+     "p_sidewalk": 0.5,
+     "v_creep": 4,
+     "merge_zone_m": 15
+    },
+    "rationale": "M10a sim 0.0-0.1 vs obs 0.56 and M9a sim 1.0-1.9 vs 0.57 (right lane drawn 3x more than sidewalk): p_right_lane 0.05 to 0.02, p_sidewalk 0.08 to 0.5; p_wrong_lane 0 because it is inapplicable (R27) and was redistributed into right lane; q 8 m and t_w 20 s trigger earlier (M10b/M9c queue at choice 35-55 vs 15 m)."
+   },
+   {
+    "rule_type": "illegal_left_box",
+    "applies_to": [
+     "moto_illegal_left"
+    ],
+    "params": {
+     "release_lag_s": 2.2
+    },
+    "rationale": "M7a/release_time sim -1.3 to -5.3 vs obs +2.78 s (box exit too early, lag 1.0-1.5): lag 2.2 shifts exit later; kept below 3 so M7b clear lag stays near 5.5 s."
+   },
+   {
+    "rule_type": "slow_lane_center",
+    "applies_to": [
+     "moto_slow"
+    ],
+    "params": {
+     "lat_offset": 0.0
+    },
+    "rationale": "Behaviour 10 / M4/lat_moto (sim 7.25 vs 7.19 m close): slow riders keep the lane centre, unchanged."
+   }
+  ]
+ },
+ "reasoning": "Queues (M5 48 vs 16 m) and discharge headways (M1 0.74/0.49 vs 0.35/0.30 s) were far too long in all four specs, so I moved tau, minGap, sigma and accel to the aggressive end and cut the slow-rider share and speedFactor (M6 left/u times 150-230 s). Red running and early start were ~10x too low (M3 0.007 vs 0.098, M2 0.017 vs 0.13), so I raised swarm p0 and early_start p by about the measured effectiveness ratio. Right-lane use was too high (M9a 1-1.9 vs 0.57) and sidewalk too low (M10a 0.1 vs 0.56), so I shifted probability from right lane/wrong lane (inapplicable, redistributed) to sidewalk and lowered the trigger q. Box exit was too early (M7a release_time negative), so release_lag_s goes to 2.2; pushiness lowered to reduce excluded collision runs."
+}

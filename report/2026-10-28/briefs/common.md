@@ -1,0 +1,20 @@
+BỐI CẢNH CHUNG (đọc kỹ). Repo: /home/viktor.quyen@Techvify.Internal/Projects/thesis-hust, code ở thư mục con SUMO/ (cwd = SUMO/, python = .venv/bin/python, chạy test: .venv/bin/python -m pytest tests/<file> -q). Đọc SUMO/../CLAUDE.md, ../PLAN.md (mục 0, 4, 5), SUMO/docs/WORKFLOW.md trước. Đề tài: LLM sinh luật hành vi (vType + luật TraCI) cho SUMO mô phỏng nút Lê Văn Lương x Hoàng Đạo Thúy (Hà Nội), giờ cao điểm sáng.
+
+KỊCH BẢN ĐÃ ĐỔI theo thông tin hiện trường 28/10 (bản chuẩn, KHÔNG quay lại bản cũ). Các thay đổi trong SUMO/config/site.proxy.yaml (đọc file này, đặc biệt approaches[].left_turn_banned, signal, illegal_left, f2_measured_approaches):
+ (1) Rẽ trái bị cấm từ HDT_N và HDT_S sang LVL (custom1 vẫn đi được = rẽ trái trái luật 'illegal_l', chờ giữa nút). Rẽ trái và U-turn từ LVL_W/LVL_E nay HỢP LỆ, có mũi tên riêng (pha LVL_left), nên KHÔNG phải vi phạm. Trước đây illegal-left chỉ ở LVL_W (1 nhánh).
+ (2) Đèn 3 pha thay vì 2: LVL_straight 42s, LVL_left 16s, HDT_green 44s, mỗi pha +4s vàng +2s đỏ toàn phần, chu kỳ 120s (các thời lượng là giả định, TODO_MEASURE). Tên pha cũ 'LVL_green' / giả định 2 pha / 'đối diện' kiểu LVL_W-HDT không còn đúng. HDT_N và HDT_S xanh cùng lúc trong pha HDT_green, nên 'nhánh đối diện' của HDT_N là HDT_S (cùng đường).
+ (3) Vỉa hè ở cả LVL_W và LVL_E (f2_measured_approaches: [LVL_W, LVL_E]); trước đây chỉ LVL_W. Cạnh 37876499#0 tách thành 37876499#0.up / .mid / 37876499#0 (xem SUMO/scenario/net/edge_table.csv).
+Mạng SUMO scenario/net/site.proxy.net.xml đã đúng bản mới (đã kiểm tra). Dữ liệu proxy data/observed/PROXY_D1..D5, routes và mọi kết quả cũ ĐANG theo mạng cũ nên sẽ được sinh lại SAU bước của bạn; bạn KHÔNG chạy lại chúng vào data/observed hay scenario/demand (nếu cần thử, ghi ra /tmp).
+
+QUY TẮC (CLAUDE.md, áp dụng cho bạn):
+- KHÔNG thao tác git (không add/commit/checkout/stash/pull/push); chỉ git status/diff để đọc.
+- KHÔNG sửa gì trong SUMO/scenario_raw/. Không hand-edit .net.xml. Không đọc dữ liệu ngày validation PROXY_D4/D5 để tinh chỉnh bất cứ thứ gì.
+- KHÔNG bịa số liệu hiện trường: giá trị đo thực địa chỉ từ config/site*.yaml; giá trị chưa biết -> null + TODO_MEASURE trong yaml, code báo lỗi rõ khi gặp null bắt buộc, không điền mặc định. Giá trị tự chọn phải có source và evidence 'assumed' (xem quy ước <key>_source / <key>_evidence ở đầu site.proxy.yaml; thêm key mới vào config.py nếu cần cho phép loại evidence). Nếu cần tham số mới cho proxy (vd. số xe vỉa hè LVL_E), ưu tiên suy ra từ tham số hiện có đã có nguồn/giả định (giữ hành vi cũ gần nhất) hơn là bịa số mới; mọi lựa chọn như vậy ghi lại trong báo cáo cuối.
+- KHÔNG đoán tên tham số/option SUMO: kiểm tra --help hoặc docs.
+- Viết TEST TRƯỚC khi sửa (test nhỏ trên dữ liệu tổng hợp, kiểm chứng test fail với code cũ khi hợp lý), rồi sửa cho test pass. Giữ phong cách code xung quanh (mật độ comment, đặt tên). Thay đổi nhỏ nhất đủ dùng; không thêm tính năng ngoài yêu cầu.
+- Mỗi subagent sửa TẬP FILE RIÊNG (liệt kê bên dưới) vì ba subagent chạy song song. Nếu thấy cần sửa file ngoài tập của bạn thì KHÔNG sửa: ghi vào báo cáo (file, dòng, sửa gì) để điều phối viên giao.
+- Ngoài phạm vi: wrong-way driving, đi trên vỉa hè ngoài hai vỉa hè đã nêu, đỗ xe, chọn lộ trình, người đi bộ/buýt/xe tải. LLM không bao giờ sinh/sửa mạng. Không làm campaign, không sửa LaTeX.
+
+NHIỆM VỤ CHUNG: rà TOÀN BỘ vùng file của bạn, tìm mọi chỗ còn giả định kịch bản cũ (illegal_left/M7 chỉ ở LVL_W hoặc chỉ một nhánh; vỉa hè/M10/luật sidewalk chỉ ở một nhánh; pha 'LVL_green' hoặc giả định 2 pha; tên cạnh cũ 37876499#0; ...), viết test lộ ra từng giả định sai, rồi sửa. grep rộng (LVL_W, LVL_E, HDT, illegal, sidewalk, LVL_green, phases, 37876499, 'sidewalk_approach'...) chứ đừng chỉ đọc lướt.
+
+ĐẦU RA (ngắn, không dán log dài): (a) danh sách mọi chỗ bạn thấy giả định cũ và đã sửa như thế nào (file:dòng); (b) danh sách file đã đổi/tạo; (c) kết quả pytest của các file test thuộc vùng của bạn (passed/failed); (d) những gì bạn thấy ngoài vùng của bạn cần người khác sửa; (e) quyết định thiết kế bạn tự chọn và giả định đã dùng.

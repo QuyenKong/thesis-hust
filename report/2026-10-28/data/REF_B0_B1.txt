@@ -1,0 +1,77 @@
+# REF_B0_B1 (28/10): B0 va B1_manual, MANG CU (REF, truoc 28/10) vs MANG MOI (REF_n28, 28/10); PROXY_D1-D3, seed 1
+# Nguon: experiments/campaigns/{REF,REF_n28}/{B0,B1_manual}.pkl (EvalResult.to_row()) va .../runs/<spec>__PROXY_Dk/seed_01/manifest.json (tu SUMO/, .venv/bin/python)
+# Gioi han: 1 seed (=1) moi ngay, 3 ngay, moi run 1800 s (0.5 h); site LITERATURE_PROXY; PROXY_D4/D5 khong dung.
+# Mang moi: patch hop cho HDT + via he LVL_E. CANH BAO: manifest cho thay routes_hash va site_hash cung doi giua REF va REF_n28 (xem ghi chu cuoi) -> khong chi la doi mang.
+# Ty le /gio = dem / 0.5 h cua run (evaluate.py); 'TB 3 ngay' = tong 3 run / 1.5 h. n_collisions_lane = n_collisions - n_collisions_junction (junction: type=junction hoac lane noi bo ':').
+# Teleport do va cham = n_teleports - n_teleports_noncollision (tinh tu manifest; n_teleports_noncollision = jam+yield+wrongLane). Backlog theo nhanh: manifest chi co tong.
+
+spec       mang  ngay  coll/h  lane/h  junct/h  jam+yld/h  jam/h  yield/h  tp_coll/h  backlog  bl_max  loaded  inserted  intervened      elig
+---------  ----  ----  ------  ------  -------  ---------  -----  -------  ---------  -------  ------  ------  --------  ----------  --------
+B0         cu      D1   86.00    4.00    82.00      32.00  12.00    20.00      86.00      339     342    4557      4209           0  excluded
+B0         cu      D2   94.00    0.00    94.00       0.00   0.00     0.00      94.00        0       2    3768      3756           0  eligible
+B0         cu      D3  158.00    2.00   156.00       0.00   0.00     0.00     158.00        0       2    3865      3854           0  excluded
+B0         cu     TB3  112.67    2.00   110.67      10.67   4.00     6.67     112.67    113.0   115.3    4063      3940        0.00  excluded
+                                                                                                                                             
+B0         moi     D1   22.00    6.00    16.00       0.00   0.00     0.00      22.00      142     156    4694      4542           0  excluded
+B0         moi     D2   48.00    0.00    48.00       0.00   0.00     0.00      48.00        0       2    3736      3728           0  eligible
+B0         moi     D3   34.00    2.00    32.00       0.00   0.00     0.00      34.00        0       3    3760      3747           0  eligible
+B0         moi    TB3   34.67    2.67    32.00       0.00   0.00     0.00      34.67     47.3    53.7    4063      4006        0.00  excluded
+                                                                                                                                             
+B1_manual  cu      D1   92.00    0.00    92.00      74.00  54.00    20.00      92.00      737     739    4557      3811           5  excluded
+B1_manual  cu      D2  132.00    0.00   132.00       8.00   6.00     2.00     132.00       90      90    3768      3666           5  excluded
+B1_manual  cu      D3   98.00    0.00    98.00      54.00  50.00     4.00      98.00      233     234    3865      3621           6  excluded
+B1_manual  cu     TB3  107.33    0.00   107.33      45.33  36.67     8.67     107.33    353.3   354.3    4063      3699        5.33  excluded
+                                                                                                                                             
+B1_manual  moi     D1   32.00    0.00    32.00       6.00   2.00     4.00      32.00      395     400    4694      4289           0  excluded
+B1_manual  moi     D2   36.00    0.00    36.00      20.00  10.00    10.00      36.00      332     332    3736      3396           2  excluded
+B1_manual  moi     D3   56.00    0.00    56.00      46.00  30.00    16.00      56.00      499     501    3760      3248           0  excluded
+B1_manual  moi    TB3   41.33    0.00    41.33      24.00  14.00    10.00      41.33    408.7   411.0    4063      3644        0.67  excluded
+
+# backlog/bl_max/loaded/inserted/intervened o dong TB3 la trung binh moi run (khong phai /gio); backlog = vehicles.waiting luc ket thuc (statistics.xml), bl_max = max getPendingVehicles trong run.
+# intervened = n_collisions_intervened (va cham co xe dang bi TraCI can thiep).
+
+# S (to_row(), 3 ngay x 1 seed; S la so tong, khong co theo ngay)
+spec       mang       S  S_sourced  S_assumed  n_sim  n_obs_days  wall_time_s
+---------  ----  ------  ---------  ---------  -----  ----------  -----------
+B0         cu    1.1809     0.5006     0.6804      3           3       411.05
+B0         moi   1.1235     0.4879     0.6356      3           3       309.09
+B1_manual  cu    1.2158     0.5245     0.6913      3           3      1129.39
+B1_manual  moi   1.1975     0.4908     0.7067      3           3       668.61
+
+# Eligibility: tong (EvalResult) va ly do loai theo ngay (runs[].reasons); geh = share o G0 GEH gate (nguong 0.85, ngay < 0.85 bi loai)
+B0 / cu: eligibility=excluded (n_eligible=1, n_excluded=2)
+    PROXY_D1: excluded  geh=0.871  non-collision teleports: 16 > 0; vehicles waiting for insertion at the end: 339 > 0
+    PROXY_D2: eligible  geh=1.000  -
+    PROXY_D3: excluded  geh=1.000  junction collisions per hour: 156 > 142
+B0 / moi: eligibility=excluded (n_eligible=2, n_excluded=1)
+    PROXY_D1: excluded  geh=0.917  vehicles waiting for insertion at the end: 142 > 0; lane collisions per hour: 6 > 4
+    PROXY_D2: eligible  geh=1.000  -
+    PROXY_D3: eligible  geh=1.000  -
+B1_manual / cu: eligibility=excluded (n_eligible=0, n_excluded=3)
+    PROXY_D1: excluded  geh=0.726  G0 GEH gate: 0.726 of cells with GEH < threshold; non-collision teleports: 37 > 0; vehicles waiting for insertion at the end: 737 > 0; collisions involving a vehicle under TraCI intervention: 5 > 1
+    PROXY_D2: excluded  geh=0.952  non-collision teleports: 4 > 0; vehicles waiting for insertion at the end: 90 > 0; collisions involving a vehicle under TraCI intervention: 5 > 1
+    PROXY_D3: excluded  geh=0.839  G0 GEH gate: 0.839 of cells with GEH < threshold; non-collision teleports: 28 > 0; vehicles waiting for insertion at the end: 233 > 0; collisions involving a vehicle under TraCI intervention: 6 > 1
+B1_manual / moi: eligibility=excluded (n_eligible=0, n_excluded=3)
+    PROXY_D1: excluded  geh=0.800  G0 GEH gate: 0.800 of cells with GEH < threshold; non-collision teleports: 3 > 0; vehicles waiting for insertion at the end: 395 > 0
+    PROXY_D2: excluded  geh=0.833  G0 GEH gate: 0.833 of cells with GEH < threshold; non-collision teleports: 10 > 0; vehicles waiting for insertion at the end: 332 > 0; collisions involving a vehicle under TraCI intervention: 2 > 1
+    PROXY_D3: excluded  geh=0.783  G0 GEH gate: 0.783 of cells with GEH < threshold; non-collision teleports: 23 > 0; vehicles waiting for insertion at the end: 499 > 0
+
+# Cac khoa doc duoc
+# to_row(): campaign spec_id valid n_issues n_runs n_eligible n_excluded eligibility collisions_per_hour lane_collisions_per_hour jam_yield_teleports_per_hour wall_time_s S S_sourced S_assumed n_sim n_obs_days + cac cot M*/F2* (.d .R .w)
+# runs[]: day seed run_dir g0_pass geh_share eligibility reasons valid_strict collisions_per_hour lane_collisions_per_hour jam_yield_teleports_per_hour
+# manifest: n_teleports n_teleports_noncollision teleports{total,jam,yield,wrongLane} n_collisions n_collisions_lane n_collisions_junction n_collisions_intervened collisions_by_class{rear_end,lateral,junction,other} insertion_backlog insertion_backlog_max vehicles{loaded,inserted,running,waiting} safety{collisions,emergencyStops,emergencyBraking} valid valid_strict invalid_reasons
+
+# Collisions_by_class (rear_end/lateral/junction/other) tong 3 ngay
+B0 / cu: {'rear_end': 1, 'lateral': 19, 'junction': 149, 'other': 0}
+B0 / moi: {'rear_end': 0, 'lateral': 13, 'junction': 39, 'other': 0}
+B1_manual / cu: {'rear_end': 0, 'lateral': 39, 'junction': 122, 'other': 0}
+B1_manual / moi: {'rear_end': 0, 'lateral': 33, 'junction': 29, 'other': 0}
+
+# Hash dau vao (8 ky tu) cua tung run: net / routes / site
+REF D1: net=68db2c0c routes=63d60114 site=ae24dfb0 git=85df4c8
+REF D2: net=68db2c0c routes=6260b573 site=ae24dfb0 git=85df4c8
+REF D3: net=68db2c0c routes=bebcbe3d site=ae24dfb0 git=85df4c8
+REF_n28 D1: net=44496908 routes=3b7dc7b3 site=6a293a17 git=685b4fe
+REF_n28 D2: net=44496908 routes=089dddfa site=6a293a17 git=685b4fe
+REF_n28 D3: net=44496908 routes=deb2d63a site=6a293a17 git=685b4fe
+# Ghi chu: routes_hash (ca 3 ngay) va site_hash khac nhau giua REF va REF_n28 -> nhu cau (loaded: D1 B0 cu/moi) va config/site.proxy.yaml cung khac. Hai cot so khong chi do mang.
