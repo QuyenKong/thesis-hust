@@ -139,3 +139,4 @@ Run record/log cũ trong SUMO/experiments/campaigns giữ nguyên.
 - 22:23 CẢ BA XONG: B2_n28b S 1.2823; P1_n28b best it02_s03 S 1.1369; P2_n28b best it02_s03 S 1.0122 (đều excluded). Tiếp: bước 6 (dữ liệu, video, report v2).
 - 22:27 Bước 6a vòng 2 xong (v2/data). Best chung P2_n28b_it02_s03 (S 1.0122, coll 35.33, lane 12.0, jy 0, excluded; 23 spec vì P2_n28b_it01_s00 'lost' 3 run do TaskStop). Quay video nền -> report/2026-10-28/v2/_rec (log v2/_rec.log).
 - 22:46 Video lần 1 dùng sumo-gui 1.28.0 vì SUMO_HOME của shell trỏ ~/sumo-venv (1.28): 26 va chạm, không khớp run campaign (22) -> bỏ. Quay lại với SUMO_HOME=SUMO/.venv/lib/python3.12/site-packages/sumo (1.27.0). Quay nền -> report/2026-10-28/v2/_rec.
+- 23:08 VÒNG 2 HOÀN THÀNH. Video v2 (sumo 1.27.0, khớp run campaign 22 va chạm), report v2/README.md, commit ad8faf66 đã push (cần git lfs push --object-id cho mp4). Chưa commit: _rec/, B2_aborted/.
