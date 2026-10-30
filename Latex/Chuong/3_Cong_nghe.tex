@@ -114,9 +114,9 @@ Các hành vi cần không gian riêng dùng bốn bản vá tĩnh, chỉ mở c
 \hline
 Rẽ trái trái phép & Trên nhánh cấm rẽ trái, các kết nối rẽ trái hợp lệ bị xóa rồi thêm lại với quyền dùng chỉ dành cho \texttt{custom1}; chỉ nhóm xe vi phạm thực hiện được chuyển động này. Việc dừng chờ giữa nút dùng điểm chờ nội bộ (internal junction) sẵn có của SUMO, chọn sau thí nghiệm đo số xe máy cùng dừng chờ trên liên kết rẽ trái trong nút (Mục~\ref{section:box_capacity}) \\
 \hline
-Làn rẽ phải liên tục & Làn ngoài cùng bên phải (lane 0) của mỗi nhánh. Liên kết rẽ phải mang trạng thái đèn \texttt{g} (xanh, phải nhường) ở mọi pha. Kết nối đi thẳng từ lane 0 được giữ để chỉ số liên kết đèn không đổi, nhưng bị cấm với mọi vClass \\
+Làn rẽ phải liên tục & Làn ngoài cùng bên phải (lane 0) của mỗi nhánh, chỉ trong 30~m cuối trước vạch dừng; phía trước đoạn này cả ba làn là làn thường. Liên kết rẽ phải mang trạng thái đèn \texttt{g} (xanh, phải nhường) ở mọi pha. Kết nối đi thẳng từ lane 0 mở cho mọi vClass và theo đèn đi thẳng của nhánh. Rẽ trái từ lane 0 (nhánh không cấm rẽ trái) và quay đầu từ lane 0 và lane 1 là các kết nối chỉ cho \texttt{custom1} và \texttt{custom2}, theo đèn rẽ trái \\
 \hline
-Đoạn cọc phân cách & Mỗi nhánh tách thành đoạn phía trước và một đoạn cọc dài 30~m sát vạch dừng. Trên đoạn cọc cấm chuyển làn giữa lane 0 và lane 1 (\texttt{changeLeft}/\texttt{changeRight} bằng \texttt{emergency}). Xe đi thẳng muốn chiếm làn rẽ phải chỉ làm được ở đoạn phía trước cọc \\
+Đoạn làn rẽ phải liên tục & Mỗi nhánh tách thành đoạn phía trước và một đoạn dài 30~m sát vạch dừng (\texttt{right\_lane\_length\_m}). Không có cọc phân cách: xe đổi làn tự do giữa lane 0 và lane 1 trên cả hai đoạn. Xe có ý định đi thẳng, rẽ trái hoặc quay đầu mà dừng chờ đèn đỏ ở lane 0 trong đoạn này bị tính là chặn làn rẽ phải \\
 \hline
 Làn vỉa hè & Nhánh Lê Văn Lương phía tây có một làn vỉa hè chỉ cho \texttt{custom1}, bắt đầu 170~m trước vạch dừng và chạy tới vạch dừng. Làn có hai liên kết đèn riêng (24 và 25), được ưu tiên, và xung đột với dòng rẽ phải từ lane 0 \\
 \hline

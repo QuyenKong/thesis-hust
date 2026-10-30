@@ -78,7 +78,7 @@
       "required": ["rule_type", "applies_to", "params"],
       "properties": {
         "rule_type": {"enum": ["early_start", "swarm_red_running", "queue_space_seeking", "illegal_left_box",
-                               "slow_lane_center"]},
+                               "slow_lane_center", "uturn_bypass"]},
         "applies_to": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
         "params": {"type": "object", "additionalProperties": {"type": "number"}},
         "rationale": {"type": "string", "pattern": "\\S"}

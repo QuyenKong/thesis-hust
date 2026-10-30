@@ -26,10 +26,14 @@ Group F2, seeking space when queued (a long queue makes drivers look for other s
 4. Lateral gap, encroachment, filtering: `minGapLat`, `latAlignment`, `lcSublane`, `lcPushy`,
    `lcMaxSpeedLatStanding`.
 5. Wrong lane to dodge the signal: rule `queue_space_seeking`, option `p_wrong_lane`.
-6. Straight vehicles waiting at red in the continuous right-turn lane (lane 0), blocking the right turns: going
-   straight from lane 0 is legal on green (no separator), so these vehicles come from the ordinary lane choice of the
-   vTypes and the queue; option `p_right_lane` does not exist on this site (its probability is redistributed to the
-   other options of `queue_space_seeking`).
+6. Vehicles going straight, left or U-turn that stand waiting at red in lane 0 over the continuous right-turn stretch
+   (the last metres before the stop line, given per approach below), blocking the right turns. Driving through lane 0
+   is legal, going straight from it on green is legal, and upstream of the stretch lane 0 is an ordinary lane. These
+   vehicles come from SUMO's own lane choice and the queue: the violator classes (custom1 / custom2) also have a left
+   from lane 0 (where the left is not banned) and U-turns from lanes 0 and 1 on the arrow, which they take by that lane
+   choice (option `p_wrong_lane` only moves a vehicle to an adjacent lane, e.g. a U-turner from lane 2 to lane 1).
+   Option `p_right_lane` does not exist on this site (its probability is redistributed to the other options of
+   `queue_space_seeking`).
 7. Riding on the sidewalk to pass the queue: rule `queue_space_seeking`, option `p_sidewalk` (custom1 only;
    only on the approaches with a rideable sidewalk, LVL_W and LVL_E).
 
@@ -42,7 +46,8 @@ Group F3, interaction inside the junction
     `slow_lane_center`.
 
 Not violations: right turns from the continuous right-turn lane (every approach) at any time, and left turns
-and U-turns from LVL_W and LVL_E on their own LVL_left arrow. Wrong-way driving is not modelled.
+and U-turns from LVL_W and LVL_E on their own LVL_left arrow from the lanes marked for them. A U-turn on a red arrow
+is red-light running. Wrong-way driving is not modelled.
 
 Vehicle classes: `passenger` (cars, distribution `car`), `motorcycle` (distribution `moto`), `custom1` (violating
 motorcycles: distribution `moto_violator` = the illegal-left riders from HDT_N and HDT_S, or `moto` = straight

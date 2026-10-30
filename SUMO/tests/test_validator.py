@@ -129,7 +129,8 @@ def test_bounds_rulings_r15():
 
 def test_traci_rule_params():
     assert set(TRACI_RULE_PARAMS) == {"early_start", "swarm_red_running", "queue_space_seeking", "illegal_left_box",
-                                      "slow_lane_center"}  # PLAN 4.1 rule_type list (wrong_lane_dodge folded in)
+                                      "slow_lane_center", "uturn_bypass"}  # PLAN 4.1 list (wrong_lane_dodge folded
+    # in) + uturn_bypass (Viktor 2026-10-30)
     assert set(TRACI_RULE_PARAMS["early_start"]) == {"t_before_green", "p", "v_max"}
     assert set(TRACI_RULE_PARAMS["swarm_red_running"]) == {"p0", "k", "p_max", "dt"}
     seek = TRACI_RULE_PARAMS["queue_space_seeking"]  # PLAN 4.5; no p_opposite (R38)
@@ -138,6 +139,7 @@ def test_traci_rule_params():
     assert [n for n, x in seek.items() if x.optional] == ["t_w"]
     assert all(not x.optional for r, ps in TRACI_RULE_PARAMS.items() if r != "queue_space_seeking" for x in ps.values())
     assert set(TRACI_RULE_PARAMS["slow_lane_center"]) == {"lat_offset"}
+    assert set(TRACI_RULE_PARAMS["uturn_bypass"]) == {"p", "t_wait"}
     box = TRACI_RULE_PARAMS["illegal_left_box"]  # rulings R15, R25 (max_clear_into_cross_green_s dropped)
     assert set(box) == {"release_lag_s"}
     assert (box["release_lag_s"].min, box["release_lag_s"].max) == (0, 4)
@@ -148,6 +150,7 @@ def test_traci_rule_params():
     for rule in ("early_start", "swarm_red_running"):  # ruling R19: cars too
         assert {"passenger", "motorcycle"} <= set(RULE_VCLASSES[rule]), rule
     assert RULE_VCLASSES["slow_lane_center"] == ("motorcycle",)
+    assert RULE_VCLASSES["uturn_bypass"] == ("passenger", "motorcycle", "custom1", "custom2")
     assert RULE_VCLASSES["queue_space_seeking"] == ("custom1", "custom2")  # violator classes (PLAN 0)
     assert set(DISTRIBUTION_OF_VCLASS.values()) == {"car", "moto", "moto_violator", "car_violator"}
 
@@ -515,20 +518,20 @@ def test_queue_space_seeking_redistribution_is_valid(spec, site):
 
 
 def test_queue_space_seeking_inapplicable_on_proxy_site(spec, site):
-    """Ruling R27: wrong_lane is the only option with p > 0 and it does not exist on the proxy net; a custom1
-    archetype in moto_violator drives only the illegal left, so right_lane / sidewalk do not exist for it either.
-    right_lane exists nowhere since 2026-10-28 (no bollards, straight from lane 0 legal): p_right_lane alone is
-    inapplicable too."""
+    """Ruling R27: the options that do not exist on the proxy net are inapplicable. Since 2026-10-29 a custom1
+    archetype in moto_violator can turn left from lane 0 (a wrong-lane dodge), so p_wrong_lane alone is applicable
+    for it; right_lane (no bollards, straight from lane 0 legal) and sidewalk do not exist for it, so a spec with only
+    those is inapplicable."""
     vio = _arch(spec, "custom1")["id"]
-    issues = validate(_with_seek(spec, [vio], p_wrong_lane=0.5, p_right_lane=0.3, p_sidewalk=0.2), site)
+    assert validate(_with_seek(spec, [vio], p_wrong_lane=0.5, p_right_lane=0.3, p_sidewalk=0.2), site) == []
+    issues = validate(_with_seek(spec, [vio], p_wrong_lane=0.0, p_right_lane=0.5, p_sidewalk=0.5), site)
     assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]")]
-    assert "inapplicable on this site" in issues[0]["message"] and "existing: none" in issues[0]["message"]
+    assert "inapplicable on this site" in issues[0]["message"]
     spec = json.loads(B1.read_text(encoding="utf-8"))
     rid = _sidewalk_rider(spec)
-    issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5), site)
-    assert _codes(issues) == ["logic"] and "existing: sidewalk)" in issues[0]["message"]
-    issues = validate(_with_seek(spec, [rid], p_right_lane=0.5), site)
-    assert _codes(issues) == ["logic"] and "existing: sidewalk)" in issues[0]["message"]
+    assert validate(_with_seek(spec, [rid], p_wrong_lane=0.5), site) == []  # custom1 can turn left from lane 0 (2026-10-29)
+    issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.0, p_right_lane=0.5), site)
+    assert _codes(issues) == ["logic"] and "existing:" in issues[0]["message"] and "sidewalk" in issues[0]["message"]
 
 
 def test_queue_space_seeking_params_checked(spec, site):

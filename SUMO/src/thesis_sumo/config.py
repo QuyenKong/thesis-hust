@@ -26,7 +26,7 @@ EXPERIMENT_EVIDENCE_KEYS = ("illegal_left.mode",)  # PLAN Phase 3 decision (expe
 # (fnmatch patterns, `*` = a list index)
 FIELD_OBSERVATION_EVIDENCE = "field_observation"
 FIELD_OBSERVATION_EVIDENCE_KEYS = ("approaches.*.continuous_right_lane", "approaches.*.right_lane_separator",
-                                   "approaches.*.left_turn_banned")
+                                   "approaches.*.left_turn_banned", "approaches.*.right_lane_length_m")
 
 
 def allowed_evidence(dotted_key: str) -> tuple[str, ...]:

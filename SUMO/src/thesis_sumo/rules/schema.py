@@ -153,6 +153,12 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
         "lat_offset": RuleParam(-1.0, 1.0, "m", "lateral offset from the lane centre the slow rider keeps (0 = "
                                 "centre); |1 m| keeps a 0.9 m wide motorcycle inside a 3.5 m proxy lane; assumed"),
     },
+    "uturn_bypass": {  # Viktor 2026-10-30 (field): most motorcycles pass a standing U-turner, cars rarely
+        "p": RuleParam(0.0, 1.0, "-", "probability that a vehicle held behind a standing U-turner on its own green "
+                       "passes it (beside it in the lane or in the adjacent lane), one draw per vehicle and blocker"),
+        "t_wait": RuleParam(0.0, 10.0, "s", "time the vehicle stands behind the U-turner before the draw; 10 s "
+                            "assumed upper bound (the early-start window, data/proxy/targets.yaml)"),
+    },
 }
 
 # Ruling R19: early start and red running are observed for cars too (targets M2/M3 have car values), so these rules
@@ -161,13 +167,14 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
 # which replaces the former wrong_lane_dodge) is a violator behaviour: custom1 (all three options) and custom2
 # (wrong_lane, right_lane; the sidewalk is custom1 only), PLAN 0 violator_classes; such archetypes reach the demand's
 # legal movements through `distribution` moto / car. The slow-rider rule is a motorcycle behaviour (PLAN 0, I_slow);
-# the box rule is defined for custom1 only.
+# the box rule is defined for custom1 only. uturn_bypass applies to every class (cars with their own, lower p).
 RULE_VCLASSES: dict[str, tuple[str, ...]] = {
     "early_start": ("passenger", "motorcycle", "custom1"),
     "swarm_red_running": ("passenger", "motorcycle", "custom1"),
     "queue_space_seeking": ("custom1", "custom2"),
     "illegal_left_box": ("custom1",),
     "slow_lane_center": ("motorcycle",),
+    "uturn_bypass": ("passenger", "motorcycle", "custom1", "custom2"),
 }
 
 

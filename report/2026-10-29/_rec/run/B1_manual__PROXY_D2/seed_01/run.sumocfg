@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-10-30T01:49:48.056652+07:00 by Eclipse SUMO sumo 1.27.0
+-->
+
+<sumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="D:\hust-master\Thesis\SUMO\scenario\net\site.proxy.net.xml"/>
+        <route-files value="D:\hust-master\Thesis\SUMO\scenario\demand\routes_PROXY_D2.rou.xml"/>
+        <additional-files value="D:\hust-master\Thesis\report\2026-10-29\_rec\compiled\B1_manual\vtypes.add.xml,D:\hust-master\Thesis\SUMO\scenario\net\site.proxy.gui.add.xml,D:\hust-master\Thesis\report\2026-10-29\_rec\run\B1_manual__PROXY_D2\seed_01\outputs.add.xml"/>
+    </input>
+
+    <output>
+        <fcd-output value="fcd.xml.gz"/>
+        <fcd-output.attributes value="x,y,angle,type,speed,pos,lane,posLat,speedLat,acceleration"/>
+        <fcd-output.filter-shapes value="fcd_zone"/>
+        <tripinfo-output value="tripinfo.xml"/>
+        <lanechange-output value="lanechange.xml"/>
+        <collision-output value="collisions.xml"/>
+        <statistic-output value="statistics.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="1500.0"/>
+        <step-length value="0.1"/>
+    </time>
+
+    <processing>
+        <lateral-resolution value="0.4"/>
+        <collision.check-junctions value="true"/>
+    </processing>
+
+    <routing>
+        <device.rerouting.probability value="0"/>
+    </routing>
+
+    <report>
+        <aggregate-warnings value="20"/>
+        <no-step-log value="true"/>
+    </report>
+
+    <random_number>
+        <seed value="1"/>
+    </random_number>
+
+</sumoConfiguration>

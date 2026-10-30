@@ -76,7 +76,7 @@ def _vehicles(routes: Path) -> list[dict]:
 
 def test_candidate_routes_cover_all_movements(net, candidates):
     """Every approach edge -> outbound pair the net connects (for any vClass) appears exactly once, the route starting at
-    the upstream end of the approach (bollard / sidewalk splits); the custom1-only sidewalk is no candidate route."""
+    the upstream end of the approach (right-turn stretch / sidewalk splits); the custom1-only sidewalk is no candidate route."""
     expected = {(e, to.getID()) for e in approach_edges(net).values() for to in net.getEdge(e).getOutgoing()}
     routes = etree.parse(str(candidates)).getroot().findall("route")
     pairs = [tuple(r.get("edges").split()[-2:]) for r in routes]
@@ -89,7 +89,9 @@ def test_candidate_routes_cover_all_movements(net, candidates):
     for (app, mv), edges in cands.items():
         assert approach_of[edges[-2]] == app
         assert list(edges[:-1]) == [e.getID() for e in reversed(approach_segments(net, edges[-2]))]
-        assert len(edges) == (3 if app in ("LVL_W", "LVL_E") else 2)  # split at the sidewalk start only (no bollards)
+        # every approach is split at the end of its 30 m right-turn stretch (open lane 0, Viktor 2026-10-29), LVL_W /
+        # LVL_E also at the sidewalk start
+        assert len(edges) == (4 if app in ("LVL_W", "LVL_E") else 3)
         assert mv in MOVEMENTS
     # HDT_N / HDT_S lefts are banned and re-added for custom1 only (site illegal_left, 2026-10-28) -> illegal_l;
     # the LVL lefts are legal (protected arrow)

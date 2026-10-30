@@ -77,9 +77,15 @@ def _site_text(site: Site) -> str:
         if a.get("left_turn_banned"):
             parts.append(f"left turn banned{_ev(a, 'left_turn_banned')}")
         if a.get("continuous_right_lane") and a.get("right_lane_separator") == "open":
-            parts.append(f"lane 0 is a continuous right-turn lane: right turn at any time (not signal controlled), "
-                         f"straight from it legal on the approach's straight green (no separator)"
-                         f"{_ev(a, 'right_lane_separator')}")
+            extra = [m for m, banned in (("left", a.get("left_turn_banned")), ("U-turn", a.get("u_turn_banned")))
+                     if not banned]
+            parts.append(f"lane 0 is a continuous right-turn lane over the last {a.get('right_lane_length_m')} m before "
+                         f"the stop line{_ev(a, 'right_lane_length_m')} (an ordinary lane upstream of it): right turn at "
+                         f"any time (not signal controlled), straight from it legal on the approach's straight green "
+                         f"(no separator){_ev(a, 'right_lane_separator')}; standing in it at red while going straight, "
+                         f"left or U-turn is a violation"
+                         + (f"; violator classes may also {' / '.join(extra)} from it on the arrow (wrong lane)"
+                            if extra else ""))
         elif a.get("continuous_right_lane"):
             parts.append(f"lane 0 is a continuous right-turn lane (not signal controlled), separated by "
                          f"{a.get('right_lane_separator')} over the last {a.get('bollard_length_m')} m"

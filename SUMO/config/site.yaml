@@ -25,6 +25,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
     right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
+    right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
     sidewalk_width_m: null               # TODO_MEASURE
     bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
                                          # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
@@ -41,6 +42,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
     right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
+    right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
     sidewalk_width_m: null               # TODO_MEASURE
     bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
                                          # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
@@ -57,6 +59,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
     right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
+    right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
     sidewalk_width_m: null               # TODO_MEASURE
     bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
                                          # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
@@ -73,6 +76,7 @@ approaches:                    # logical ids are placeholders; edge <-> directio
     continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
                                          # not signal controlled; modelled as existing lane 0 (no lane added)
     right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
+    right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
     sidewalk_width_m: null               # TODO_MEASURE
     bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
                                          # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
@@ -109,7 +113,7 @@ illegal_left:
                                # explicit waiting edge with its own signal link); decide from the measured box counts
 
 violator_classes:              # vClasses of the violator vTypes; only they may use the violator-only connections
-  moto: custom1                # moto_violator: banned left turn, straight from the continuous right lane, sidewalk lane
-  car: custom2                 # car_violator: straight from the continuous right lane
+  moto: custom1                # moto_violator: banned left turn, left/U-turn from lanes 0 and 1 on a red arrow, sidewalk lane
+  car: custom2                 # car_violator: left/U-turn from lanes 0 and 1 on a red arrow
 f2_measured_approaches: null   # TODO_MEASURE: 1-2 approaches used to measure F2 (camera sees 50-100 m of queue and the
                                # sidewalk); the sidewalk lane (PLAN 1.4) is built only on these

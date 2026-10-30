@@ -1,13 +1,23 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <connections>
-  <!-- LVL_W: lane 0 = continuous right-turn lane, separator open; straight kept as built (everyone, approach straight signal) -->
-  <!-- LVL_E: lane 0 = continuous right-turn lane, separator open; straight kept as built (everyone, approach straight signal) -->
+  <!-- LVL_W: lane 0 = continuous right-turn lane over the last 30.0 m, separator open; straight kept as built (everyone, approach straight signal); violator-only left / U-turn links follow -->
+  <connection from="711526326#1" to="408823207#0" fromLane="0" toLane="2" allow="custom1 custom2"/>
+  <connection from="711526326#1" to="711526328#0" fromLane="0" toLane="2" allow="custom1 custom2"/>
+  <connection from="711526326#1" to="711526328#0" fromLane="1" toLane="2" allow="custom1 custom2"/>
+  <!-- LVL_E: lane 0 = continuous right-turn lane over the last 30.0 m, separator open; straight kept as built (everyone, approach straight signal); violator-only left / U-turn links follow -->
+  <connection from="37876499#0" to="37871458#0" fromLane="0" toLane="2" allow="custom1 custom2"/>
+  <connection from="37876499#0" to="37877893#0" fromLane="0" toLane="2" allow="custom1 custom2"/>
+  <connection from="37876499#0" to="37877893#0" fromLane="1" toLane="2" allow="custom1 custom2"/>
   <!-- HDT_N: banned ['l']; re-added for custom1 only -->
   <delete from="953158817#2" to="37877893#0" fromLane="2" toLane="2"/>
   <connection from="953158817#2" to="37877893#0" fromLane="2" toLane="2" allow="custom1"/>
-  <!-- HDT_N: lane 0 = continuous right-turn lane, separator open; straight kept as built (everyone, approach straight signal) -->
+  <!-- HDT_N: lane 0 = continuous right-turn lane over the last 30.0 m, separator open; straight kept as built (everyone, approach straight signal); violator-only left / U-turn links follow -->
+  <connection from="953158817#2" to="408823207#0" fromLane="0" toLane="2" allow="custom1 custom2"/>
+  <connection from="953158817#2" to="408823207#0" fromLane="1" toLane="2" allow="custom1 custom2"/>
   <!-- HDT_S: banned ['l']; re-added for custom1 only -->
   <delete from="1346358303" to="711526328#0" fromLane="2" toLane="2"/>
   <connection from="1346358303" to="711526328#0" fromLane="2" toLane="2" allow="custom1"/>
-  <!-- HDT_S: lane 0 = continuous right-turn lane, separator open; straight kept as built (everyone, approach straight signal) -->
+  <!-- HDT_S: lane 0 = continuous right-turn lane over the last 30.0 m, separator open; straight kept as built (everyone, approach straight signal); violator-only left / U-turn links follow -->
+  <connection from="1346358303" to="37871458#0" fromLane="0" toLane="2" allow="custom1 custom2"/>
+  <connection from="1346358303" to="37871458#0" fromLane="1" toLane="2" allow="custom1 custom2"/>
 </connections>

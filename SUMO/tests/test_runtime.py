@@ -683,6 +683,54 @@ def test_slow_lane_center_fires(one_lane, tmp_path):
     assert abs(lat[0] + 0.5) < 0.05 and abs(lat[-1] - 0.8) <= 0.2
 
 
+# ---------------------------------------------------------------- uturn_bypass
+
+
+@pytest.fixture(scope="module")
+def uturn_net(tmp_path_factory):
+    """Two lanes per arm; W lane 1 goes straight or U-turns, lane 0 goes straight."""
+    conns = ('<connection from="WC" to="CE" fromLane="0" toLane="0"/><connection from="WC" to="CE" fromLane="1" '
+             'toLane="1"/><connection from="WC" to="CW" fromLane="1" toLane="1"/>')
+    return _cross(tmp_path_factory.mktemp("uturn"), lanes=2, connections=conns)
+
+
+def _uturn_run(net, d, rules):
+    """A U-turner `u` inserted standing 2 m before the W stop line in lane 1 and held there (setSpeed 0) until t=75;
+    a straight car `f` behind it in lane 1 (W green from 45 s). Returns (log rows, time f first is on an internal
+    lane)."""
+    import libsumo
+    end_pos = sumolib.net.readNet(str(net)).getLane("WC_1").getLength() - 2
+    xml = (f'<vehicle id="u" type="moto" depart="40" departLane="1" departPos="{end_pos:.1f}" departSpeed="0" '
+           'departPosLat="0"><route edges="WC CW"/></vehicle>'
+           '<vehicle id="f" type="rule_car" depart="42" departLane="1" departPosLat="0"><route edges="WC CE"/></vehicle>')
+    seen = {}
+
+    def probe(b, t, c):
+        if "u" in b.vehicle.getIDList():
+            b.vehicle.setSpeed("u", 0 if t < 75 else -1)
+        if "f" in b.vehicle.getIDList() and b.vehicle.getLaneID("f").startswith(":"):
+            seen.setdefault("f", t)
+    _, rows = _simulate(libsumo, net, xml, rules, _site(d), d, 100, probe=probe)
+    return rows, seen.get("f")
+
+
+def test_uturn_bypass_changes_lane(uturn_net, tmp_path):
+    """Without the rule the car waits behind the held U-turner until it is released (75 s); with p = 1 it changes to
+    lane 0 on its green and crosses well before that; the laneChangeMode is restored."""
+    (tmp_path / "off").mkdir()
+    (tmp_path / "on").mkdir()
+    rows_off, t_off = _uturn_run(uturn_net, tmp_path / "off", [])
+    rows_on, t_on = _uturn_run(uturn_net, tmp_path / "on", [_rule("uturn_bypass", ["rule_car"], p=1.0, t_wait=1.0)])
+    assert rows_off == [] and t_off > 75
+    assert [(r["action"], r["executed"]) for r in rows_on] == [("change_lane", "True")]
+    assert W_GREEN_ONSET < t_on < 70
+
+
+def test_uturn_bypass_p_zero_never_fires(uturn_net, tmp_path):
+    rows, t = _uturn_run(uturn_net, tmp_path, [_rule("uturn_bypass", ["rule_car"], p=0.0, t_wait=1.0)])
+    assert rows == [] and t > 75
+
+
 # ---------------------------------------------------------------- controller, parity, runner
 
 
@@ -696,7 +744,7 @@ def test_load_rules_rejects_malformed(tmp_path):
     with pytest.raises(ValueError, match="params"):
         load_rules(p)
     assert set(RULE_REGISTRY) == {"early_start", "swarm_red_running", "queue_space_seeking", "illegal_left_box",
-                                  "slow_lane_center"}
+                                  "slow_lane_center", "uturn_bypass"}
 
 
 def test_libsumo_traci_same_interventions(one_lane, tmp_path):

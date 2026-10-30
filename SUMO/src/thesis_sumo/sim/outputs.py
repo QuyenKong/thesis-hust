@@ -142,6 +142,8 @@ class Geometry:
     lane_bounds: dict[str, np.ndarray] = field(default_factory=dict)  # approach -> cumulative stop-line lane widths
     lane_marks: dict[str, list[set]] = field(default_factory=dict)    # approach -> movements per stop-line lane
     link_index: dict[tuple[str, str], int] = field(default_factory=dict)  # (stop-line lane, outbound edge) -> TLS link
+    right_lane_m: dict[str, float] = field(default_factory=dict)  # approach -> length of the stop-line edge (the
+    # continuous right-turn lane stretch of a split approach, site right_lane_length_m)
 
     def opposing_of(self, approach: str) -> str:
         try:
@@ -254,7 +256,8 @@ def junction_geometry(net_path: Path) -> Geometry:
     return Geometry(inbound, lane_info, internal, road_width, {a: sorted(v) for a, v in group_links.items()},
                     box_lanes, opposing, movements, _exit_arms(net, node, inbound), stop_dist,
                     frozenset(ln.getID() for sw in sidewalks for ln in net.getEdge(sw).getLanes()),
-                    lane_bounds, lane_marks, link_index)
+                    lane_bounds, lane_marks, link_index,
+                    {app: net.getEdge(e).getLength() for app, e in inbound.items()})
 
 
 # ---------------------------------------------------------------- readers
@@ -524,7 +527,7 @@ def to_observed_schema(run_dir: Path) -> dict[str, pd.DataFrame]:
               "traversals": _traversals(cr, exits, scan, geo)}
     frames = _annotate(scan.frames, geo, vinfo)
     tables["queue_snapshots"], tables["lateral_snapshots"] = _snapshots(geo, onsets, frames, range_m)
-    tables.update(_f2_tables(geo, frames, grid, cr, routes, onsets, scan.range_entry, range_m))
+    tables.update(_f2_tables(geo, frames, grid, cr, routes, onsets, scan.range_entry, range_m, tls))
     box = [box_queue_rows(a, opp_ends[a], onsets[a], scan.box_rows[scan.box_rows["approach"] == a],
                           scan.box_exits) for a in illegal]
     tables["box_queue"] = (pd.concat(box, ignore_index=True) if box
@@ -637,8 +640,23 @@ def _snapshots(geo: Geometry, onsets: dict, fr: pd.DataFrame, range_m: float) ->
             pd.DataFrame(lat_rows, columns=TABLES["lateral_snapshots"]))
 
 
+def _own_signal_red(geo: Geometry, rows: pd.DataFrame, routes: dict, tls: pd.DataFrame) -> np.ndarray:
+    """Per row (columns t, approach, track_id): the state of the TLS link the vehicle's route takes from the stop-line
+    lane 0 (or, with no such link, from another lane of its approach to the same exit) is `r`."""
+    links = []
+    for t, app, vid in zip(rows["t"], rows["approach"], rows["track_id"]):
+        edges, frm = routes[vid], geo.inbound[app]
+        exit_edge = edges[edges.index(frm) + 1]
+        idx = geo.link_index.get((f"{frm}_0", exit_edge))
+        if idx is None:
+            idx = next(i for (ln, e), i in sorted(geo.link_index.items())
+                       if e == exit_edge and geo.lane_info[ln][0] == app)
+        links.append(idx)
+    return link_states_at(tls, links, rows["t"]) == "r"
+
+
 def _f2_tables(geo: Geometry, fr: pd.DataFrame, grid: list[float], cr: pd.DataFrame, routes: dict, onsets: dict,
-               range_entry: dict, range_m: float) -> dict[str, pd.DataFrame]:
+               range_entry: dict, range_m: float, tls: pd.DataFrame) -> dict[str, pd.DataFrame]:
     """queue_timeseries, space_seeking_events, right_turn_delay (schema_observed; module docstring) from the annotated
     frames on `grid` and the stop-line crossings `cr` (with movement)."""
     g = fr[fr["t"].isin(set(grid)) & (fr["dist_m"] >= 0) & (fr["dist_m"] <= range_m)]
@@ -659,8 +677,13 @@ def _f2_tables(geo: Geometry, fr: pd.DataFrame, grid: list[float], cr: pd.DataFr
     g = g.assign(movement=[movement(v, a) for v, a in zip(g["track_id"], g["approach"])])
     w0 = g["approach"].map(lambda a: geo.lane_bounds[a][0])
     lane0 = g[~on_sw & (g["lat_m"] >= 0) & (g["lat_m"] < w0)]
-    # straight vehicles standing in lane 0 (behaviour 6): driving through it on green is legal since 2026-10-28
-    stand0 = lane0[(lane0["movement"] == "s") & (lane0["speed"] < HALT_SPEED_MPS)]
+    # behaviour 6: a vehicle that goes straight, left or U-turn, standing in lane 0 within the right-turn stretch (the
+    # stop-line edge) while the signal of its own movement is red; driving through on green, and lane 0 upstream of
+    # the stretch, are no event (Viktor 2026-10-28 / 2026-10-29)
+    stand0 = lane0[lane0["movement"].isin(("s", "l", "u")) & (lane0["speed"] < HALT_SPEED_MPS)
+                   & (lane0["dist_m"] <= lane0["approach"].map(geo.right_lane_m))]
+    if len(stand0):
+        stand0 = stand0[_own_signal_red(geo, stand0, routes, tls)]
     ev = []
     for space, sub in (("right_lane", stand0), ("sidewalk", g[on_sw])):
         first = sub.sort_values("t", kind="stable").drop_duplicates("track_id")
