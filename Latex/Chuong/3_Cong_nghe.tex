@@ -2,7 +2,7 @@
 \begin{document}
 
 % Nguồn số liệu của chương: repo SUMO (PLAN.md, config/*.yaml, rules/bounds/param_bounds.yaml,
-% src/thesis_sumo/rules/schema.py, docs/PROGRESS.md đến R45, config/llm.yaml). Cập nhật 2026-10-28 (bản tạm thời).
+% src/thesis_sumo/rules/schema.py, docs/PROGRESS.md đến R45, config/llm.yaml, config/site.proxy.yaml, report/2026-10-28, report/2026-10-29). Cập nhật 2026-10-31 (bản tạm thời).
 % Các mục [TODO] cần bổ sung trước khi nộp.
 
 Chương này trình bày phương pháp. Một mô hình ngôn ngữ lớn (LLM) chạy cục bộ sinh và tinh chỉnh lặp bộ luật hành vi tài xế; trình mô phỏng SUMO~\cite{lopez2018sumo} và một bộ điều khiển TraCI thực thi các luật đó. Mục~\ref{section:3.1} nêu kiến trúc và trạng thái triển khai. Mục~\ref{section:3.2} mô tả kịch bản và mạng mô phỏng. Các mục~\ref{section:3.3} đến~\ref{section:3.5} mô tả cách biểu diễn luật, kiểm tra hợp lệ, biên dịch và thực thi. Mục~\ref{section:3.6} và~\ref{section:3.7} mô tả dữ liệu mục tiêu và chỉ số. Mục~\ref{section:3.8} mô tả vòng hiệu chỉnh và các phương án đối sánh.
@@ -24,14 +24,14 @@ Bảng~\ref{table:3.1} cho trạng thái triển khai của từng thành phần
 \begin{tabular}{|p{6.5cm}|p{7.5cm}|}
 \hline
 \textbf{Thành phần} & \textbf{Trạng thái} \\ \hline
-Mạng tái lập được (làn rẽ phải liên tục, đoạn cọc phân cách, làn vỉa hè), nhu cầu, cấu hình, trình chạy mô phỏng & Đã triển khai, có kiểm thử tự động \\ \hline
+Mạng tái lập được (đèn ba pha, làn rẽ phải liên tục ở 30~m cuối, kết nối chỉ cho xe vi phạm, hai làn vỉa hè), nhu cầu, cấu hình, trình chạy mô phỏng & Đã triển khai, có kiểm thử tự động \\ \hline
 Thí nghiệm khả thi Phase 3A--3D (chặn làn rẽ phải, vỉa hè, đi ngược chiều, xe chờ giữa nút) & Đã thực hiện; đi ngược chiều được hoãn \\ \hline
 Lược đồ đặc tả luật, miền tham số, bộ kiểm tra hợp lệ, bộ biên dịch & Đã triển khai, có kiểm thử tự động \\ \hline
-Bộ điều khiển TraCI với năm luật có điều kiện & Đã triển khai, có kiểm thử tự động \\ \hline
+Bộ điều khiển TraCI với sáu luật có điều kiện & Đã triển khai, có kiểm thử tự động. Luật \texttt{uturn\_bypass} chưa thuộc cấu trúc B1, B2, P1 \\ \hline
 Chỉ số M1--M10, cổng GEH (G0), hàm khoảng cách, điểm tổng & Đã triển khai, có kiểm thử tự động \\ \hline
 Khung đánh giá chung và bộ đếm ngân sách & Đã triển khai, có kiểm thử tự động \\ \hline
 Trình khách LLM, prompt, phản hồi, vòng lặp LLM (P1, P2) & Đã triển khai, có kiểm thử tự động. Chiến dịch P1, P2 với \texttt{qwen3.5:9b} chưa có kết quả chính thức (Mục~\ref{section:3.8}) \\ \hline
-Phương án Optuna (B2, H) & Đã triển khai. B2 xong 36/36 lần chạy; H chưa chạy \\ \hline
+Phương án Optuna (B2, H) & Đã triển khai. B2 xong 36/36 lần chạy trên mạng F2 và 24/24 lần chạy trên mỗi mạng ngày 28/10 (Mục~\ref{subsection:net_versions}); chưa chạy trên mạng cuối; H chưa chạy \\ \hline
 Đánh giá cuối trên ngày đánh giá (E1, E2) & Dự kiến \\ \hline
 \end{tabular}
 \end{table}
@@ -49,7 +49,7 @@ Kịch bản gồm 11 hành vi ở Bảng~\ref{table:1.1}. Ba nhóm khác nhau v
     \item F2 (tìm khoảng trống khi ùn): hành vi 4--8, chung một cơ chế: hàng chờ dài thì tài xế tìm không gian khác để lên đầu hàng;
     \item F3 (tương tác trong nút): hành vi 9--11.
 \end{itemize}
-Hành vi 8 (đi ngược chiều) đã qua thí nghiệm khả thi nhưng được hoãn, chưa có trong mô hình (Mục~\ref{subsection:phase3}). Mọi nhánh có làn rẽ phải liên tục, nên rẽ phải khi đèn đỏ không phải vi phạm và các chỉ số không tính nó là vi phạm.
+Hành vi 8 (đi ngược chiều) đã qua thí nghiệm khả thi nhưng được hoãn, chưa có trong mô hình (Mục~\ref{subsection:phase3}). Mọi nhánh có làn rẽ phải liên tục, nên rẽ phải khi đèn đỏ không phải vi phạm và các chỉ số không tính nó là vi phạm. Hành vi 6 là việc xe có hướng đi thẳng, rẽ trái hoặc quay đầu đứng chờ đèn đỏ của chính nó trên lane 0 trong 30~m cuối trước vạch dừng. Đi thẳng hoặc rẽ trái trên làn này khi đèn xanh là đúng luật.
 
 \subsection{Xây dựng mạng lưới}
 
@@ -62,7 +62,7 @@ Mạng được sinh hoàn toàn bằng script từ dữ liệu OpenStreetMap c�
 \label{fig:3.net}
 \end{figure}
 
-Các hành vi cần không gian riêng dùng bốn bản vá tĩnh, chỉ mở cho lớp xe vi phạm. LLM không sinh hay sửa các bản vá này. Hình~\ref{fig:3.1} minh họa vị trí của chúng, Bảng~\ref{table:3.0} liệt kê chi tiết.
+Các hành vi cần không gian riêng dùng bốn bản vá tĩnh. Những kết nối và làn nằm ngoài phần đường dành cho xe tuân thủ chỉ mở cho lớp xe vi phạm. LLM không sinh hay sửa các bản vá này. Hình~\ref{fig:3.1} minh họa vị trí của chúng, Bảng~\ref{table:3.0} liệt kê chi tiết.
 
 \begin{figure}[ht]
 \centering
@@ -75,31 +75,34 @@ Các hành vi cần không gian riêng dùng bốn bản vá tĩnh, chỉ mở c
   \draw[gray] (-5.2,0.95) -- (-0.95,0.95) -- (-0.95,4.2);
   \draw[gray] (5.2,-0.95) -- (0.95,-0.95) -- (0.95,-4.2);
   \draw[gray] (5.2,0.95) -- (0.95,0.95) -- (0.95,4.2);
-  % làn rẽ phải liên tục, nhánh tây
-  \fill[green!35!black!25] (-5.2,-0.95) rectangle (-0.95,-0.6);
-  % đoạn cọc
+  % làn rẽ phải liên tục: 30 m cuối của cả bốn nhánh
+  \fill[green!35!black!25] (-1.9,-0.95) rectangle (-0.95,-0.6);
+  \fill[green!35!black!25] (0.95,0.6) rectangle (1.9,0.95);
+  \fill[green!35!black!25] (-0.95,0.95) rectangle (-0.6,1.9);
+  \fill[green!35!black!25] (0.6,-1.9) rectangle (0.95,-0.95);
+  % ranh giới đoạn 30 m cuối, nhánh tây
   \draw[very thick, dotted] (-1.9,-0.95) -- (-1.9,0);
-  \draw[very thick, dotted] (-0.95,-0.95) -- (-0.95,0);
-  \draw[<->] (-1.9,0.12) -- node[above]{cọc 30 m} (-0.95,0.12);
-  % làn vỉa hè
+  \draw[<->] (-1.9,0.12) -- node[above]{30 m} (-0.95,0.12);
+  % hai làn vỉa hè
   \fill[orange!45] (-5.2,-1.35) rectangle (-0.95,-1.0);
+  \fill[orange!45] (0.95,1.0) rectangle (5.2,1.35);
   % vạch dừng
   \draw[thick] (-0.95,-0.95) -- (-0.95,0);
-  % xe vi phạm chờ giữa nút
-  \draw[red, very thick, -{Stealth}] (-3.2,-0.3) -- (-0.6,-0.3) to[out=0,in=-90] (0.5,0.25) -- (0.5,3.4);
-  \foreach \p in {(-0.45,-0.05),(-0.15,0.3)} { \fill[red] \p circle (0.09); }
+  % xe vi phạm chờ giữa nút, từ nhánh Hoàng Đạo Thúy phía nam
+  \draw[red, very thick, -{Stealth}] (0.3,-3.4) -- (0.3,-0.75) to[out=90,in=0] (-0.6,0.62) -- (-3.4,0.62);
+  \foreach \p in {(0.27,-0.25),(0.12,0.2)} { \fill[red] \p circle (0.09); }
   % nhãn
   \node[anchor=east] at (-5.3,0) {Tây (Lê Văn Lương)};
   \node[anchor=west] at (5.3,0) {Đông};
   \node[anchor=south] at (0,4.3) {Bắc};
   \node[anchor=north] at (0,-4.3) {Nam};
-  \node[green!35!black, anchor=north west] at (-5.2,-1.55) {làn rẽ phải liên tục (lane 0)};
-  \node[orange!60!black, anchor=north west] at (-5.2,-2.0) {làn vỉa hè, chỉ \texttt{custom1}, dài 170 m};
-  \node[red, anchor=west, align=left] at (1.2,1.8) {xe rẽ trái trái phép:\\vào nút, dừng chờ, rồi rẽ};
-  \node[anchor=west, align=left] at (1.4,-2.2) {vùng chờ giữa nút\\(liên kết nội bộ)};
-  \draw[->, gray] (1.35,-1.9) -- (0.45,-0.55);
+  \node[green!35!black, anchor=north west, align=left] at (-5.2,-1.5) {làn rẽ phải liên tục (lane 0),\\30 m cuối của mỗi nhánh};
+  \node[orange!60!black, anchor=north west, align=left] at (-5.2,-2.45) {làn vỉa hè, chỉ \texttt{custom1},\\dài 170 m, ở hai nhánh\\Lê Văn Lương};
+  \node[red, anchor=west, align=left] at (1.2,-1.8) {xe rẽ trái trái phép từ Hoàng Đạo Thúy:\\vào nút, dừng chờ, rồi rẽ};
+  \node[anchor=west, align=left] at (1.4,2.2) {vùng chờ giữa nút\\(liên kết nội bộ)};
+  \draw[->, gray] (1.35,2.0) -- (0.3,0.35);
 \end{tikzpicture}
-\caption{Sơ đồ minh họa các bản vá mạng trên nhánh phía tây (không theo tỷ lệ). Chiều dài 30~m và 170~m là giả định lấy từ thí nghiệm khả thi; hình học thật của nút chưa đo.}
+\caption{Sơ đồ minh họa các bản vá mạng (không theo tỷ lệ). Đường đỏ vẽ xe từ nhánh Hoàng Đạo Thúy phía nam; nhánh phía bắc đối xứng. Chiều dài 30~m lấy từ khảo sát hiện trường, chưa đo; 170~m là giả định lấy từ thí nghiệm khả thi. Hình học thật của nút chưa đo.}
 \label{fig:3.1}
 \end{figure}
 
@@ -112,28 +115,29 @@ Các hành vi cần không gian riêng dùng bốn bản vá tĩnh, chỉ mở c
 \hline
 \textbf{Bản vá} & \textbf{Nội dung} \\
 \hline
-Rẽ trái trái phép & Trên nhánh cấm rẽ trái, các kết nối rẽ trái hợp lệ bị xóa rồi thêm lại với quyền dùng chỉ dành cho \texttt{custom1}; chỉ nhóm xe vi phạm thực hiện được chuyển động này. Việc dừng chờ giữa nút dùng điểm chờ nội bộ (internal junction) sẵn có của SUMO, chọn sau thí nghiệm đo số xe máy cùng dừng chờ trên liên kết rẽ trái trong nút (Mục~\ref{section:box_capacity}) \\
+Rẽ trái trái phép & Trên hai nhánh Hoàng Đạo Thúy (cấm rẽ trái), các kết nối rẽ trái hợp lệ bị xóa rồi thêm lại với quyền dùng chỉ dành cho \texttt{custom1}; chỉ nhóm xe vi phạm thực hiện được chuyển động này. Việc dừng chờ giữa nút dùng điểm chờ nội bộ (internal junction) sẵn có của SUMO, chọn sau thí nghiệm đo số xe máy cùng dừng chờ trên liên kết rẽ trái trong nút (Mục~\ref{section:box_capacity}). Vì xe chờ có thể lệch tới mép làn nội bộ, lượt \texttt{netconvert} cuối đặt \texttt{internal-junctions.vehicle-width} bằng 3,5~m để điểm chờ nằm ngoài dòng đi thẳng đối diện; mọi điểm chờ khác được ghim về vị trí cũ bằng \texttt{contPos} \\
 \hline
-Làn rẽ phải liên tục & Làn ngoài cùng bên phải (lane 0) của mỗi nhánh, chỉ trong 30~m cuối trước vạch dừng; phía trước đoạn này cả ba làn là làn thường. Liên kết rẽ phải mang trạng thái đèn \texttt{g} (xanh, phải nhường) ở mọi pha. Kết nối đi thẳng từ lane 0 mở cho mọi vClass và theo đèn đi thẳng của nhánh. Rẽ trái từ lane 0 (nhánh không cấm rẽ trái) và quay đầu từ lane 0 và lane 1 là các kết nối chỉ cho \texttt{custom1} và \texttt{custom2}, theo đèn rẽ trái \\
+Làn rẽ phải liên tục & Làn ngoài cùng bên phải (lane 0) của mỗi nhánh, chỉ trong 30~m cuối trước vạch dừng; phía trước đoạn này cả ba làn là làn thường. Liên kết rẽ phải mang trạng thái đèn \texttt{g} (xanh, phải nhường) ở mọi pha. Kết nối đi thẳng từ lane 0 mở cho mọi vClass và theo đèn đi thẳng của nhánh; ở hai nhánh Lê Văn Lương liên kết này mang \texttt{g} vì phải nhường dòng từ vỉa hè đổ vào cùng làn ra. Rẽ trái từ lane 0 (nhánh không cấm rẽ trái) và quay đầu từ lane 0 và lane 1 là các kết nối chỉ cho \texttt{custom1} và \texttt{custom2}, theo đèn rẽ trái \\
 \hline
 Đoạn làn rẽ phải liên tục & Mỗi nhánh tách thành đoạn phía trước và một đoạn dài 30~m sát vạch dừng (\texttt{right\_lane\_length\_m}). Không có cọc phân cách: xe đổi làn tự do giữa lane 0 và lane 1 trên cả hai đoạn. Xe có ý định đi thẳng, rẽ trái hoặc quay đầu mà dừng chờ đèn đỏ ở lane 0 trong đoạn này bị tính là chặn làn rẽ phải \\
 \hline
-Làn vỉa hè & Nhánh Lê Văn Lương phía tây có một làn vỉa hè chỉ cho \texttt{custom1}, bắt đầu 170~m trước vạch dừng và chạy tới vạch dừng. Làn có hai liên kết đèn riêng (24 và 25), được ưu tiên, và xung đột với dòng rẽ phải từ lane 0 \\
+Làn vỉa hè & Mỗi nhánh Lê Văn Lương có một làn vỉa hè chỉ cho \texttt{custom1}, bắt đầu 170~m trước vạch dừng và chạy tới vạch dừng. Mỗi làn có hai liên kết đèn riêng (24, 25 ở nhánh tây; 26, 27 ở nhánh đông), được ưu tiên, và xung đột với dòng rẽ phải từ lane 0. Xe rẽ phải từ vỉa hè nhường dòng đi thẳng Hoàng Đạo Thúy; một \texttt{prohibition} bỏ chiều nhường ngược lại, vì hai dòng nhường nhau cả hai chiều đã gây kẹt cứng ở cửa ra vỉa hè \\
 \hline
 \end{tabular}
 \end{table}
 
-Chiều dài đoạn cọc, vị trí và kích thước vỉa hè là giá trị giả định lấy từ các thí nghiệm khả thi Phase 3A và 3B (Mục~\ref{subsection:phase3}); các trường tương ứng trong tệp cấu hình hiện trường đo thực vẫn để trống.
+Chiều dài 30~m của đoạn làn rẽ phải lấy từ khảo sát hiện trường, chưa đo. Vị trí, bề rộng và tốc độ trên vỉa hè là giá trị giả định lấy từ thí nghiệm khả thi Phase 3B (Mục~\ref{subsection:phase3}); các trường này trong tệp cấu hình hiện trường đo thực vẫn để trống.
 
 \subsection{Thông số hiện trường}
 
-Chưa có số liệu đo thực địa: mọi giá trị đo trong tệp cấu hình hiện trường đang để trống. Mô phỏng dùng một cấu hình đại diện, trong đó mỗi giá trị gắn nguồn và mức bằng chứng (lấy từ tài liệu, chuyển giao từ bối cảnh khác, hoặc giả định). Cấu hình đại diện gồm:
+Chưa có số liệu đo thực địa. Tệp cấu hình hiện trường chỉ ghi các điều quan sát được tại nút (nhánh cấm rẽ trái, làn rẽ phải liên tục, đoạn 30~m); mọi giá trị đo khác để trống. Mô phỏng dùng một cấu hình đại diện, trong đó mỗi giá trị gắn nguồn và mức bằng chứng (lấy từ tài liệu, chuyển giao từ bối cảnh khác, hoặc giả định). Cấu hình đại diện gồm:
 \begin{itemize}
     \item bề rộng làn 3,5~m cho mọi làn vào và làn ra, theo mục 9.2.3, Bảng 10 của TCVN 13592:2022 cho đường phố chính~\cite{tcvn13592}; số làn lấy từ OpenStreetMap;
-    \item ba làn mỗi nhánh: lane 0 là làn rẽ phải liên tục (xác nhận khi khảo sát hiện trường), hai làn còn lại có đèn;
+    \item ba làn mỗi nhánh. Thượng nguồn cả ba là làn thường; ở 30~m cuối, lane 0 là làn rẽ phải liên tục (xác nhận khi khảo sát hiện trường): rẽ phải không theo đèn, đi thẳng theo đèn đi thẳng. Lane 1 đi thẳng; lane 2 đi thẳng và quay đầu, thêm rẽ trái ở hai nhánh Lê Văn Lương. Cách chia hướng theo làn là giả định;
     \item chu kỳ đèn 120~s. TCCS 24:2018/TCĐBVN~\cite{tccs24_2018} (mục 6.7.5) cho chu kỳ thường 60--90~s và tới 120~s trong trường hợp đặc biệt; Mai và cộng sự đo được 127~s tại nút Láng Hạ -- Láng trên cùng trục~\cite{mai2019signal}, nên luận văn lấy cận trên 120~s;
-    \item hai pha chính (TCCS 24:2018, mục 6.4.2), vàng 4~s (mục 6.7.6, với tốc độ thiết kế không quá 60~km/h), đỏ toàn phần 2~s (giả định); chia xanh 64/44~s là giả định, ưu tiên trục Lê Văn Lương trong cao điểm sáng. Các trạng thái của chu kỳ là 64/4/2/44/4/2~s;
-    \item nhánh phía tây đường Lê Văn Lương cấm rẽ trái (giả định).
+    \item ba pha, theo khảo sát hiện trường: Lê Văn Lương đi thẳng; mũi tên rẽ trái và quay đầu của Lê Văn Lương (hai nhánh cùng lúc, đi thẳng đỏ); Hoàng Đạo Thúy. Vàng 4~s (TCCS 24:2018, mục 6.7.6, với tốc độ thiết kế không quá 60~km/h), đỏ toàn phần 2~s (giả định). Chia xanh 42/16/44~s là giả định: 64~s xanh của Lê Văn Lương ở phiên bản hai pha được tách thành 42~s đi thẳng, 16~s mũi tên và 6~s chuyển pha. Các trạng thái của chu kỳ là 42/4/2/16/4/2/44/4/2~s;
+    \item hai nhánh Hoàng Đạo Thúy cấm rẽ trái; rẽ trái từ Lê Văn Lương được phép và có mũi tên riêng (khảo sát hiện trường). Việc xe vi phạm rẽ trái và chờ giữa nút ở hai nhánh cấm là giả định;
+    \item hai nhánh Lê Văn Lương có vỉa hè mà xe máy dùng để vượt hàng chờ (khảo sát hiện trường); hình học vỉa hè là giả định.
 \end{itemize}
 Khi có số liệu thực địa, các giá trị này sẽ được thay. Luận văn vì vậy không khẳng định mạng mô phỏng có đúng hình học hay chương trình đèn của nút thật.
 
@@ -194,9 +198,17 @@ Hai thuộc tính không chỉ số nào ràng buộc (\texttt{lcAccelLat}, \tex
 
 \subsection{Luật có điều kiện}
 
-Bảng~\ref{table:3.2} định nghĩa năm loại luật TraCI. Miền giá trị của tham số là lựa chọn mô hình hóa, phần lớn ở mức giả định, và do bộ kiểm tra hợp lệ kiểm soát.
+Bảng~\ref{table:3.2} định nghĩa sáu loại luật TraCI. Miền giá trị của tham số là lựa chọn mô hình hóa, phần lớn ở mức giả định, và do bộ kiểm tra hợp lệ kiểm soát.
 
-Luật \texttt{queue\_space\_seeking} gộp hành vi 5, 6, 7 của nhóm F2 vào một cơ chế và thay luật đi sai làn riêng lẻ của phiên bản trước. Luật không có lựa chọn đi ngược chiều vì hành vi 8 đã hoãn. Xác suất của một lựa chọn không có trên mạng (ví dụ \texttt{wrong\_lane}, không áp dụng được trên mạng đại diện) được chia lại theo tỷ lệ cho các lựa chọn còn lại. Luật không khóa chế độ chuyển làn của xe, và mỗi can thiệp ghi lựa chọn vào nhật ký.
+Luật \texttt{queue\_space\_seeking} gộp hành vi 5, 6, 7 của nhóm F2 vào một cơ chế và thay luật đi sai làn riêng lẻ của phiên bản trước. Luật không có lựa chọn đi ngược chiều vì hành vi 8 đã hoãn. Xác suất của một lựa chọn không có trên mạng được chia lại theo tỷ lệ cho các lựa chọn còn lại. Trên mạng cuối:
+\begin{itemize}
+    \item \texttt{right\_lane} không tồn tại, vì lựa chọn này chỉ có nghĩa khi lane 0 cấm đi thẳng và có cọc ngăn đổi làn; hành vi 6 đến từ cách SUMO chọn làn và từ hàng chờ;
+    \item \texttt{wrong\_lane} chỉ còn một dạng: xe \texttt{custom1}, \texttt{custom2} quay đầu chuyển từ lane 2 sang lane 1, ở cả bốn nhánh. Lựa chọn này chỉ chuyển sang làn kề, nên không đưa xe rẽ trái từ lane 2 sang lane 0;
+    \item \texttt{sidewalk} áp dụng ở hai nhánh Lê Văn Lương.
+\end{itemize}
+Luật không khóa chế độ chuyển làn của xe, và mỗi can thiệp ghi lựa chọn vào nhật ký.
+
+Luật \texttt{uturn\_bypass} được thêm sau khảo sát hiện trường ngày 30/10/2026: phần lớn xe máy đứng sau một xe quay đầu đang chờ sẽ lách qua, ô tô ít khi làm vậy. Luật chưa thuộc cấu trúc B1, B2, P1 và chưa có trong prompt; hiện chỉ đặc tả \texttt{B1\_uturn\_bypass} dùng nó (Mục~\ref{subsection:uturn}). Trong lúc can thiệp, bit 9--8 của lane change mode đặt thành 01 (chỉ tránh va chạm tức thời) và \texttt{lcPushy} của riêng xe đó đặt thành 1; cả hai được trả lại khi can thiệp kết thúc. Speed mode không đổi.
 
 \begin{table}[ht]
 \centering
@@ -211,6 +223,7 @@ Luật \texttt{queue\_space\_seeking} gộp hành vi 5, 6, 7 của nhóm F2 vào
 \texttt{queue\_\allowbreak space\_\allowbreak seeking} & Mỗi xe rút ngẫu nhiên một lần khi điều kiện kích hoạt đầu tiên thỏa: hàng chờ ở làn đúng dài ít nhất $q$; hoặc xe đã dừng ít nhất $t_w$; hoặc, $t_{g}$ giây trước lượt xanh kế tiếp, xe ước lượng (với sai số nhân ngẫu nhiên $\sigma$) rằng mình không qua kịp vạch trong lượt xanh đó. Kết quả rút là một trong \texttt{wrong\_lane}, \texttt{right\_lane}, \texttt{sidewalk} hoặc không làm gì; xe đi trong không gian thay thế với tốc độ không quá $v_{\text{creep}}$ & $q \in [5,80]$~m; $t_w \in [5,120]$~s (tùy chọn); $t_{g} \in [0,20]$~s; $\sigma \in [0,1]$; ba xác suất trong $[0,1]$, tổng $\le 1$; $v_{\text{creep}} \in [0{,}5;\,5]$~m/s; vùng nhập lại $[3,20]$~m & custom1, custom2 \\ \hline
 \texttt{illegal\_\allowbreak left\_\allowbreak box} & Giữ thêm xe đang chờ giữa nút một khoảng $\Delta_{\text{release}}$ so với lúc SUMO tự giải phóng; không bỏ qua xe xung đột & $\Delta_{\text{release}} \in [0,4]$~s & custom1 \\ \hline
 \texttt{slow\_\allowbreak lane\_\allowbreak center} & Xe máy đi chậm, giữ vị trí ngang lệch $\delta$ so với tim làn & $\delta \in [-1,1]$~m & motorcycle \\ \hline
+\texttt{uturn\_\allowbreak bypass} & Xe đứng sau một xe quay đầu đang đứng trên cùng làn vạch dừng (cách không quá 10~m, chồng ngang với nó) khi đèn của chính nó xanh. Sau $t_{\text{wait}}$ giây, rút một lần với xác suất $p$ cho mỗi cặp xe. Nếu trúng, xe lách ngang vào khe gần nhất bên cạnh xe quay đầu (lề 0,1~m); không có khe thì đổi sang làn kề có nối tới hướng đi của xe & $p \in [0,1]$; $t_{\text{wait}} \in [0,10]$~s & passenger, motorcycle, custom1, custom2 \\ \hline
 \end{tabular}
 \end{table}
 
@@ -231,9 +244,10 @@ Bộ biên dịch chuyển đặc tả hợp lệ thành hai tệp. \texttt{vtyp
 \section{Bộ điều khiển thực thi luật}
 \label{section:3.5}
 
-Mỗi loại luật là một lớp riêng, được gọi ở mỗi bước mô phỏng. Bộ điều khiển có bốn đặc điểm:
+Mỗi loại luật là một lớp riêng, được gọi ở mỗi bước mô phỏng. Bộ điều khiển có năm đặc điểm:
 \begin{itemize}
     \item dùng đăng ký nhận dữ liệu (subscription) thay vì truy vấn từng xe;
+    \item trạng thái đèn của mỗi xe lấy theo liên kết TLS của chính nó, nên xe rẽ trái Lê Văn Lương trong pha mũi tên không bị tính là vượt đỏ;
     \item chỉ xử lý xe trong bán kính 220~m quanh nút, đủ phủ điểm bắt đầu làn vỉa hè;
     \item mỗi xe chịu tối đa một can thiệp tại một thời điểm, để các lệnh ghi đè không chồng lên nhau;
     \item luật vượt đèn đỏ chỉ xóa bit ``phanh để không vượt đèn đỏ'' của speed mode. Các bit an toàn khác, kể cả bit nhường đường cho xe xung đột, được giữ nguyên.
@@ -254,14 +268,14 @@ Luận văn dự kiến dùng dữ liệu quan sát trích từ video quay tại
 Chưa có dữ liệu video \textbf{[TODO: cập nhật khi có dữ liệu thực]}. Để kiểm thử cả quy trình, luận văn dựng năm ``ngày đại diện'' PROXY\_D1--PROXY\_D5, sinh theo từng sự kiện phương tiện từ một bảng giá trị mục tiêu tổng hợp từ tài liệu. Mỗi giá trị mục tiêu mang nhãn bằng chứng: lấy từ tài liệu, chuyển giao từ bối cảnh khác, hoặc giả định. Biến động giữa các ngày đến từ hệ số theo ngày, chuẩn hóa để trung bình năm ngày bằng giá trị mục tiêu danh nghĩa.
 \end{sloppypar}
 
-Việc chia ngày như sau. PROXY\_D1--PROXY\_D3 dùng để hiệu chỉnh. PROXY\_D4--PROXY\_D5 chỉ dùng cho đánh giá cuối; LLM và Optuna không được thấy thống kê của chúng. Các mục tiêu của nhóm F2 (xác suất chọn không gian thay thế, độ trễ xe rẽ phải bị chặn) đều mang nhãn giả định. Tỷ lệ vượt đỏ của xe máy nhánh Lê Văn Lương phía tây trên năm ngày lệch $+17{,}6\%$ so với mục tiêu; bộ năm ngày vẫn được giữ, vì ngày dữ liệu không được chọn lại theo kết quả. Dữ liệu mục tiêu không phải quan sát thực, nên kết quả hiệu chỉnh trên các ngày này chỉ cho biết quy trình vận hành được, không cho biết mô phỏng giống giao thông thực đến đâu.
+Việc chia ngày như sau. PROXY\_D1--PROXY\_D3 dùng để hiệu chỉnh. PROXY\_D4--PROXY\_D5 chỉ dùng cho đánh giá cuối; LLM và Optuna không được thấy thống kê của chúng. Các mục tiêu của nhóm F2 (xác suất chọn không gian thay thế, độ trễ xe rẽ phải bị chặn) đều mang nhãn giả định. Hai mục tiêu của hành vi 6 (\texttt{right\_lane\_choice\_prob}, \texttt{lane0\_hold\_s}) được suy từ thiết lập có cọc của thí nghiệm 3A và chưa định nghĩa lại theo mô hình làn 30~m, nên điểm M9 trên mạng cuối chưa đọc được như sai lệch hành vi (Mục~\ref{subsection:ref_n29}). Bộ năm ngày hiện tại được sinh lại cho kịch bản ba pha; ngày dữ liệu không được chọn lại theo kết quả. Dữ liệu mục tiêu không phải quan sát thực, nên kết quả hiệu chỉnh trên các ngày này chỉ cho biết quy trình vận hành được, không cho biết mô phỏng giống giao thông thực đến đâu.
 
 \section{Hệ thống chỉ số đánh giá}
 \label{section:3.7}
 
 \subsection{Các chỉ số}
 
-Mỗi chỉ số là một hàm trên dữ liệu theo lược đồ chung, trả về một phân phối hoặc một giá trị vô hướng. Bảng~\ref{table:3.3} liệt kê các chỉ số đã triển khai. M1--M10 được tính trong cửa sổ $[300, 1800)$~s ở cả phía mô phỏng và phía quan sát (300~s đầu là giai đoạn khởi động). Cổng G0 tính trên hai ô 15 phút của khoảng 0--1800~s.
+Mỗi chỉ số là một hàm trên dữ liệu theo lược đồ chung, trả về một phân phối hoặc một giá trị vô hướng. Bảng~\ref{table:3.3} liệt kê các chỉ số đã triển khai. M1--M10 được tính trong cửa sổ $[300, 1800)$~s ở cả phía mô phỏng và phía quan sát (300~s đầu là giai đoạn khởi động). Cổng G0 tính trên hai ô 15 phút của khoảng 0--1800~s. M1--M3 chỉ xét các hướng đi theo đầu đèn đi thẳng của nhánh: rẽ phải trên làn liên tục và các hướng có mũi tên riêng (rẽ trái, quay đầu của Lê Văn Lương) không được phân loại, ở cả phía mô phỏng và phía quan sát.
 
 \begin{table}[ht]
 \centering
@@ -278,9 +292,9 @@ M3 & Số xe vượt đỏ mỗi chu kỳ, tỷ số phương sai trên trung b�
 M4 & Vị trí ngang của xe máy đang dừng khi đèn chuyển xanh; tỷ lệ và độ sâu vượt quá vạch dừng & m; phân phối \\ \hline
 M5 & Chiều dài hàng chờ và mật độ xe máy khi đèn chuyển xanh, theo nhánh & m; xe/m\textsuperscript{2} \\ \hline
 M6 & Thời gian đi qua nút và qua nhánh vào, theo hướng $\times$ vClass & s; phân phối \\ \hline
-M7 & M7a: số xe chờ giữa nút và thời điểm xả. M7b: độ trễ giải phóng vùng chờ (đại diện cho PET). M7c: độ dốc tổn thất khởi động của hướng giao cắt theo số xe chờ & xe; s; s/xe \\ \hline
+M7 & M7a: số xe chờ giữa nút và thời điểm xả. M7b: độ trễ giải phóng vùng chờ (đại diện cho PET). M7c: độ dốc tổn thất khởi động của hướng giao cắt theo tổng số xe chờ ở hai vùng chờ & xe; s; s/xe \\ \hline
 M8 & Tỷ lệ xe rẽ đi ở làn không khớp hướng ra & Tỷ lệ \\ \hline
-M9 & Chặn làn rẽ phải liên tục. M9a: số xe đi thẳng trên làn rẽ phải mỗi chu kỳ. M9b: độ trễ và tỷ lệ xe rẽ phải bị chặn. M9c: độ dài hàng chờ lúc xe chọn làn rẽ phải (chỉ báo cáo) & xe/chu kỳ; s; tỷ lệ; m \\ \hline
+M9 & Chặn làn rẽ phải liên tục. M9a: số xe có hướng đi thẳng, rẽ trái hoặc quay đầu đứng chờ đèn đỏ của chính nó trên lane 0 trong đoạn 30~m cuối, mỗi chu kỳ. M9b: độ trễ và tỷ lệ xe rẽ phải bị chặn. M9c: độ dài hàng chờ lúc xe đó đứng vào lane 0 (chỉ báo cáo) & xe/chu kỳ; s; tỷ lệ; m \\ \hline
 M10 & Đi trên vỉa hè. M10a: số xe máy trên vỉa hè mỗi chu kỳ. M10b: độ dài hàng chờ lúc xe chọn vỉa hè (chỉ báo cáo) & xe/chu kỳ; m \\ \hline
 \end{tabular}
 \end{table}
@@ -297,7 +311,7 @@ Hàm khoảng cách được cài đặt như sau.
 
 Điểm tổng $S$ dùng cho bộ tối ưu là trung bình có trọng số của các khoảng cách. Trọng số chia đều cho các nhóm M1--M10 có mặt; trong mỗi nhóm chia đều cho các chỉ số con (ví dụ M7a, M7b, M7c), rồi cho các khóa. Chỉ khóa được chấm điểm mới có trọng số. $S$ tách thành hai phần cộng lại bằng $S$: $S_{\text{sourced}}$ từ các khóa có mục tiêu có nguồn, và $S_{\text{assumed}}$ từ các khóa có mục tiêu giả định.
 
-M9c và M10b chỉ báo cáo, không chấm điểm. Hàng chờ mô phỏng bị cắt ở phạm vi quan sát 80~m vì mạng quá tải (Mục~\ref{subsection:r28_f2}), nên hai khóa này luôn ở mức trần $D_{\text{empty}}$.
+M9c và M10b chỉ báo cáo, không chấm điểm. Trên mạng cuối, M9c là 1,96 với B0 và 2,00 với B1, vì hàng chờ lúc xe đứng vào lane 0 dài hơn mục tiêu (trung bình 47 và 60~m so với 16~m). M10b bằng $D_{\text{empty}}$ ở cả hai vì không xe nào đi vỉa hè.
 
 Một hạn chế đã biết: với tỷ lệ rất nhỏ (ví dụ tỷ lệ xuất phát sớm của ô tô), khoảng cách khi mô phỏng bằng 0 là 1, còn khi mô phỏng gấp hơn hai lần quan sát là 2. Ép hành vi về 0 vì vậy vẫn rẻ hơn. Cách xử lý trường hợp này chưa chốt \textbf{[Câu hỏi cho GVHD: nên làm mượt khoảng cách của tỷ lệ nhỏ (ví dụ cộng hằng số vào mẫu số, hoặc dùng khoảng cách trên số đếm thay vì tỷ lệ), hay giữ nguyên và nêu là hạn chế?]}.
 
@@ -308,7 +322,7 @@ Một hạn chế đã biết: với tỷ lệ rất nhỏ (ví dụ tỷ lệ x
 
 \textbf{Giao diện và đầu ra.} LLM được gọi qua giao diện tương thích OpenAI, để mã không gắn với một runtime. Đầu ra có cấu trúc theo lược đồ JSON của đặc tả. Lược đồ gửi cho LLM là một tập con an toàn với bộ giải mã có cấu trúc: thuộc tính được liệt kê rõ từ tệp miền giá trị, không dùng cấu trúc điều kiện. Lược đồ đầy đủ vẫn dùng để kiểm tra hợp lệ. Nếu máy chủ từ chối lược đồ, trình khách lùi về chế độ JSON thông thường.
 
-\textbf{Prompt và phản hồi.} Prompt có phiên bản (hiện là \texttt{v001}) và gồm: vai trò và ràng buộc; bối cảnh nút giao kèm từ điển tham số sinh tự động; và với mỗi vòng trước, một tin nhắn chứa các đặc tả của vòng đó cùng phản hồi. Phản hồi gồm khoảng cách theo từng chỉ số, tỷ lệ ô GEH đạt, số và vị trí teleport kẹt, lỗi từ bộ kiểm tra hợp lệ, và tóm tắt can thiệp TraCI. Phản hồi chỉ dùng mục tiêu của PROXY\_D1--PROXY\_D3; mã báo lỗi nếu thông tin của ngày đánh giá lọt vào.
+\textbf{Prompt và phản hồi.} Prompt có phiên bản (hiện là \texttt{v002}, mô tả kịch bản ba pha và mạng cuối; \texttt{v001} giữ lại cho các chiến dịch cũ, phiên bản được khóa theo chiến dịch) và gồm: vai trò và ràng buộc; bối cảnh nút giao kèm từ điển tham số sinh tự động; và với mỗi vòng trước, một tin nhắn chứa các đặc tả của vòng đó cùng phản hồi. Phản hồi gồm khoảng cách theo từng chỉ số, tỷ lệ ô GEH đạt, số và vị trí teleport kẹt, lỗi từ bộ kiểm tra hợp lệ, và tóm tắt can thiệp TraCI. Phản hồi chỉ dùng mục tiêu của PROXY\_D1--PROXY\_D3; mã báo lỗi nếu thông tin của ngày đánh giá lọt vào.
 
 \textbf{Số lần thử và nhịp vòng.} Mỗi mẫu được thử tối đa 3 lần; khi đặc tả không hợp lệ, danh sách lỗi được gửi lại cho LLM, và đặc tả không hợp lệ không tốn lần chạy SUMO. Mỗi vòng sinh 4 mẫu. Sau ba vòng theo kế hoạch, nếu còn ngân sách (do có mẫu không hợp lệ), vòng lặp chạy thêm cho tới khi hết, tối đa 5 vòng; số vòng thực tế được ghi lại.
 
@@ -333,7 +347,7 @@ Bảng~\ref{table:3.4} định nghĩa sáu cấu hình.
 \hline
 B0 & SUMO với tham số mặc định, không có luật TraCI \\
 \hline
-B1 & Bộ luật thủ công; tham số tham khảo mô hình hỗn hợp cho Hà Nội của Saval và cộng sự~\cite{saval2023mixed}. B1 có sẵn cấu trúc nhóm F2: nguyên mẫu xe máy và ô tô tìm khoảng trống với tỷ trọng 0,1, và luật \texttt{queue\_space\_seeking} với mọi xác suất bằng 0, để các phương án chỉnh tham số trên cấu trúc B1 điều chỉnh được nhóm hành vi này \\
+B1 & Bộ luật thủ công; tham số tham khảo mô hình hỗn hợp cho Hà Nội của Saval và cộng sự~\cite{saval2023mixed}. B1 có sẵn cấu trúc nhóm F2: nguyên mẫu xe máy và ô tô tìm khoảng trống với tỷ trọng 0,1, và luật \texttt{queue\_space\_seeking} với mọi xác suất bằng 0 gán cho nguyên mẫu xe máy, để các phương án chỉnh tham số trên cấu trúc B1 điều chỉnh được nhóm hành vi này. Từ khi bỏ cọc, nguyên mẫu ô tô không gắn với luật nào; nó chỉ có thêm quyền dùng các kết nối vi phạm từ lane 0 và lane 1 \\
 \hline
 B2 & Tham số do Optuna~\cite{akiba2019optuna} tối ưu trên cấu trúc cố định của B1 \\
 \hline
@@ -350,7 +364,7 @@ Hai thí nghiệm so sánh: E1 (P1 so với B2, cùng cấu trúc cố định) 
 
 Optuna dùng bộ lấy mẫu TPE với seed 0 và 4 thử nghiệm khởi đầu ngẫu nhiên. Không gian tìm kiếm chỉ gồm tham số mà cấu trúc khai báo, và được tham số hóa lại để mọi thử nghiệm đều hợp lệ: \texttt{lcPushyGap} biểu diễn bằng tỷ lệ của \texttt{minGapLat}; $p_{\max}$ bằng $p_0$ cộng một tỷ lệ của $1-p_0$; tỷ trọng các nguyên mẫu lấy trên đơn hình bằng cách bẻ que (stick-breaking).
 
-Mọi phương án dùng chung ngân sách 36 lần chạy SUMO. Mỗi đặc tả được đánh giá bằng 3 lần chạy, mỗi ngày hiệu chỉnh PROXY\_D1, PROXY\_D2, PROXY\_D3 một lần, với seed 1. Ngân sách vì vậy tương ứng 12 đặc tả: 3 vòng $\times$ 4 mẫu với LLM, hoặc 12 thử nghiệm với Optuna. Cách chia 1 seed $\times$ 3 ngày phủ biến động giữa các ngày trong cùng ngân sách. Bộ đếm ngân sách gắn với từng chiến dịch, lưu trên đĩa và trừ dưới khóa tệp, nên chạy lại một chiến dịch không làm vượt ngân sách.
+Mọi phương án dùng chung ngân sách 36 lần chạy SUMO. Mỗi đặc tả được đánh giá bằng 3 lần chạy, mỗi ngày hiệu chỉnh PROXY\_D1, PROXY\_D2, PROXY\_D3 một lần, với seed 1. Ngân sách vì vậy tương ứng 12 đặc tả: 3 vòng $\times$ 4 mẫu với LLM, hoặc 12 thử nghiệm với Optuna. Cách chia 1 seed $\times$ 3 ngày phủ biến động giữa các ngày trong cùng ngân sách. Bộ đếm ngân sách gắn với từng chiến dịch, lưu trên đĩa và trừ dưới khóa tệp, nên chạy lại một chiến dịch không làm vượt ngân sách. Hai chiến dịch B2 trên mạng ngày 28/10 dùng ngân sách 24 lần chạy (8 thử nghiệm), không dùng 36.
 
 \subsection{Cấu hình mô phỏng và tiêu chí đủ điều kiện}
 
@@ -364,7 +378,7 @@ Một lần chạy \emph{đủ điều kiện} (eligible) khi thỏa cả năm �
     \item số va chạm trên làn không quá 4 va chạm/h, và số va chạm trong nút không quá 142 va chạm/h;
     \item có tối đa 1 va chạm liên quan đến xe đang chịu can thiệp TraCI.
 \end{enumerate}
-Hai ngưỡng va chạm được suy từ B0 trên mạng cuối và đóng băng trước vòng LLM đầu tiên (Mục~\ref{subsection:r28_f2}). Một đặc tả đủ điều kiện khi mọi lần chạy của nó đủ điều kiện. Nó chỉ được chọn làm tốt nhất nếu tỷ lệ va chạm trên làn trung bình không vượt mức của B0 cộng 1 va chạm/h (B0: 1,333 va chạm/h). Nếu không có đặc tả nào đủ điều kiện, đặc tả tốt nhất được chọn theo số teleport kẹt và kẹt khi nhường đường trung bình mỗi giờ, rồi theo $S$; khi đó mức trần va chạm không áp dụng.
+Hai ngưỡng va chạm được suy từ B0 trên mạng F2 và đóng băng trước vòng LLM đầu tiên (Mục~\ref{subsection:r28_f2}); chúng chưa được tính lại trên mạng cuối, nơi chính B0 vượt ngưỡng va chạm trên làn (Mục~\ref{subsection:ref_n29}). Một đặc tả đủ điều kiện khi mọi lần chạy của nó đủ điều kiện. Nó chỉ được chọn làm tốt nhất nếu tỷ lệ va chạm trên làn trung bình không vượt mức của B0 cộng 1 va chạm/h. Mức của B0 khai báo theo từng chiến dịch: 1,333 va chạm/h trên mạng F2, 2,667 và 1,333 va chạm/h trên hai mạng ngày 28/10. Nếu không có đặc tả nào đủ điều kiện, đặc tả tốt nhất được chọn theo số teleport kẹt và kẹt khi nhường đường trung bình mỗi giờ, rồi theo $S$; khi đó mức trần va chạm không áp dụng.
 
 Việc so sánh các cấu hình trên ngày đánh giá dự kiến dùng kiểm định Mann--Whitney~\cite{mann1947test} cho từng cặp, hiệu chỉnh Holm~\cite{holm1979simple} cho phép so sánh bội, và kích thước hiệu ứng Cliff's delta~\cite{cliff1993dominance}.
 

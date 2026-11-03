@@ -53,7 +53,7 @@ Mục tiêu của luận văn là mô phỏng hành vi tham gia giao thông tạ
 \hline
 4 & \multirow{5}{3.2cm}{Tìm khoảng trống khi ùn} & Khoảng cách ngang nhỏ, lấn chiếm và luồn lách \\
 5 & & Đi sai làn để né đèn \\
-6 & & Xe đi thẳng chiếm làn rẽ phải liên tục \\
+6 & & Chặn làn rẽ phải liên tục: xe không rẽ phải dừng chờ đèn đỏ trên làn này \\
 7 & & Xe máy đi trên vỉa hè để vượt hàng chờ \\
 8 & & Đi ngược chiều ở đoạn không có dải phân cách (hoãn) \\
 \hline
@@ -64,7 +64,7 @@ Mục tiêu của luận văn là mô phỏng hành vi tham gia giao thông tạ
 \end{tabular}
 \end{table}
 
-\textbf{Điều LLM được và không được làm.} LLM sinh luật qua hai kênh: tham số kiểu phương tiện, và luật TraCI có điều kiện. LLM cũng quyết định tỷ trọng các kiểu tài xế. LLM không sinh hay sửa mạng lưới đường. Mạng được giữ cố định, ngoài các bản vá tĩnh chỉ dành cho lớp xe vi phạm: kết nối rẽ trái trái phép và làn vỉa hè, những hành vi cần không gian riêng.
+\textbf{Điều LLM được và không được làm.} LLM sinh luật qua hai kênh: tham số kiểu phương tiện, và luật TraCI có điều kiện. LLM cũng quyết định tỷ trọng các kiểu tài xế. LLM không sinh hay sửa mạng lưới đường. Mạng được giữ cố định, ngoài các bản vá tĩnh chỉ dành cho lớp xe vi phạm: kết nối rẽ trái trái phép, kết nối rẽ trái và quay đầu từ làn rẽ phải, và làn vỉa hè, những hành vi cần không gian riêng.
 
 \textbf{Ngoài phạm vi.} Ô tô đỗ dưới lòng đường và mô hình chọn lộ trình không được cài đặt.
 

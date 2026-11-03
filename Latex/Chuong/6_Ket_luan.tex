@@ -3,7 +3,7 @@
 
 % Nguồn: docs/PROGRESS.md (bảng trạng thái Task 1--15, rulings), PLAN.md (Phase 5--7, mục 8),
 % docs/superpowers/specs/2026-10-25-proxy-benchmark-loop-design.md, config/site.yaml, config/llm.yaml;
-% cập nhật 2026-10-28 (bản tạm thời): report/2026-10-27/data/campaign_specs.csv, experiments/campaigns/REF_run.log.
+% cập nhật 2026-10-31 (bản tạm thời): report/2026-10-27/data/campaign_specs.csv, experiments/campaigns/REF_run.log, report/2026-10-28, report/2026-10-29, REF_n29s5.
 
 \section{Kết luận}
 
@@ -13,10 +13,10 @@ Luận văn mô phỏng hành vi tham gia giao thông tại nút Lê Văn Lươn
 
 \subsection{Đã hoàn thành}
 
-Toàn bộ mã của quy trình đã chạy được và có 370 ca kiểm thử tự động; trên máy chính 360 ca đạt, 3 ca xfail có chủ đích, 7 ca lỗi do môi trường Windows (Mục~\ref{section:testing}). Các thành phần chính:
+Toàn bộ mã của quy trình đã chạy được và có 389 ca kiểm thử tự động; trên máy chính 378 ca đạt, 2 ca xfail có chủ đích, 9 ca không đạt, gồm 7 ca do môi trường Windows và 2 ca liên quan mạng cuối (Mục~\ref{section:testing}). Các thành phần chính:
 \begin{itemize}
-    \item \textbf{Mạng và chạy mô phỏng.} Mạng dựng hoàn toàn bằng script từ OpenStreetMap qua tệp vá sinh từ cấu hình hiện trường: làn rẽ phải liên tục ở mọi nhánh, đoạn cọc cấm chuyển làn trước vạch dừng, và các bản vá chỉ cho lớp xe vi phạm (kết nối rẽ trái trái phép, làn vỉa hè). Cấu hình cơ sở B0, bộ sinh nhu cầu, trình chạy kèm \texttt{manifest.json}, bộ chuyển đầu ra sang lược đồ quan sát chung đều chạy trên cả Windows và Linux; tám lần chạy B0 đối chiếu giữa hai máy cho cùng số va chạm và teleport.
-    \item \textbf{Luật.} Lược đồ đặc tả; tệp miền giá trị có ghi nguồn cho 24 thuộc tính vType; bộ kiểm tra hợp lệ trả lỗi có cấu trúc; bộ biên dịch; bộ điều khiển TraCI với năm luật có điều kiện, trong đó \texttt{queue\_space\_seeking} gộp các hành vi tìm khoảng trống.
+    \item \textbf{Mạng và chạy mô phỏng.} Mạng dựng hoàn toàn bằng script từ OpenStreetMap qua tệp vá sinh từ cấu hình hiện trường: đèn ba pha, làn rẽ phải liên tục ở 30~m cuối của mọi nhánh, và các bản vá chỉ cho lớp xe vi phạm (kết nối rẽ trái trái phép, kết nối rẽ trái và quay đầu từ lane 0 và lane 1, hai làn vỉa hè). Cấu hình cơ sở B0, bộ sinh nhu cầu, trình chạy kèm \texttt{manifest.json}, bộ chuyển đầu ra sang lược đồ quan sát chung đều chạy trên cả Windows và Linux; tám lần chạy B0 đối chiếu giữa hai máy cho cùng số va chạm và teleport.
+    \item \textbf{Luật.} Lược đồ đặc tả; tệp miền giá trị có ghi nguồn cho 24 thuộc tính vType; bộ kiểm tra hợp lệ trả lỗi có cấu trúc; bộ biên dịch; bộ điều khiển TraCI với sáu luật có điều kiện, trong đó \texttt{queue\_space\_seeking} gộp các hành vi tìm khoảng trống.
     \item \textbf{Đánh giá.} Chỉ số M1--M10, cổng GEH, hàm khoảng cách có chặn trên, điểm tổng $S$; khung đánh giá dùng chung với bộ đếm ngân sách theo chiến dịch.
     \item \textbf{Vòng hiệu chỉnh.} Trình khách LLM với prompt có phiên bản, vòng lặp LLM chạy tiếp được sau khi bị ngắt, và phương án Optuna.
 \end{itemize}
@@ -27,23 +27,30 @@ Các đóng góp kỹ thuật rút ra từ quá trình này nằm ở Chương~\
 \begin{itemize}
     \item Va chạm cao bất thường của B0 trên mạng ban đầu đến từ bề rộng mặc định không có nguồn của làn ra, không phải từ hành vi tài xế.
     \item Bật kiểm tra va chạm trong nút phát hiện một phiên bản luật giữ xe tưởng an toàn nhưng thực chất cho xe đi xuyên qua nhau. Từ đó có nguyên tắc: luật TraCI chỉ giữ xe, không đẩy xe qua xung đột.
-    \item SUMO không tự tạo hành vi chiếm làn rẽ phải và đi trên vỉa hè, nhưng biểu diễn được chúng bằng cấu trúc mạng riêng kèm điều kiện kích hoạt qua TraCI. Hành vi đi ngược chiều chưa biểu diễn được mà vẫn giữ việc tính xung đột với dòng ngược chiều, nên được hoãn.
-    \item Trên mạng cuối, với hai làn đi thẳng mỗi nhánh, mô hình nền quá tải ở nhu cầu đại diện 8180 xe/h. Không lần chạy B0 nào đủ điều kiện, và hai ngưỡng va chạm đóng băng từ B0 là 4 va chạm trên làn/h và 142 va chạm trong nút/h.
+    \item SUMO không tự tạo hành vi đi trên vỉa hè, nhưng biểu diễn được bằng cấu trúc mạng riêng kèm điều kiện kích hoạt qua TraCI. Hành vi đi ngược chiều chưa biểu diễn được mà vẫn giữ việc tính xung đột với dòng ngược chiều, nên được hoãn.
+    \item Hành vi chặn làn rẽ phải phụ thuộc cách mô hình hóa làn. Khi lane 0 cấm đi thẳng, SUMO không tự tạo hành vi này. Khi lane 0 cho đi thẳng theo đèn như ngoài hiện trường, nó xuất hiện ngay ở B0 (8,18 xe đứng chờ đỏ mỗi chu kỳ, so với 0,57 của dữ liệu đại diện); mục tiêu M9 chưa được định nghĩa lại theo mô hình này.
+    \item Trên mạng F2, với hai làn đi thẳng mỗi nhánh, mô hình nền quá tải ở nhu cầu đại diện 8180 xe/h. Không lần chạy B0 nào đủ điều kiện, và hai ngưỡng va chạm đóng băng từ B0 là 4 va chạm trên làn/h và 142 va chạm trong nút/h.
+    \item Trên mạng cuối, B1 có các lần khóa nút: 8/15 lần chạy có từ 20 teleport kẹt trở lên. Trên PROXY\_D2, 3 seed, tắt luật vượt đỏ làm teleport kẹt về 0; bỏ các kết nối mới thì không (Mục~\ref{subsection:gridlock}).
+    \item Tách cạnh 30~m làm va chạm trên làn của B0 tăng từ 8 lên 50 trên 5 lần chạy PROXY\_D1. Cơ chế chưa xác định (Mục~\ref{subsection:split_collisions}).
+    \item Xe quay đầu đang chờ chặn xe sau cùng làn. Luật \texttt{uturn\_bypass} chỉ vượt được 13/150 lần trên mạng đại diện, vì trong hàng xe máy dày không có khe để lách (Mục~\ref{subsection:uturn}).
 \end{itemize}
 
 \subsection{Kết quả tạm thời của các chiến dịch}
 
 Mục~\ref{subsection:interim} cho chi tiết.
 \begin{itemize}
-    \item Optuna B2 đã dùng hết 36 lần chạy. Không đặc tả nào trong 12 đặc tả của nó đủ điều kiện, vì tất cả còn teleport do kẹt; đặc tả tốt nhất vì vậy chọn theo số teleport kẹt, rồi theo $S$.
-    \item $S$ của các đặc tả B2 nằm trong 1,182--1,523, so với 1,181 của B0 chấm cùng cách. Trong ngân sách này, Optuna chưa tìm được bộ tham số tốt hơn cấu hình mặc định.
+    \item Trên mạng F2, Optuna B2 đã dùng hết 36 lần chạy. Không đặc tả nào trong 12 đặc tả của nó đủ điều kiện, vì tất cả còn teleport do kẹt; đặc tả tốt nhất vì vậy chọn theo số teleport kẹt, rồi theo $S$.
+    \item $S$ của các đặc tả B2 trên mạng F2 nằm trong 1,182--1,523, so với 1,181 của B0 chấm cùng cách. Trong ngân sách này, Optuna chưa tìm được bộ tham số tốt hơn cấu hình mặc định.
+    \item Trên hai mạng ngày 28/10, B2 dùng 24 lần chạy mỗi mạng. Không đặc tả nào đủ điều kiện; 3 trong 16 đặc tả có $S$ nhỏ hơn B0 của cùng mạng (Mục~\ref{subsection:scenario_update}).
+    \item Trên mạng cuối, B0 và B1 chạy 15 lần mỗi cấu hình: $S$ là 1,225 và 1,279, không lần chạy nào đủ điều kiện (Mục~\ref{subsection:ref_n29}). B2 chưa chạy trên mạng này.
     \item P1 và P2 với \texttt{qwen3.5:9b} chưa có kết quả chính thức.
 \end{itemize}
-Các số này dựa trên một seed mỗi ngày, trên dữ liệu đại diện \texttt{LITERATURE\_PROXY} và một mô hình nền quá tải. Chúng chưa cho phép kết luận LLM tốt hơn hay kém hơn Optuna.
+Các số của B2 dựa trên một seed mỗi ngày, trên dữ liệu đại diện \texttt{LITERATURE\_PROXY} và các mạng đã thay. Chúng chưa cho phép kết luận LLM tốt hơn hay kém hơn Optuna.
 
 \subsection{Chưa thực hiện}
 
 \begin{itemize}
+    \item Chiến dịch B2 trên mạng cuối.
     \item Chiến dịch P1, P2 với \texttt{qwen3.5:9b}.
     \item Phương án H.
     \item Đánh giá cuối E1, E2 trên PROXY\_D4--PROXY\_D5 với ít nhất 20 seed và kiểm định thống kê.
@@ -57,7 +64,9 @@ Luận văn vì vậy chưa khẳng định mô phỏng tái hiện đúng giao 
 
 Thứ tự đề xuất:
 \begin{enumerate}[label=(\arabic*)]
-    \item Chạy P1, P2 với \texttt{qwen3.5:9b} trên máy chính.
+    \item Tìm cơ chế va chạm trên làn của B0 sau khi tách cạnh 30~m, và chọn cách xử lý khóa nút của B1.
+    \item Tính lại hai ngưỡng va chạm từ B0 trên mạng cuối, định nghĩa lại hai mục tiêu của M9, và quyết định có đưa \texttt{uturn\_bypass} vào cấu trúc B1 không.
+    \item Chạy lại B2, và chạy P1, P2 với \texttt{qwen3.5:9b} trên máy chính.
     \item Chạy H (Optuna trên cấu trúc tốt nhất của P2) với cùng ngân sách 36 lần chạy.
     \item Đánh giá B0, B1, B2, P1, P2 và H trên PROXY\_D4--PROXY\_D5 với ít nhất 20 seed, dùng kiểm định Mann--Whitney có hiệu chỉnh Holm và kích thước hiệu ứng Cliff's delta cho E1 (P1 so với B2) và E2 (B2, H, P2).
     \item Thí nghiệm loại bỏ: tắt lần lượt từng luật TraCI hoặc từng nhóm tham số để đo đóng góp của từng thành phần.
@@ -69,8 +78,8 @@ Hai vấn đề phương pháp cần quyết định trước khi diễn giải 
 Hướng quan trọng nhất về mặt khoa học là thay dữ liệu đại diện bằng dữ liệu đo thực. Kế hoạch gồm ba việc.
 \begin{itemize}
     \item Quay video tại nút trong nhiều ngày, và xây một đường ống xử lý video (ngoài phạm vi luận văn) xuất đúng lược đồ quan sát đã định nghĩa (Mục~\ref{section:appendix_schema}), kể cả các bảng của nhóm tìm khoảng trống. Khi đó các ngày PROXY được thay bằng ngày đo, việc tách ngày hiệu chỉnh và ngày đánh giá độc lập thực sự, và sàn nhiễu giữa các ngày tính từ biến động quan sát thay vì hệ số giả định.
-    \item Đo hoặc xác định tại hiện trường các giá trị đang để trống trong cấu hình hiện trường thực: bề rộng từng làn vào và làn ra; hướng đi được phép của từng làn; các nhánh cấm rẽ trái hoặc quay đầu; các nhánh có xe rẽ trái trái phép; chu kỳ và các pha đèn (gồm vàng và đỏ toàn phần); chiều dài đoạn cọc và đoạn dải phân cách cứng; vị trí và bề rộng vỉa hè; điểm xe lên vỉa hè và điểm nhập lại.
-    \item Chạy lại, trên hình học đo thực, thí nghiệm sức chứa vùng chờ giữa nút và các thí nghiệm 3A, 3B. Thay phạm vi quan sát hàng chờ hiện đặt 80~m bằng phạm vi thực của camera.
+    \item Đo hoặc xác định tại hiện trường các giá trị đang để trống trong cấu hình hiện trường thực: bề rộng từng làn vào và làn ra; hướng đi được phép của từng làn; các nhánh cấm rẽ trái hoặc quay đầu; các nhánh có xe rẽ trái trái phép; chu kỳ và các pha đèn (gồm vàng và đỏ toàn phần); chiều dài đoạn làn rẽ phải liên tục và đoạn dải phân cách cứng; vị trí và bề rộng vỉa hè; điểm xe lên vỉa hè và điểm nhập lại.
+    \item Chạy lại, trên hình học đo thực, thí nghiệm sức chứa vùng chờ giữa nút ở hai nhánh Hoàng Đạo Thúy và thí nghiệm 3B. Thay phạm vi quan sát hàng chờ hiện đặt 80~m bằng phạm vi thực của camera.
 \end{itemize}
 
 \subsection{Mở rộng}
@@ -78,7 +87,7 @@ Hướng quan trọng nhất về mặt khoa học là thay dữ liệu đại d
 Khi bộ luật đã hiệu chỉnh trên dữ liệu thực, mô phỏng có thể dùng cho các kịch bản chính sách, ví dụ đổi lưu lượng rẽ trái trái phép ở 0\%, 50\% và 100\% so với quan sát để đo độ trễ và số xung đột có PET dưới ngưỡng. Kết quả loại này phải ghi rõ là ngoại suy. Các mở rộng khác:
 \begin{itemize}
     \item dùng thiết bị đo xung đột SSM của SUMO cho chẩn đoán an toàn trên các lần chạy đánh giá;
-    \item đánh giá lại lựa chọn đi sai làn trên một nút có kết nối cho phép hành vi này, vì trên mạng đại diện lựa chọn đó không áp dụng được;
+    \item đánh giá lại lựa chọn đi sai làn trên một nút có kết nối cho phép hành vi này, vì trên mạng đại diện lựa chọn đó chỉ áp dụng cho xe quay đầu của lớp vi phạm;
     \item tìm cách biểu diễn hành vi đi ngược chiều mà vẫn giữ việc tính xung đột với dòng ngược chiều thật (hiện hoãn);
     \item mở rộng sang các nút giao khác để kiểm tra khả năng chuyển giao của quy trình.
 \end{itemize}

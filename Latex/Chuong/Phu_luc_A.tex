@@ -74,7 +74,7 @@ Bộ luật thủ công B1 (\texttt{spec\_id} \texttt{B1\_manual}, nguồn \text
 \texttt{car\_\allowbreak saval} & \texttt{passenger} & 0,9 & \texttt{accel} 1,2; \texttt{decel} 4,8; \texttt{tau} 2,5; \texttt{minGap} 1,1. Cột ô tô Bảng 11 của Saval và cộng sự. Ô tô luôn dừng khi đèn đỏ nên không có luật vượt đỏ và các thuộc tính \texttt{jm*} giữ mặc định của SUMO \\ \hline
 \texttt{moto\_\allowbreak saval} & \texttt{motorcycle} & 0,9 & \texttt{accel} 1,1; \texttt{decel} 4,6; \texttt{tau} 0,8; \texttt{minGap} 1,9; \texttt{minGapLat} 0,3. Cột xe máy Bảng 11. Khoảng cách ngang theo bài báo khoảng 0,1~m (làn xe máy 0,8~m gồm bề rộng 0,7~m và khoảng hở 0,1~m), nhỏ hơn cận dưới 0,3~m nên được kẹp về 0,3~m \\ \hline
 \texttt{moto\_\allowbreak violator\_\allowbreak saval} & \texttt{custom1} & 1,0 & \texttt{accel} 1,1; \texttt{decel} 4,6; \texttt{tau} 0,8; \texttt{minGap} 1,9; \texttt{minGapLat} 0,3; \texttt{jmTimegapMinor} 1,0. Cùng giá trị với xe máy; \texttt{jmTimegapMinor} bằng mặc định của SUMO, là giả định vì bài báo không mô hình hóa rẽ trái trái phép \\ \hline
-\texttt{car\_\allowbreak seeker} & \texttt{custom2} (phân phối \texttt{car}) & 0,1 & Cùng tham số với \texttt{car\_saval}. Ô tô có thể tìm khoảng trống; tỷ trọng 0,1 là giả định \\ \hline
+\texttt{car\_\allowbreak seeker} & \texttt{custom2} (phân phối \texttt{car}) & 0,1 & Cùng tham số với \texttt{car\_saval}. Thuộc lớp \texttt{custom2} nên được dùng các kết nối vi phạm từ lane 0 và lane 1; không gắn với luật TraCI nào từ khi bỏ cọc. Tỷ trọng 0,1 là giả định \\ \hline
 \texttt{moto\_\allowbreak seeker} & \texttt{custom1} (phân phối \texttt{moto}) & 0,1 & Cùng tham số với \texttt{moto\_saval}. Xe máy có thể tìm khoảng trống (kể cả vỉa hè); tỷ trọng 0,1 là giả định \\ \hline
 \end{tabular}
 \caption{Các nguyên mẫu tài xế của B1; tỷ trọng tính trong phân phối mà nguyên mẫu thuộc về (đơn vị: m/s\textsuperscript{2} cho \texttt{accel}, \texttt{decel}; s cho \texttt{tau}, \texttt{jmTimegapMinor}; m cho \texttt{minGap}, \texttt{minGapLat})}
@@ -89,24 +89,24 @@ Bộ luật thủ công B1 (\texttt{spec\_id} \texttt{B1\_manual}, nguồn \text
 \textbf{Luật} & \textbf{Áp dụng cho} & \textbf{Tham số} & \textbf{Nguồn} \\ \hline
 \texttt{swarm\_\allowbreak red\_\allowbreak running} & \texttt{moto\_\allowbreak saval}, \texttt{moto\_\allowbreak seeker}, \texttt{moto\_\allowbreak violator\_\allowbreak saval} & $p_0 = 0{,}5$; $k = 0{,}0$; $p_{\max} = 0{,}5$; $\Delta t = 10{,}0$~s & Mục 4 của bài báo: xe máy ở hàng đầu chỉ dừng khi đèn đỏ với xác suất 0,5; $k = 0$ vì bài báo không có hiệu ứng đoàn; $\Delta t$ là giả định và không có tác dụng khi $k = 0$ \\ \hline
 \texttt{early\_\allowbreak start} & \texttt{moto\_\allowbreak saval}, \texttt{moto\_\allowbreak seeker}, \texttt{moto\_\allowbreak violator\_\allowbreak saval} & $t_{\text{before\_green}} = 5{,}0$~s; $p = 0{,}0$; $v_{\max} = 2{,}0$~m/s & Không có trong bài báo (giả định): luật bị tắt ($p = 0$), chỉ giữ trong cấu trúc để các phương án tối ưu điều chỉnh \\ \hline
-\texttt{queue\_\allowbreak space\_\allowbreak seeking} & \texttt{moto\_\allowbreak seeker}, \texttt{car\_\allowbreak seeker} & $q = 30$~m; $t_{g} = 0$; $\sigma = 0$; ba xác suất bằng 0; $v_{\text{creep}} = 3$~m/s; vùng nhập lại 15~m & Không có trong bài báo (giả định): mọi xác suất bằng 0 nên luật không can thiệp; giữ trong cấu trúc để B2, P1 điều chỉnh các hành vi tìm khoảng trống; vùng nhập lại 15~m lấy từ thiết lập thí nghiệm 3A \\ \hline
+\texttt{queue\_\allowbreak space\_\allowbreak seeking} & \texttt{moto\_\allowbreak seeker} & $q = 30$~m; $t_{g} = 0$; $\sigma = 0$; ba xác suất bằng 0; $v_{\text{creep}} = 3$~m/s; vùng nhập lại 15~m & Không có trong bài báo (giả định): mọi xác suất bằng 0 nên luật không can thiệp; giữ trong cấu trúc để B2, P1 điều chỉnh các hành vi tìm khoảng trống; vùng nhập lại 15~m lấy từ thiết lập thí nghiệm 3A \\ \hline
 \end{tabular}
 \caption{Các luật TraCI của B1}
 \label{table:appendix_b1_rules}
 \end{table}
 
-B1 không có luật \texttt{illegal\_\allowbreak left\_\allowbreak box}, vì mô hình của Saval và cộng sự không có hành vi chờ giữa nút; vùng chờ của B1 vận hành theo cơ chế sẵn có của SUMO như B0. B1 cũng không có luật \texttt{slow\_\allowbreak lane\_\allowbreak center}; luật duy nhất áp dụng cho ô tô là \texttt{queue\_\allowbreak space\_\allowbreak seeking} (qua nguyên mẫu \texttt{car\_seeker}), hiện ở trạng thái tắt.
+B1 không có luật \texttt{illegal\_\allowbreak left\_\allowbreak box}, vì mô hình của Saval và cộng sự không có hành vi chờ giữa nút; vùng chờ của B1 vận hành theo cơ chế sẵn có của SUMO như B0. B1 cũng không có luật \texttt{slow\_\allowbreak lane\_\allowbreak center} và không có luật nào áp dụng cho ô tô. Đặc tả \texttt{B1\_uturn\_bypass} là B1 giữ nguyên, thêm hai mục luật \texttt{uturn\_bypass} (Mục~\ref{subsection:uturn}).
 
 
 \section{Kết quả từng đặc tả đã đánh giá}
 \label{section:appendix_specs}
 
-Bảng~\ref{table:4.interim_specs} liệt kê từng đặc tả đã đánh giá tại 27/10/2026 (Mục~\ref{subsection:interim}). Đơn vị: va chạm/h, teleport/h. Mọi đặc tả bị loại bởi tiêu chí đủ điều kiện. Nguồn: \texttt{report/2026-10-27/data/campaign\_specs.csv} và chiến dịch REF.
+Bảng~\ref{table:4.interim_specs} liệt kê từng đặc tả đã đánh giá trên mạng F2 tại 27/10/2026 (Mục~\ref{subsection:interim}). Các đặc tả trên hai mạng ngày 28/10 và mạng cuối tóm tắt ở Bảng~\ref{table:4.nets_results}. Đơn vị: va chạm/h, teleport/h. Mọi đặc tả bị loại bởi tiêu chí đủ điều kiện. Nguồn: \texttt{report/2026-10-27/data/campaign\_specs.csv} và chiến dịch REF.
 
 \begin{table}[H]
 \centering
 \footnotesize\setlength{\tabcolsep}{3pt}
-\caption{Từng đặc tả đã đánh giá.}
+\caption{Từng đặc tả đã đánh giá trên mạng F2.}
 \label{table:4.interim_specs}
 \begin{tabular}{|p{1.2cm}|p{2.6cm}|p{1.5cm}|p{1.6cm}|p{1.6cm}|p{1.3cm}|p{1.6cm}|p{1.6cm}|}
 \hline

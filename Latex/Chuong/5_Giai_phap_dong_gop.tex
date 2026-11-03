@@ -4,7 +4,7 @@
 % Nguồn: repo SUMO (docs/PROGRESS.md: R7, R10, R13--R15, R21, R25, R27--R30; rules/bounds/param_bounds.yaml;
 % src/thesis_sumo/rules/validator.py; src/thesis_sumo/runtime/rules/base.py; docs/research/proxy_targets.md;
 % docs/research/phase3_box_capacity.md; cập nhật 2026-10-28: R35--R45, docs/research/phase3*.md,
-% experiments/llm_logs/{P1,P2}/validity_log.csv, tests/test_proxy.py). Mọi số liệu ở đây là kết quả kiểm thử hoặc thí nghiệm đã ghi trong repo.
+% experiments/llm_logs/{P1,P2}/validity_log.csv, tests/test_proxy.py; cập nhật 2026-10-31: report/2026-10-28, report/2026-10-29, REF_n29s5/{B0,B1_manual}.pkl). Mọi số liệu ở đây là kết quả kiểm thử hoặc thí nghiệm đã ghi trong repo.
 
 Chương này nêu bảy giải pháp kỹ thuật mà luận văn coi là đóng góp chính. Phương pháp ở Chương~\ref{chapter:Methodology} và thực nghiệm ở Chương~\ref{chapter:Experiment} đã mô tả chúng; ở đây mỗi giải pháp được trình bày theo ba phần: vấn đề, giải pháp, kết quả kiểm chứng được tại thời điểm viết. Bảng~\ref{table:5.0} tóm tắt cả bảy.
 
@@ -90,7 +90,7 @@ Vượt đèn đỏ hay xuất phát sớm không biểu diễn hết bằng tha
 
 \subsection{Kết quả}
 
-Lần kiểm tra chức năng B1 trên PROXY\_D1 (600~s, một seed, bật kiểm tra va chạm trong nút; Mục~\ref{subsection:b1_check}): luật vượt đèn đỏ theo đoàn đưa ra 80 quyết định, 53 được SUMO thi hành và 27 không thi hành vì pha đỏ hết trước khi xe qua vạch. Luật xuất phát sớm có xác suất 0 nên không tạo can thiệp. Lần chạy có 13 va chạm trong nút, 1 trong đó liên quan xe đang chịu can thiệp. Bộ điều khiển tốn 3--7~s cho mỗi 600~s mô phỏng. Khi mọi luật tắt, quỹ đạo giống hệt lần chạy không có bộ điều khiển; nhật ký can thiệp từ \texttt{libsumo} và \texttt{traci} giống nhau. Các số này chỉ chứng minh cơ chế ghi nhận chạy được; chúng không đánh giá độ hợp lý của B1. Hai ngưỡng suy từ B0 trên mạng cuối đã đóng băng trước vòng tối ưu đầu tiên: 4 va chạm trên làn/h và 142 va chạm trong nút/h (Mục~\ref{subsection:r28_f2}).
+Lần kiểm tra chức năng B1 trên PROXY\_D1 (600~s, một seed, bật kiểm tra va chạm trong nút; Mục~\ref{subsection:b1_check}): luật vượt đèn đỏ theo đoàn đưa ra 80 quyết định, 53 được SUMO thi hành và 27 không thi hành vì pha đỏ hết trước khi xe qua vạch. Luật xuất phát sớm có xác suất 0 nên không tạo can thiệp. Lần chạy có 13 va chạm trong nút, 1 trong đó liên quan xe đang chịu can thiệp. Bộ điều khiển tốn 3--7~s cho mỗi 600~s mô phỏng. Khi mọi luật tắt, quỹ đạo giống hệt lần chạy không có bộ điều khiển; nhật ký can thiệp từ \texttt{libsumo} và \texttt{traci} giống nhau. Các số này chỉ chứng minh cơ chế ghi nhận chạy được; chúng không đánh giá độ hợp lý của B1. Hai ngưỡng suy từ B0 trên mạng F2 đã đóng băng trước vòng tối ưu đầu tiên: 4 va chạm trên làn/h và 142 va chạm trong nút/h (Mục~\ref{subsection:r28_f2}); chúng chưa được tính lại trên mạng cuối.
 
 \section{Mô hình hóa rẽ trái trái phép chờ giữa nút}
 \label{section:5.3}
@@ -102,7 +102,7 @@ Rẽ trái trái phép là hành vi 10 trong 11 hành vi. Xe máy đi vào giữ
 \subsection{Giải pháp}
 
 \begin{enumerate}[label=(\arabic*)]
-    \item \textbf{Biểu diễn vi phạm bằng một chỉnh sửa mạng tĩnh.} Trên nhánh cấm rẽ trái, kết nối rẽ trái bị xóa rồi thêm lại với quyền chỉ dành cho vClass \texttt{custom1}. Nhóm xe máy vi phạm dùng vClass này, với tham số mặc định của xe máy được sao chép tường minh. Chỉ xe vi phạm rẽ được; xe khác vẫn tuân thủ biển cấm.
+    \item \textbf{Biểu diễn vi phạm bằng một chỉnh sửa mạng tĩnh.} Trên nhánh cấm rẽ trái (hai nhánh Hoàng Đạo Thúy trên mạng cuối, nhánh Lê Văn Lương phía tây trên các mạng đến 27/10), kết nối rẽ trái bị xóa rồi thêm lại với quyền chỉ dành cho vClass \texttt{custom1}. Nhóm xe máy vi phạm dùng vClass này, với tham số mặc định của xe máy được sao chép tường minh. Chỉ xe vi phạm rẽ được; xe khác vẫn tuân thủ biển cấm.
     \item \textbf{Dùng điểm chờ nội bộ sẵn có của SUMO} thay vì dựng thêm cạnh và đèn riêng cho vùng chờ. Lựa chọn này theo sau một thí nghiệm khả thi đo sức chứa vùng chờ, thứ tự xả, hiện tượng khóa chết và tương tác với hướng giao cắt (Mục~\ref{section:box_capacity}). Tiêu chí được đặt trước: chọn cơ chế sẵn có nếu sức chứa không nhỏ hơn trung bình mục tiêu 6 xe. Phương án dựng cạnh riêng chưa cài đặt và bị từ chối rõ ràng nếu cấu hình yêu cầu.
     \item \textbf{Luật \texttt{illegal\_left\_box} chỉ \emph{giữ} xe, không bao giờ đẩy xe qua dòng xung đột.} Phiên bản đầu dùng \texttt{junctionModel.ignoreIDs} để xe cắt ngang bỏ qua xe đang bị giữ, vì điểm chờ chỉ cách tim làn nội bộ của dòng cắt ngang 0,03~m và dòng này bị kẹt khi phải nhường. Lần chạy thử không va chạm, nhưng chỉ vì lúc đó kiểm tra va chạm trong nút đang tắt. Khi bật, lần chạy dùng \texttt{ignoreIDs} có 55 va chạm trong nút, so với 7 khi không dùng. Luận văn vì vậy bỏ \texttt{ignoreIDs} khỏi toàn bộ mã nguồn (có kiểm thử tìm chuỗi để chặn việc đưa lại), bỏ luật nhường dòng cắt ngang cùng tham số của nó, và giữ một tham số: độ trễ giải phóng $\Delta_{\text{release}} \in [0,4]$~s. Việc xe rời vùng chờ sớm qua khoảng trống của dòng đối diện do tham số vType \texttt{jmTimegapMinor} trên \texttt{custom1} điều khiển, tức là mô hình nhường đường của chính SUMO, không phải TraCI. Hệ quả chấp nhận được: luật chỉ kéo dài được thời gian giải phóng vùng chờ. Nếu dữ liệu mục tiêu đòi trễ của hướng giao cắt nhỏ hơn mức SUMO tự tạo, M7c sẽ không đạt và điều này sẽ được báo cáo.
 \end{enumerate}
@@ -114,7 +114,8 @@ Rẽ trái trái phép là hành vi 10 trong 11 hành vi. Xe máy đi vào giữ
     \item \emph{Vùng chờ 3,5~m} (sau khi sửa bề rộng làn ra, Mục~\ref{section:5.5}): chạy lại với 5 seed, mỗi seed 900~s, sức chứa lần lượt 13, 8, 8, 7 và 10 xe, xếp 3 hàng ngang. Kết quả thỏa tiêu chí đã đặt, nên cơ chế sẵn có được giữ.
     \item \emph{Tác động của \texttt{jmTimegapMinor}}: kiểm tra nhỏ trên PROXY\_D1 (một seed, 1200~s) cho tỷ lệ rời vùng chờ sớm 14,6\% với mặc định 1~s và 38,1\% với 0,5~s, bao quanh mục tiêu đại diện 20\%. Do chỉ một seed, kết quả mang tính gợi ý.
     \item \emph{Luật giữ xe}: kiểm thử tự động trên mạng chữ thập nhỏ, bật kiểm tra va chạm trong nút, cho 0 va chạm trong nút với giữ thuần 3~s và với không giữ. Đối chứng âm dùng \texttt{ignoreIDs} sinh va chạm, nên lỗi cũ không quay lại mà không bị phát hiện.
-    \item Các số về vùng chờ ở trên đo khi kiểm tra va chạm trong nút tắt. Chạy lại trên mạng cuối với kiểm tra bật (thí nghiệm 3D, Mục~\ref{subsection:phase3}): sức chứa vẫn là 13, 8, 8, 7 và 10 xe, không va chạm nào liên quan xe rẽ trái trái phép.
+    \item Các số về vùng chờ ở trên đo khi kiểm tra va chạm trong nút tắt. Chạy lại trên mạng F2 với kiểm tra bật (thí nghiệm 3D, Mục~\ref{subsection:phase3}): sức chứa vẫn là 13, 8, 8, 7 và 10 xe, không va chạm nào liên quan xe rẽ trái trái phép.
+    \item \emph{Vùng chờ Hoàng Đạo Thúy}: các số trên đều đo ở nhánh Lê Văn Lương phía tây. Khi hành vi chuyển sang hai nhánh Hoàng Đạo Thúy, xe chờ bị xe đi thẳng đối diện đâm vì dòng đó xanh cùng pha, nên điểm chờ được dời (Mục~\ref{subsection:scenario_update}). Sức chứa hai vùng chờ này chưa đo. Trên mạng cuối, số xe dừng trung bình khi hết xanh đối diện là 4,05 với B0 và 4,76 với B1, so với 5,59 của dữ liệu đại diện.
 \end{itemize}
 Sức chứa trên hình học đo thực của nút chưa xác định \textbf{[TODO: chạy lại thí nghiệm vùng chờ trên hình học đo thực]}.
 
@@ -143,7 +144,7 @@ Biến động giữa các ngày đến từ một hệ số theo ngày cho mỗ
 
 Các giá trị có nguồn chủ yếu đến từ bốn nghiên cứu: khảo sát vi phạm đèn tín hiệu tại một nút khác trên trục Láng Hạ -- Lê Văn Lương~\cite{mai2019signal}; dòng bão hòa hỗn hợp tại TP. Hồ Chí Minh~\cite{vu2015saturation}; tốc độ và khoảng thời gian giữa các xe máy tại Hà Nội~\cite{chu2005speed}; và PET của xung đột rẽ trái trong thử nghiệm thực địa ở Đài Loan~\cite{hsu2024v2x}.
 
-Không có mục tiêu nào mang nhãn \texttt{literature}. Mọi giá trị có nguồn đo ở nơi khác nên mang nhãn \texttt{literature\_transferred}. Các giá trị còn lại, gồm cách chia lưu lượng theo nhánh và toàn bộ nhóm chỉ số M7 về rẽ trái trái phép, là \texttt{assumed}. Năm ngày sinh ra có 7602--9099 xe mỗi ngày trong 3600~s và 224 xe rẽ trái trái phép mỗi giờ. Trên trung bình năm ngày, mọi giá trị vô hướng nằm trong $\pm 15\%$ của giá trị danh nghĩa, trừ ba tỷ lệ mà kiểm thử đánh dấu xfail (Mục~\ref{section:testing}): vượt đỏ của xe máy nhánh Lê Văn Lương phía tây ($+17{,}6\%$), xuất phát sớm của ô tô ($-19\%$), vượt đỏ của ô tô ($-45\%$). Ba độ lệch này là sai số ngẫu nhiên của số sự kiện nhỏ.
+Không có mục tiêu nào mang nhãn \texttt{literature}. Mọi giá trị có nguồn đo ở nơi khác nên mang nhãn \texttt{literature\_transferred}. Các giá trị còn lại, gồm cách chia lưu lượng theo nhánh và toàn bộ nhóm chỉ số M7 về rẽ trái trái phép, là \texttt{assumed}. Năm ngày sinh ra cho kịch bản ba pha có 7566--9178 xe mỗi ngày trong 3600~s và 381--475 xe rẽ trái trái phép mỗi giờ, tính cả hai nhánh Hoàng Đạo Thúy. Trên trung bình năm ngày, mọi giá trị vô hướng nằm trong $\pm 15\%$ của giá trị danh nghĩa, trừ hai tỷ lệ mà kiểm thử đánh dấu xfail (Mục~\ref{section:testing}): xuất phát sớm của ô tô ($+49\%$) và vượt đỏ của ô tô ($-21\%$). Hai độ lệch này đến từ số sự kiện nhỏ.
 
 Ba hạn chế của cách làm:
 \begin{itemize}
@@ -174,7 +175,7 @@ Cách sửa: thêm danh sách làn ra có bề rộng, nguồn và nhãn bằng 
 
 Sau khi sửa, cả 56 làn có bề rộng 3,5~m. Trong 9 lần chạy B0 trên PROXY\_D1--PROXY\_D3 (3 seed mỗi ngày, 1800~s, kiểm tra va chạm trong nút tắt), va chạm còn 0--6 mỗi giờ, trung bình 1,56. Trong thí nghiệm vùng chờ, va chạm mỗi lần chạy giảm từ 10--24 xuống 0--1 (Mục~\ref{subsection:exit_width}). Bài học cho việc dựng mạng: một giá trị mặc định không có nguồn có thể tạo ra hiện tượng giống hành vi. Vì vậy mọi giá trị hình học trong cấu hình hiện trường của luận văn phải mang nguồn và nhãn bằng chứng.
 
-Các số B0 sau sửa nêu trên đo khi kiểm tra va chạm trong nút tắt. Khi bật trên mạng cuối, va chạm trên làn của B0 vẫn thấp (0--4/h, trung bình 1,333/h) nhưng va chạm trong nút là 82--156/h (Mục~\ref{subsection:r28_f2}). Mức này không còn do bề rộng làn; nó phản ánh va chạm giữa các làn nội bộ cắt nhau của mô hình làn con, và được xử lý bằng một ngưỡng riêng thay vì bị bỏ qua.
+Các số B0 sau sửa nêu trên đo khi kiểm tra va chạm trong nút tắt. Khi bật trên mạng F2, va chạm trên làn của B0 vẫn thấp (0--4/h, trung bình 1,333/h) nhưng va chạm trong nút là 82--156/h (Mục~\ref{subsection:r28_f2}). Mức này không còn do bề rộng làn; nó phản ánh va chạm giữa các làn nội bộ cắt nhau của mô hình làn con, và được xử lý bằng một ngưỡng riêng thay vì bị bỏ qua. Trên mạng cuối, va chạm trong nút của B0 giảm còn 31,73/h, còn va chạm trên làn tăng lên 18,53/h sau khi tách cạnh 30~m; cơ chế của mức tăng này chưa xác định (Mục~\ref{subsection:split_collisions}).
 
 \section{Kiểm chứng khả thi trước khi mô hình hóa các hành vi tìm khoảng trống}
 \label{section:5.6}
@@ -189,7 +190,9 @@ Mỗi hành vi được thử trên một kịch bản nhỏ riêng trước khi
 
 \subsection{Kết quả}
 
-Hai hành vi (chiếm làn rẽ phải, đi trên vỉa hè) được cài với cấu trúc mạng đã kiểm chứng. Hành vi đi ngược chiều được hoãn vì cả ba cách biểu diễn đã thử hoặc không ổn định, hoặc làm SUMO không tính xung đột với dòng ngược chiều thật. Trong kiểm tra chức năng trên PROXY\_D1, lựa chọn chiếm làn rẽ phải được SUMO thực thi ở 92--95\% số lần quyết định; lựa chọn đi vỉa hè chỉ ở 12--48\%, chủ yếu vì xe không kịp sang làn ngoài trước điểm lên vỉa hè. Các chỉ số M9 và M10 của hai hành vi này tính chỉ từ quỹ đạo và tuyến, không đọc nhật ký can thiệp, nên áp dụng được cho dữ liệu video. Mọi kích thước hình học của các không gian này hiện là giả định và cần đo.
+Trên mạng F2, hai hành vi (chiếm làn rẽ phải, đi trên vỉa hè) được cài với cấu trúc mạng đã kiểm chứng. Hành vi đi ngược chiều được hoãn vì cả ba cách biểu diễn đã thử hoặc không ổn định, hoặc làm SUMO không tính xung đột với dòng ngược chiều thật. Trong kiểm tra chức năng trên PROXY\_D1, lựa chọn chiếm làn rẽ phải được SUMO thực thi ở 92--95\% số lần quyết định; lựa chọn đi vỉa hè chỉ ở 12--48\%, chủ yếu vì xe không kịp sang làn ngoài trước điểm lên vỉa hè. Các chỉ số M9 và M10 của hai hành vi này tính chỉ từ quỹ đạo và tuyến, không đọc nhật ký can thiệp, nên áp dụng được cho dữ liệu video.
+
+Khảo sát hiện trường sau đó cho thấy làn rẽ phải không có cọc, cho đi thẳng khi đèn xanh và chỉ dài 30~m. Cấu trúc đã kiểm chứng của hành vi 6 vì vậy không còn dùng: mạng cuối không có lựa chọn \texttt{right\_lane}, và xe đứng ở lane 0 đến từ cách SUMO chọn làn (Mục~\ref{subsection:ref_n29}). M9 được giữ, chỉ đổi định nghĩa sự kiện thành xe đứng chờ đèn đỏ của chính nó trong đoạn 30~m. Kích thước vỉa hè là giả định; chiều dài 30~m lấy từ khảo sát, chưa đo.
 
 \section{Khung so sánh công bằng giữa LLM và Optuna}
 \label{section:5.7}
@@ -211,6 +214,6 @@ So sánh một bộ sinh luật bằng LLM với bộ tối ưu như Optuna ch�
 
 \subsection{Kết quả}
 
-B2 dùng đúng 36/36 lần chạy (Mục~\ref{subsection:interim}). Các kiểm thử tự động của khung đánh giá, vòng lặp LLM và Optuna (Bảng~\ref{table:4.5}) phủ các trường hợp ngắt giữa vòng, ngắt ở đặc tả cuối, đặc tả hỏng và mã đặc tả trùng. Khung này chưa dùng cho đánh giá cuối E1, E2 \textbf{[TODO: kết quả E1, E2]}.
+B2 dùng đúng 36/36 lần chạy trên mạng F2 (Mục~\ref{subsection:interim}) và 24/24 lần chạy trên mỗi mạng ngày 28/10 (Mục~\ref{subsection:scenario_update}). Các kiểm thử tự động của khung đánh giá, vòng lặp LLM và Optuna (Bảng~\ref{table:4.5}) phủ các trường hợp ngắt giữa vòng, ngắt ở đặc tả cuối, đặc tả hỏng và mã đặc tả trùng. Khung này chưa dùng cho đánh giá cuối E1, E2 \textbf{[TODO: kết quả E1, E2]}.
 
 \end{document}
