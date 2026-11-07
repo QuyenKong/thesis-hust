@@ -25,7 +25,10 @@ ollama:                        # PROVISIONAL (plan Task 12); not run yet on any 
   seed: 42                     # provisional; sample j uses seed + j (identical seeds would give identical samples)
   n_samples: 4                 # TODO_DECIDE: provisional, specs per iteration (plan budget 3 rounds x 4 specs x 3 seeds)
   max_attempts: 3              # PLAN 6.1: validate then retry, at most 3 attempts
-  max_tokens: 4500             # output cap incl. reasoning (Ollama: max_tokens -> num_predict; max_completion_tokens is
+  max_tokens: 7000             # 2026-11-08: 4500 -> 7000: the first P1 attempt (prompt 9.5k tokens) was cut at 4500
+                               # (reasoning 18.5k chars + the full B1 structure; report/2026-11-08/data/ollama/p1_cap4500);
+                               # 7000 keeps P2 iteration 3 with v004 (~21.3k prompt + ~4k of retries) inside 32768.
+                               # Earlier: output cap incl. reasoning (Ollama: max_tokens -> num_predict; max_completion_tokens is
                                # ignored, probe 2026-11-04 report/2026-11-04/data/ollama/). 2026-11-03 measurement at
                                # OLLAMA_CONTEXT_LENGTH=32768 (report/2026-11-03/data/ollama/measurements.md): answers
                                # 1.9k-4.4k tokens, 1 of 9 filled the context with reasoning. A cut answer = failed attempt
