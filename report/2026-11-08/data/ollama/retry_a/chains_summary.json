@@ -1,0 +1,358 @@
+[
+ {
+  "seed": 42,
+  "chain_wall_s": 666.85,
+  "error": null,
+  "valid": true,
+  "n_attempts": 3,
+  "attempts": [
+   {
+    "attempt": 1,
+    "wall_s": 376.4,
+    "error": null,
+    "prompt_tokens": 15919,
+    "completion_tokens": 4500,
+    "total_tokens": 20419,
+    "finish_reason": "length",
+    "seed_sent": 42,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 15219,
+    "valid": false,
+    "issues": [
+     {
+      "path": "(response)",
+      "code": "schema",
+      "message": "the answer was cut off at the token limit (output cap of 4500 tokens or the context window, reasoning included) before the JSON was complete; think briefly and answer with the JSON object only"
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 15919,
+     "prompt_eval_ms": 10546.06,
+     "prompt_eval_tokens": 15919,
+     "prompt_tok_s": 1509.47,
+     "eval_ms": 343407.26,
+     "eval_tokens": 4500,
+     "gen_tok_s": 13.1,
+     "final_n_tokens": 20418,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 2,
+    "wall_s": 133.27,
+    "error": null,
+    "prompt_tokens": 16019,
+    "completion_tokens": 1794,
+    "total_tokens": 17813,
+    "finish_reason": "stop",
+    "seed_sent": 42,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 1816,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes[1].params.jmTimegapMinor",
+      "code": "logic",
+      "message": "jmTimegapMinor may be set only on archetypes with base_vclass custom1 (ruling R15: jmTimegapMinor is the early-leaving lever of the illegal-left box waiters (custom1 = moto_violator); M7 is the only metric that constrains it, so it is not tuned on passenger or motorcycle); remove it from this motorcycle archetype."
+     },
+     {
+      "path": "driver_archetypes[2].params.jmTimegapMinor",
+      "code": "logic",
+      "message": "jmTimegapMinor may be set only on archetypes with base_vclass custom1 (ruling R15: jmTimegapMinor is the early-leaving lever of the illegal-left box waiters (custom1 = moto_violator); M7 is the only metric that constrains it, so it is not tuned on passenger or motorcycle); remove it from this motorcycle archetype."
+     },
+     {
+      "path": "driver_archetypes[4].id",
+      "code": "logic",
+      "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 16019,
+     "prompt_eval_ms": 323.58,
+     "prompt_eval_tokens": 104,
+     "prompt_tok_s": 321.4,
+     "eval_ms": 132822.38,
+     "eval_tokens": 1794,
+     "gen_tok_s": 13.5,
+     "final_n_tokens": 17812,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 3,
+    "wall_s": 156.91,
+    "error": null,
+    "prompt_tokens": 17896,
+    "completion_tokens": 2017,
+    "total_tokens": 19913,
+    "finish_reason": "stop",
+    "seed_sent": 42,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 2724,
+    "valid": true,
+    "issues": [],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 17896,
+     "prompt_eval_ms": 1505.25,
+     "prompt_eval_tokens": 1881,
+     "prompt_tok_s": 1249.63,
+     "eval_ms": 155279.57,
+     "eval_tokens": 2017,
+     "gen_tok_s": 12.98,
+     "final_n_tokens": 19912,
+     "truncated": 0
+    }
+   }
+  ]
+ },
+ {
+  "seed": 43,
+  "chain_wall_s": 543.48,
+  "error": null,
+  "valid": true,
+  "n_attempts": 3,
+  "attempts": [
+   {
+    "attempt": 1,
+    "wall_s": 251.75,
+    "error": null,
+    "prompt_tokens": 15919,
+    "completion_tokens": 3286,
+    "total_tokens": 19205,
+    "finish_reason": "stop",
+    "seed_sent": 43,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 6901,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes[0].params.jmDriveAfterRedTime",
+      "code": "out_of_bounds",
+      "message": "jmDriveAfterRedTime = -1 is outside [0, 10] s for base_vclass passenger."
+     },
+     {
+      "path": "driver_archetypes[0].params.jmDriveRedSpeed",
+      "code": "out_of_bounds",
+      "message": "jmDriveRedSpeed = 55.5556 is outside [1, 13.9] m/s for base_vclass passenger."
+     },
+     {
+      "path": "driver_archetypes[1].params.jmDriveAfterRedTime",
+      "code": "out_of_bounds",
+      "message": "jmDriveAfterRedTime = -1 is outside [0, 10] s for base_vclass motorcycle."
+     },
+     {
+      "path": "driver_archetypes[1].params.jmDriveRedSpeed",
+      "code": "out_of_bounds",
+      "message": "jmDriveRedSpeed = 55.5556 is outside [1, 13.9] m/s for base_vclass motorcycle."
+     },
+     {
+      "path": "driver_archetypes[2].params.jmDriveAfterRedTime",
+      "code": "out_of_bounds",
+      "message": "jmDriveAfterRedTime = -1 is outside [0, 10] s for base_vclass motorcycle."
+     },
+     {
+      "path": "driver_archetypes[2].params.jmDriveRedSpeed",
+      "code": "out_of_bounds",
+      "message": "jmDriveRedSpeed = 55.5556 is outside [1, 13.9] m/s for base_vclass motorcycle."
+     },
+     {
+      "path": "driver_archetypes[3].params.jmDriveAfterRedTime",
+      "code": "out_of_bounds",
+      "message": "jmDriveAfterRedTime = -1 is outside [0, 10] s for base_vclass custom1."
+     },
+     {
+      "path": "driver_archetypes[3].params.jmDriveRedSpeed",
+      "code": "out_of_bounds",
+      "message": "jmDriveRedSpeed = 55.5556 is outside [1, 13.9] m/s for base_vclass custom1."
+     },
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto' sum to 0.95; they must sum to 1 (moto_standard=0.65, moto_slow_center=0.1, moto_space_seeker=0.2)."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 15919,
+     "prompt_eval_ms": 362.71,
+     "prompt_eval_tokens": 4,
+     "prompt_tok_s": 11.03,
+     "eval_ms": 249253.34,
+     "eval_tokens": 3286,
+     "gen_tok_s": 13.18,
+     "final_n_tokens": 19204,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 2,
+    "wall_s": 149.41,
+    "error": null,
+    "prompt_tokens": 18153,
+    "completion_tokens": 1904,
+    "total_tokens": 20057,
+    "finish_reason": "stop",
+    "seed_sent": 43,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 1667,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes[5].share",
+      "code": "schema",
+      "message": "0.0 is less than or equal to the minimum of 0"
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 18153,
+     "prompt_eval_ms": 1741.47,
+     "prompt_eval_tokens": 2238,
+     "prompt_tok_s": 1285.12,
+     "eval_ms": 147553.73,
+     "eval_tokens": 1904,
+     "gen_tok_s": 12.9,
+     "final_n_tokens": 20056,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 3,
+    "wall_s": 142.07,
+    "error": null,
+    "prompt_tokens": 19678,
+    "completion_tokens": 1760,
+    "total_tokens": 21438,
+    "finish_reason": "stop",
+    "seed_sent": 43,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 1592,
+    "valid": true,
+    "issues": [],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 19678,
+     "prompt_eval_ms": 1217.62,
+     "prompt_eval_tokens": 1529,
+     "prompt_tok_s": 1255.73,
+     "eval_ms": 140643.97,
+     "eval_tokens": 1760,
+     "gen_tok_s": 12.51,
+     "final_n_tokens": 21437,
+     "truncated": 0
+    }
+   }
+  ]
+ },
+ {
+  "seed": 44,
+  "chain_wall_s": 472.64,
+  "error": null,
+  "valid": true,
+  "n_attempts": 3,
+  "attempts": [
+   {
+    "attempt": 1,
+    "wall_s": 199.8,
+    "error": null,
+    "prompt_tokens": 15919,
+    "completion_tokens": 2644,
+    "total_tokens": 18563,
+    "finish_reason": "stop",
+    "seed_sent": 44,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 4263,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes[5].share",
+      "code": "schema",
+      "message": "0.0 is less than or equal to the minimum of 0"
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 15919,
+     "prompt_eval_ms": 352.51,
+     "prompt_eval_tokens": 4,
+     "prompt_tok_s": 11.35,
+     "eval_ms": 197265.36,
+     "eval_tokens": 2644,
+     "gen_tok_s": 13.4,
+     "final_n_tokens": 18562,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 2,
+    "wall_s": 132.89,
+    "error": null,
+    "prompt_tokens": 17368,
+    "completion_tokens": 1735,
+    "total_tokens": 19103,
+    "finish_reason": "stop",
+    "seed_sent": 44,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 1681,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes[4].id",
+      "code": "logic",
+      "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 17368,
+     "prompt_eval_ms": 1195.46,
+     "prompt_eval_tokens": 1453,
+     "prompt_tok_s": 1215.43,
+     "eval_ms": 131529.3,
+     "eval_tokens": 1735,
+     "gen_tok_s": 13.18,
+     "final_n_tokens": 19102,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 3,
+    "wall_s": 139.67,
+    "error": null,
+    "prompt_tokens": 19100,
+    "completion_tokens": 1749,
+    "total_tokens": 20849,
+    "finish_reason": "stop",
+    "seed_sent": 44,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 1747,
+    "valid": true,
+    "issues": [],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 19100,
+     "prompt_eval_ms": 1420.89,
+     "prompt_eval_tokens": 1736,
+     "prompt_tok_s": 1221.77,
+     "eval_ms": 138143.28,
+     "eval_tokens": 1749,
+     "gen_tok_s": 12.65,
+     "final_n_tokens": 20848,
+     "truncated": 0
+    }
+   }
+  ]
+ }
+]

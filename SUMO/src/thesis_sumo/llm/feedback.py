@@ -43,7 +43,7 @@ class DayDataLeak(ValueError):
     """A prompt text names an observed day (PLAN 5.4: the LLM never sees validation-day data)."""
 
 
-def load_prompt(name: str, version: str = "v003") -> Template:
+def load_prompt(name: str, version: str = "v004") -> Template:
     return Template((PROMPTS_DIR / version / f"{name}.md").read_text(encoding="utf-8"))
 
 
@@ -66,7 +66,7 @@ def rule_vclass_text() -> str:
     return "\n".join(f"  - `{r}`: base_vclass {', '.join(vcs)}" for r, vcs in RULE_VCLASSES.items())
 
 
-def system_prompt(version: str = "v003") -> str:
+def system_prompt(version: str = "v004") -> str:
     return load_prompt("system", version).substitute(distributions=distribution_text(),
                                                      rule_vclasses=rule_vclass_text()).strip()
 
@@ -168,18 +168,29 @@ def rule_dictionary() -> str:
     return "\n".join(out)
 
 
-def _targets_text(targets_calib: dict) -> str:
+def compact(prompt_version: str) -> bool:
+    """v004 on: prompts sized for a 32k-token local model (report/2026-11-08): scored targets and metrics only, one
+    metric table across the specs of an iteration, older iterations summarised (llm.loop), no schema dump."""
+    return prompt_version >= "v004"
+
+
+def _targets_text(targets_calib: dict, scored_only: bool = False) -> str:
     out = []
+    left_out = sum(1 for t in targets_calib.values() if not t.get("scored", True))
     for k, t in sorted(targets_calib.items()):
+        if scored_only and not t.get("scored", True):
+            continue
         m = t["obs_mean"]
         obs = f"observed mean {m:.4g} {t.get('unit', '')}".rstrip() if m == m else "no observed events"  # m != m: NaN
         note = "" if t.get("scored", True) else ", reported only"
         out.append(f"- {k}: {t.get('label', k)}: {obs} (target evidence {t.get('evidence') or '-'}{note})")
+    if scored_only and left_out:
+        out.append(f"({left_out} further metrics are reported only, not scored; they are left out here)")
     return "\n".join(out)
 
 
 def build_context(mode: str, base_spec: dict | None, site: Site, bounds: dict[str, Bound], targets_calib: dict,
-                  *, schema: dict, prompt_version: str = "v003", exp: dict | None = None) -> str:
+                  *, schema: dict, prompt_version: str = "v004", exp: dict | None = None) -> str:
     """The context message. `targets_calib` = `calibration_targets(...)` (key -> label, unit, obs_mean, evidence,
     scored); `schema` = `client.llm_schema(mode, base_spec)`."""
     if mode not in MODE_RULES:
@@ -192,7 +203,8 @@ def build_context(mode: str, base_spec: dict | None, site: Site, bounds: dict[st
         rules += "\n\nBase spec (structure to keep, values to tune):\n\n```json\n" + json.dumps(base, indent=1) + "\n```"
     text = load_prompt("context", prompt_version).substitute(
         mode=mode, mode_rules=rules, site=_site_text(site), vtype_params=vtype_dictionary(bounds),
-        rule_params=rule_dictionary(), targets=_targets_text(targets_calib), schema=json.dumps(schema))
+        rule_params=rule_dictionary(), targets=_targets_text(targets_calib, compact(prompt_version)),
+        schema=json.dumps(schema))
     return assert_no_day_data(text, exp)
 
 
@@ -253,8 +265,42 @@ def _result_text(r, interventions: dict | None) -> str:
     return "\n".join(lines)
 
 
+def _short(spec_id: str) -> str:
+    return spec_id.rsplit("_", 1)[-1]
+
+
+def _results_compact(results: list, interventions: dict) -> str:
+    """v004: one block per simulated spec (score, runs, TraCI counts) and one table of the scored metrics across
+    them: observed mean, then per spec the simulated mean and R."""
+    sim = [r for r in results if r.valid]
+    if not sim:
+        return "(no simulated specs)"
+    lines = []
+    for r in sim:
+        reasons = Counter(x.split(":")[0] for run in r.runs for x in run["reasons"])
+        lines.append(f"- {_short(r.spec_id)} = {r.spec_id}: S {r.S:.4f} (sourced {r.report.S_sourced:.4f}, assumed "
+                     f"{r.report.S_assumed:.4f}); runs {r.n_runs}, {len(r.eligible_runs)} eligible; collisions/h "
+                     f"{r.collisions_per_hour:.1f} (lane {r.lane_collisions_per_hour:.1f}); jam+yield teleports/h "
+                     f"{r.jam_yield_teleports_per_hour:.1f}"
+                     + (f"; exclusion reasons (runs): {dict(sorted(reasons.items()))}" if reasons else ""))
+        summ = interventions.get(r.spec_id, r.interventions_summary) or {}
+        tr = "; ".join(f"{k} {v.get('executed', 0)}/{v.get('attempted', 0)}"
+                       + (f" (not executed: {dict(sorted(v['not_executed'].items()))})" if v.get("not_executed") else "")
+                       for k, v in sorted(summ.items()))
+        lines.append(f"  TraCI executed/attempted: {tr or 'none'}")
+    keys = sorted(k for k, m in sim[0].report.metrics.items() if m.scored and m.weight > 0)
+    lines += ["", "Scored metrics: key (unit, weight): observed mean; per spec: simulated mean (direction), R"]
+    for k in keys:
+        m0 = sim[0].report.metrics[k]
+        cells = [f"{_short(r.spec_id)} {r.report.metrics[k].sim_mean:.4g} ({r.report.metrics[k].direction}) "
+                 f"R {r.report.metrics[k].R:.2f}" for r in sim]
+        unit = f"{m0.unit}, " if m0.unit else ""
+        lines.append(f"- {k} ({unit}w {m0.weight:.3f}): obs {m0.obs_mean:.4g}; " + "; ".join(cells))
+    return "\n".join(lines)
+
+
 def build_feedback(prev_results: list, issues: dict[str, list[dict]] | None = None,
-                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v003",
+                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v004",
                    exp: dict | None = None) -> str:
     """Feedback message on the previous iteration. `prev_results`: `evaluate.EvalResult`s (calibration days only);
     `issues`: spec_id -> validator issues of specs that never reached evaluation (the client gave up), merged with
@@ -271,7 +317,11 @@ def build_feedback(prev_results: list, issues: dict[str, list[dict]] | None = No
     for r in prev_results:
         if not r.valid and r.issues:
             rejected.setdefault(r.spec_id, r.issues)
-    results = "\n\n".join(_result_text(r, interventions.get(r.spec_id)) for r in prev_results) or "(no simulated specs)"
+    if compact(prompt_version):
+        results = _results_compact(prev_results, interventions)
+    else:
+        results = ("\n\n".join(_result_text(r, interventions.get(r.spec_id)) for r in prev_results)
+                   or "(no simulated specs)")
     iss = "\n\n".join(f"### {sid}\n{_issues_text(v)}" for sid, v in rejected.items()) or "(none)"
     text = load_prompt("feedback", prompt_version).substitute(results=results, issues=iss)
     return assert_no_day_data(text, exp)
@@ -316,7 +366,7 @@ def _state_text(issues: list[dict], spec: dict | None) -> str:
     return "\n" + "\n".join(lines) + "\n"
 
 
-def build_retry(issues: list[dict], spec: dict | None = None, *, prompt_version: str = "v003") -> str:
+def build_retry(issues: list[dict], spec: dict | None = None, *, prompt_version: str = "v004") -> str:
     """Retry message; templates with a `$state` field also get `_state_text` (older versions ignore it)."""
     return load_prompt("retry", prompt_version).substitute(issues=_issues_text(issues),
                                                           state=_state_text(issues, spec))

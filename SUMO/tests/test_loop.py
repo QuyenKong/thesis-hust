@@ -172,7 +172,7 @@ def test_new_campaign_id_has_own_budget_and_state(env):
 def test_prompt_version_default_override_and_lock(env):
     res = _drive(env, "P1_n28", n_iter=1, budget_runs=12)
     lock = json.loads((evaluate.CAMPAIGNS_DIR / "P1_n28" / "loop" / "loop.json").read_text(encoding="utf-8"))
-    assert lock["llm"]["prompt_version"] == "v003" and res.best_spec["provenance"]["prompt_version"] == "v003"
+    assert lock["llm"]["prompt_version"] == "v004" and res.best_spec["provenance"]["prompt_version"] == "v004"
     with pytest.raises(ValueError, match="other settings"):   # a campaign keeps its prompt version
         _run("P1_n28", n_iter=1, budget_runs=12, prompt_version="v001")
     with pytest.raises(ValueError, match="prompt"):
@@ -214,12 +214,25 @@ def test_feedback_iteration2(env):
     assert [m["role"] for m in msgs] == ["system", "user", "user"]
     fb = msgs[2]["content"]
     for j in range(4):
-        assert f"## Spec P1_it01_s{j:02d}: S = " in fb and f'"P1_it01_s{j:02d}"' in fb
+        assert f"- s{j:02d} = P1_it01_s{j:02d}: S " in fb and f'"P1_it01_s{j:02d}"' in fb
     assert "illegal_left_box" in fb and "provenance" not in fb
     exp = load_experiment()
     text = json.dumps(msgs)
     assert "PROXY_D" not in text
     assert not any(d in text for d in exp["data_split"]["calibration_days"] + exp["data_split"]["validation_days"])
+
+
+def test_iteration3_summarises_iteration1(env):
+    """Prompt v004 (feedback.compact): the iteration-3 prompt carries iteration 2 in full (JSON + metric table) and
+    iteration 1 as summary lines only, so it fits a 32k-token local model (report/2026-11-08)."""
+    _drive(env, "P1", n_iter=3, budget_runs=36)
+    req = json.loads((env["logs"] / "P1" / "requests" / "P1__it03_s00_a1.json").read_text(encoding="utf-8"))
+    msgs = req["messages"]
+    assert [m["role"] for m in msgs] == ["system", "user", "user", "user"]
+    summary, full = msgs[2]["content"], msgs[3]["content"]
+    assert summary.startswith("# Iteration 1 (summary)") and "```json" not in summary
+    assert all(f"- P1_it01_s{j:02d}: S " in summary for j in range(4)) and "rules early_start" in summary
+    assert full.startswith("# Iteration 2: your specs") and '"P1_it02_s00"' in full and "- s00 = P1_it02_s00" in full
 
 
 def test_params_only_structure_enforced(env):

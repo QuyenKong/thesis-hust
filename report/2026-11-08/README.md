@@ -53,8 +53,60 @@ Log can thiệp TraCI của B1, cộng 15 run:
 - `uturn_bypass`: 1927 lượt thử, 116 lượt lách qua được, 494 lượt không có khe ngang và không có làn kề, 1317 lượt không vượt qua được xe quay đầu.
 - `early_start` và `queue_space_seeking` không can thiệp lần nào (B1 đặt `p` = 0).
 
-## 3. Còn lại
+## 3. Rẽ trái từ làn 0, quay đầu từ làn 0 và 1 bằng luật TraCI
 
-- Luật TraCI cho rẽ trái từ làn 0 và quay đầu từ làn 0, 1 của xe vi phạm (PLAN 1.4).
-- qwen3.5:9b chưa ra spec hợp lệ ổn định: prompt `v003` cho 0/3 chuỗi hợp lệ trong 3 lần thử (04/11). Campaign P1/P2 với qwen chưa chạy.
-- Campaign B2/P1/P2 trên mạng 04/11 chưa chạy. Kết quả campaign trên mạng 28/10 không so sánh được với bảng trên.
+Ngày 04/11 các connection riêng cho xe vi phạm bị bỏ khỏi mạng (mục 1). Hai hành vi này được làm lại bằng lựa chọn `wrong_lane` của `queue_space_seeking`, gọi là kiểu cắt về (cut-back). Mạng không đổi.
+
+Cách làm:
+- Khóa site mới `violator_turn_lanes: {l: [0], u: [0, 1]}` (quan sát của chủ đề tài ngày 29/10, `DECISIONS.md` V3 của report 29/10). Khóa này có ở `config/site.proxy.yaml` và `config/site.yaml`.
+- Xe trong hàng chờ (`q`, `t_w` hoặc kiểm tra đèn sắp xanh, như các lựa chọn khác) rút `wrong_lane` với xác suất `p_wrong_lane`. Xe rẽ trái chuyển sang làn 0. Xe quay đầu chuyển sang làn 0 hoặc làn 1, chọn làn có hàng chờ ngắn hơn. Làn đó không có connection tới hướng của xe.
+- Khi xe vào cạnh vạch dừng (30 m cuối), luật gửi `changeLane` về làn 2, với laneChangeMode bit 9–8 = 01 và `lcPushy` 1, như `uturn_bypass`. Hai giá trị này được trả lại khi xe qua vạch. Chưa nhập được làn 2 thì xe đứng ở cuối làn sai và chặn xe sau.
+- Bỏ qua lựa chọn này cho hướng bị cấm (rẽ trái từ HDT_N, HDT_S) và cho xe đã ở trong 30 m cuối (`past_cut_point`).
+- `uturn_bypass` nhận cả xe quay đầu đứng ở làn 0 hoặc 1 (làn không có link quay đầu) làm xe chặn.
+- Validator (R27) và runtime dùng chung `runtime/wrong_lane.py`. Trên mạng proxy, `wrong_lane` giờ có cho cả 4 lớp xe. Riêng archetype trong `moto_violator` thì không lựa chọn nào áp dụng được, vì nó chỉ đi hướng rẽ trái bị cấm.
+- Không thêm tham số. Prompt `v004` mô tả lại hành vi 5, và mô tả của `p_wrong_lane` trong từ điển tham số cũng được sửa.
+
+Thí nghiệm trước khi viết luật (`exp_cut.py` trong scratch, PROXY_D1, B1 không có luật TraCI, 1200 s, 12 xe được ép đi làn sai). Nếu chỉ cho cắt về khi xe đã ở vạch và đèn của hướng mình xanh, thì đầu làn 2 đã kín. Xe phải đứng ở cuối làn sai từ 1,5 đến 8 phút, và một xe bị teleport. Vì vậy luật cho xe nhập lại ngay khi vào đoạn 30 m cuối. Tăng `lcMaxSpeedLatStanding` lên 3 m/s không làm thay đổi kết quả.
+
+Test mới: `test_queue_space_seeking_cut_back` (mạng nhỏ: xe rẽ trái đi làn 0, cắt về làn 2, rẽ trái, laneChangeMode và `lcPushy` được trả lại), `test_queue_space_seeking_cut_back` của validator, và phần cut-back trong `test_junction_info_on_proxy_net`.
+
+Chạy thử `B1_cut_back` (`rules/specs/B1_cut_back.json`): B1_manual, `queue_space_seeking` áp cho `moto_seeker` và `car_seeker` với `p_wrong_lane` 0,5. PROXY_D1–D3 × seed 1, campaign `AB_cut`, script `experiments/operator/ref/eval_cut_back.py`.
+- 49 lượt rút `wrong_lane`. 15 lượt vào được làn sai rồi cắt về: 10 lượt quay đầu từ làn 1 (7 xe máy, 3 ô tô) và 5 lượt từ làn 0. 31 lượt không đổi được làn trong 5 s cho mỗi làn phải vượt (`lane_change_not_done`). 3 lượt rút khi xe đã ở 30 m cuối.
+- Trong 15 xe cắt về, 14 xe đi hết hành trình. Một xe bị teleport vì chờ nhường quá lâu ở làn 2 (13 phút sau khi cắt về, do tắc chung). Một ô tô có va chạm ở làn 2, 40 s sau khi cắt về.
+- Cả 3 run vẫn bị loại. Va chạm 37,3/h, va chạm trong làn 2,0/h, teleport kẹt/nhường 9,3/h, S 1,2636. Với seed 1 của B1 ở bảng mục 2, va chạm trung bình 42,7/h, va chạm trong làn 0/h, teleport kẹt/nhường 5,3/h. Ba run không đủ để nói luật làm tăng hay giảm các số này.
+
+Giới hạn: xe cắt về vào nút từ làn 2, nên M8 (làn của xe tại vạch dừng, theo vị trí ngang) không ghi nhận nó là đi sai làn. M8 của `B1_cut_back` vẫn là 0 như B1, trong khi chỉ tiêu proxy là 0,249 với xe máy và 0,068 với ô tô. Muốn M8 phản ánh hành vi này thì xe phải vào nút từ làn 0 hoặc 1, tức là cần connection, đúng thứ đã bị bỏ ngày 04/11 vì gây va chạm. Việc chọn giữa hai cách cần chủ đề tài quyết.
+
+## 4. qwen3.5:9b: prompt `v004`
+
+Ngày 04/11, với prompt `v003`, qwen cho 0/3 chuỗi hợp lệ trong 3 lần thử. Có hai nguyên nhân chính:
+- Lỗi tổng share: archetype không ghi `distribution` nên rơi vào phân phối mặc định của lớp xe, và hai archetype `custom1` cùng rơi vào `moto_violator`.
+- Prompt quá dài: prompt vòng 2 khoảng 26 nghìn token. Prompt vòng 3 còn kèm phản hồi của cả vòng 1 và vòng 2, khoảng 46 nghìn token, vượt cửa sổ 32.768 token, nên với `v003` qwen không chạy hết được một campaign P2.
+
+Thay đổi trong `v004` (`config/llm.yaml` `prompt_version: v004`; `v001` đến `v003` giữ nguyên để tái tạo các campaign cũ):
+- Schema đầu ra ở chế độ full có một biến thể cho mỗi `base_vclass`. Mỗi biến thể chỉ có các tham số được đặt trên lớp xe đó (với cận của lớp đó), và chỉ cho các phân phối lớp đó được vào. `distribution` là bắt buộc. Ollama ép tên trường theo schema, nên qwen không đặt được `jmTimegapMinor` cho xe máy thường nữa. Cận số thì Ollama không ép: lượt A có một lần thử đặt giá trị mặc định của SUMO nằm ngoài cận.
+- System prompt thêm ba câu: ghi `distribution` cho mọi archetype và cộng share từng phân phối trước khi trả lời, share phải lớn hơn 0, id không được trùng tên phân phối.
+- Context: chỉ liệt kê 42 chỉ tiêu có tính điểm (bỏ 18 chỉ tiêu chỉ để báo cáo), và thay bản in đầy đủ của JSON schema bằng một khung mẫu ngắn.
+- Phản hồi: gộp kết quả của các spec trong một vòng thành một bảng, mỗi metric một dòng gồm giá trị quan sát và, với mỗi spec, giá trị mô phỏng và R. Chỉ giữ metric có trọng số.
+- Lịch sử: vòng gần nhất gửi đầy đủ (JSON của spec và bảng metric). Các vòng cũ hơn chỉ còn vài dòng tóm tắt (S, eligibility, archetype, luật) (`llm/loop.py` `_summary_message`).
+- `llm.loop` có thêm tùy chọn `--llm ollama`, để máy Windows dùng qwen mà không phải sửa `active` trong `llm.yaml` (máy Linux vẫn dùng stand-in).
+
+Kích thước prompt P2, dựng lại từ kết quả campaign `P2_n28b` (`experiments/operator/llm/prompt_size_v004.py`; số token ước theo tỷ lệ ký tự/token đo ngày 03/11):
+
+| | `v002` | `v004` |
+|---|---|---|
+| Vòng 2 | 68.745 ký tự, ~25.200 token | 45.029 ký tự, ~16.500 token |
+| Vòng 3 | 126.372 ký tự, ~46.300 token | 58.029 ký tự, ~21.300 token |
+
+Đo trên máy Windows (RTX 4060 8 GB, Ollama, `OLLAMA_CONTEXT_LENGTH=32768`, thinking bật, `max_tokens` 4500). Request là prompt vòng 2 của P2 dựng bằng `v004`. Mỗi chuỗi tối đa 3 lần thử (`LLMClient.generate_spec`), seed 42, 43, 44. Lượt A có schema với `distribution` bắt buộc nhưng chưa tách theo lớp xe, và system prompt chưa có hai câu về share > 0 và id. Lượt B có đủ các thay đổi trên. Script ở `report/2026-11-08/data/ollama/scripts/` (`retry_chain_v004.py`, `retry_chain_v004b.py`), kết quả ở `retry_a/` và `retry_b/`.
+
+| Lượt | Seed | Số lần thử tới khi hợp lệ | Thời gian chuỗi | Lỗi ở các lần thử hỏng |
+|---|---|---|---|---|
+| A | 42 | 3 | 667 s | bị cắt ở 4500 token; `jmTimegapMinor` trên xe máy (2 lỗi) và id `moto_violator` |
+| A | 43 | 3 | 543 s | giá trị mặc định SUMO ngoài cận (`jmDriveAfterRedTime` -1, `jmDriveRedSpeed` 55,56); share = 0 |
+| A | 44 | 3 | 473 s | share = 0; id `moto_violator` |
+| B | 42 | 2 | 299 s | id `moto_violator` |
+| B | 43 | 3 | 704 s | bị cắt ở 4500 token; tổng share `moto` 0,9 |
+| B | 44 | 3 | 388 s | tổng share `moto` 1,1 và id `moto_violator`; `queue_space_seeking` trên xe máy thường |
+
+Cả 6 chuỗi đều ra spec hợp lệ trong 3 lần thử (ngày 04/11 với `v003`: 0/3; ngày 03/11 với `v002`: 1/3). Prompt dài 15.919–19.678 token, câu trả lời 1.526–4.500 token, tốc độ sinh 12,5–13,5 token/s. Một lần thử mất 2–6 phút. Lỗi id `moto_violator` xuất hiện ở 4/6 chuỗi dù prompt đã cấm, nhưng lần thử sau đều sửa được. Sáu chuỗi chưa đủ để so lượt A với lượt B.

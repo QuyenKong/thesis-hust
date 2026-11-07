@@ -27,8 +27,9 @@ Codes:
                   approach with a bollard edge (split node `<edge>.bollard`, net.apply_patches) whose upstream lane 0
                   allows the vclass (none on the proxy net since 2026-10-28, `right_lane_separator: open`: p_right_lane
                   is then redistributed like any absent option); sidewalk = a sidewalk edge allowing the vclass. An
-                  archetype in moto_violator
-                  drives only the illegal left (build_demand), so only wrong_lane counts for it
+                  archetype in moto_violator drives only the illegal left (build_demand), a banned movement that no
+                  lane is marked for, so no option exists for it (a wrong-lane dodge needs a marked lane, and a
+                  cut-back dodge, site violator_turn_lanes, skips banned movements)
 - `structure_locked` (`structure_issues`, LLM loop mode params_only = P1, PLAN 7.2) the spec changes the structure
                   of the locked base spec: archetype ids, base_vclass, distribution, the param names of an archetype
                   or a rule, a non-numeric param value, or the rule types and their applies_to
@@ -296,16 +297,18 @@ def _dodge_vclasses(net_path: str, site_key: tuple, site: Site) -> frozenset[str
 
 
 def _compute_dodge_vclasses(net_path: str, site: Site) -> frozenset[str]:
-    from thesis_sumo.runtime.wrong_lane import LaneLink, usable_dodges
+    from thesis_sumo.runtime.wrong_lane import LaneLink, banned_movements, usable_dodges
     net = sumolib.net.readNet(net_path)
-    links, marks = {}, {}
+    links, marks, banned = {}, {}, {}
     for i, a in enumerate(site["approaches"]):
         app = site.require(f"approaches.{i}.id")
         lanes = sorted(net.getEdge(str(site.require(f"approaches.{i}.edge"))).getLanes(), key=lambda ln: ln.getIndex())
         links[app] = [[LaneLink(c.getTo().getID(), c.getDirection(), frozenset(v for v in VCLASSES if c.allows(v)))
                        for c in lane.getOutgoing()] for lane in lanes]
         marks[app] = [list(m) for m in site.require(f"approaches.{i}.lane_movements")]
-    return frozenset(v for v in VCLASSES if usable_dodges(links, marks, v))
+        banned[app] = banned_movements(a)
+    turn = {str(m): [int(j) for j in v] for m, v in (site.get("violator_turn_lanes") or {}).items()}
+    return frozenset(v for v in VCLASSES if usable_dodges(links, marks, v, turn, banned))
 
 
 def _space_vclasses(net_path: str) -> dict[str, frozenset[str]]:
@@ -328,7 +331,7 @@ def _site_rule_issues(spec: dict, site: Site, net: Path | None) -> list[Validati
     if not rules:
         return []
     net = Path(net) if net is not None else NET_DIR / site_net_name(site)
-    site_key = json.dumps(site["approaches"], sort_keys=True, default=str)
+    site_key = json.dumps([site["approaches"], site.get("violator_turn_lanes")], sort_keys=True, default=str)
     ok = {"wrong_lane": _dodge_vclasses(str(net), (site_key,), site), **_space_vclasses(str(net))}
     archs = {a["id"]: a for a in spec["driver_archetypes"]}
     issues = []
@@ -339,8 +342,7 @@ def _site_rule_issues(spec: dict, site: Site, net: Path | None) -> list[Validati
             if arch is None or not wanted:
                 continue
             vc = arch["base_vclass"]
-            exist = [o for o in SEEK_OPTIONS
-                     if vc in ok[o] and (o == "wrong_lane" or distribution_of(arch) != "moto_violator")]
+            exist = [o for o in SEEK_OPTIONS if vc in ok[o] and distribution_of(arch) != "moto_violator"]
             if not set(wanted) & set(exist):
                 issues.append(_issue(f"traci_rules[{i}].applies_to[{j}]", "logic",
                                      f"rule_type queue_space_seeking is inapplicable on this site for '{aid}' "

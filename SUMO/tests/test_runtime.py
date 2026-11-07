@@ -578,6 +578,73 @@ def test_queue_space_seeking_wrong_lane(tmp_path):
     assert ctl.summary()["queue_space_seeking"]["counters"]["no_option"] == 1  # d_r
 
 
+def _cut_net(d: Path) -> Path:
+    """W approach as on the proxy net since 2026-11-04: 3 lanes split into `WU` (upstream) and the 30 m stop-line edge
+    `WC` (no lane-change ban), left only from lane 2 (lane 0: right + straight, lane 1: straight). Other arms one lane
+    (CE two); netconvert's static program."""
+    d.mkdir(parents=True, exist_ok=True)
+    nodes = {"C": (0, 0, "traffic_light"), "W": (-200, 0, "priority"), "B": (-30, 0, "priority"),
+             "E": (150, 0, "priority"), "S": (0, -150, "priority"), "N": (0, 150, "priority")}
+    (d / "n.nod.xml").write_text("<nodes>" + "".join(f'<node id="{k}" x="{x}" y="{y}" type="{ty}"/>'
+                                                    for k, (x, y, ty) in nodes.items()) + "</nodes>", encoding="utf-8")
+    edges = ['<edge id="WU" from="W" to="B" numLanes="3" speed="13.9" width="3.5"/>',
+             '<edge id="WC" from="B" to="C" numLanes="3" speed="13.9" width="3.5"/>',
+             '<edge id="CE" from="C" to="E" numLanes="2" speed="13.9"/>']
+    edges += [f'<edge id="{i}" from="{f}" to="{to}" numLanes="1" speed="13.9"/>' for i, f, to in (
+        ("EC", "E", "C"), ("CW", "C", "W"), ("SC", "S", "C"), ("CN", "C", "N"), ("NC", "N", "C"), ("CS", "C", "S"))]
+    conns = ['<connection from="WC" to="CS" fromLane="0" toLane="0"/>',
+             '<connection from="WC" to="CE" fromLane="0" toLane="0"/>',
+             '<connection from="WC" to="CE" fromLane="1" toLane="0"/>',
+             '<connection from="WC" to="CE" fromLane="2" toLane="1"/>',
+             '<connection from="WC" to="CN" fromLane="2" toLane="0"/>']
+    conns += [f'<connection from="WU" to="WC" fromLane="{i}" toLane="{i}"/>' for i in range(3)]
+    (d / "n.edg.xml").write_text("<edges>" + "".join(edges) + "</edges>", encoding="utf-8")
+    (d / "c.con.xml").write_text("<connections>" + "".join(conns) + "</connections>", encoding="utf-8")
+    subprocess.run([sumolib.checkBinary("netconvert"), "-n", str(d / "n.nod.xml"), "-e", str(d / "n.edg.xml"),
+                    "-x", str(d / "c.con.xml"), "--no-turnarounds", "-o", str(d / "cut.net.xml")],
+                   check=True, capture_output=True)
+    return d / "cut.net.xml"
+
+
+def test_queue_space_seeking_cut_back(tmp_path):
+    """Cut-back wrong lane (site violator_turn_lanes, owner decision 2026-11-04): a custom1 left-turner queued behind
+    the left queue in lane 2 rides lane 0 (no left connection there), cuts back to lane 2 on the 30 m stop-line edge
+    with lane-change mode bits 9-8 = 01 and lcPushy 1, and turns left; mode and lcPushy are restored at the
+    stop-line crossing. Without the site key the option does not exist (no_option)."""
+    net = _cut_net(tmp_path / "net")
+    # this net's static program: W green until ~45 s, red until ~90 s; the left queue forms on that red
+    queue = ('<flow id="q" type="car" begin="44" end="64" period="1.5" departLane="2" departSpeed="max">'
+             '<route edges="WU WC CN"/></flow>')
+    rider = '<vehicle id="d_l" type="vio" depart="66" departLane="2" departSpeed="max"><route edges="WU WC CN"/></vehicle>'
+    marks = {"LVL_W": [["r", "s"], ["s"], ["s", "l"]], "LVL_E": [["r", "s", "l", "u"]],
+             "HDT_N": [["r", "s", "l", "u"]], "HDT_S": [["r", "s", "l", "u"]]}
+    site = _site(tmp_path, marks)
+    site["violator_turn_lanes"] = {"l": [0], "u": [0, 1]}
+    seen, modes = [], {}
+
+    def probe(b, t, ctl):
+        if "d_l" in b.vehicle.getIDList():
+            lane = b.vehicle.getLaneID("d_l")
+            if not seen or seen[-1] != lane:
+                seen.append(lane)
+            modes[lane] = (b.vehicle.getLaneChangeMode("d_l"), b.vehicle.getParameter("d_l", "laneChangeModel.lcPushy"))
+
+    import libsumo
+    ctl, rows = _simulate(libsumo, net, queue + rider, [_seek(q=20.0, p_wrong_lane=1.0)], site, tmp_path, 200,
+                          probe=probe)
+    assert [(r["veh_id"], r["action"], r["executed"]) for r in rows] == [("d_l", "wrong_lane", "True")]
+    assert rows[0]["detail"].endswith(";cut_back=0->2")
+    assert "WU_0" in seen or "WC_0" in seen  # rode the wrong lane
+    assert "CN_0" in seen  # and turned left
+    assert ctl.summary()["queue_space_seeking"]["counters"]["cut_sent"] == 1
+    cut_mode = (DEFAULT_LC_MODE & ~(0b11 << 8)) | (0b01 << 8)
+    assert modes["WC_2"][0] == cut_mode and float(modes["WC_2"][1]) == 1.0  # merged back under the cut command
+    assert modes["CN_0"][0] == DEFAULT_LC_MODE and float(modes["CN_0"][1]) == 0.0  # restored after the stop line
+    del site["violator_turn_lanes"]
+    ctl, rows = _simulate(libsumo, net, queue + rider, [_seek(q=20.0, p_wrong_lane=1.0)], site, tmp_path, 90)
+    assert rows == [] and ctl.summary()["queue_space_seeking"]["counters"]["no_option"] == 1
+
+
 def test_junction_info_on_proxy_net():
     """The proxy net's split approaches and the LVL_W sidewalk as the controller sees them (TraCI only): segments from
     the stop line upstream, chain offsets = sumolib lengths, the sidewalk lane counts for crossings but not for the
@@ -630,14 +697,22 @@ def test_junction_info_on_proxy_net():
         want += net.getLane(ln).getLength()
     assert len(info.group_links["LVL_W"]) == 3  # the road's straight links only (not the sidewalk's)
     # the lane-0 straight is open (lane 0 marked [r, s]): not a wrong lane; left and U-turn only from lane 2, so no
-    # class has a dodge (owner decision 2026-11-04: no violator-only links); runtime = validator (R27)
+    # class has a through dodge (owner decision 2026-11-04: no violator-only links). Cut-back dodges (site
+    # violator_turn_lanes): left from lane 0 on LVL (banned on HDT), U-turn from lanes 0 and 1 everywhere;
+    # runtime = validator (R27)
     from thesis_sumo.rules.validator import _compute_dodge_vclasses
     from thesis_sumo.runtime.wrong_lane import usable_dodges
     (open_s,) = [lk for lk in info.links[f"{x}_0"] if lk.direction == "s"]
     assert {"passenger", "motorcycle", "custom1", "custom2"} <= open_s.allowed
     links = {a: info.lane_links(a) for a in info.lanes}
     assert all(usable_dodges(links, info.lane_movements, v) == [] for v in ("custom1", "custom2", "motorcycle"))
-    assert _compute_dodge_vclasses(str(net_path), site) == frozenset()
+    assert info.turn_lanes == {"l": [0], "u": [0, 1]}
+    assert info.banned == {"LVL_W": frozenset(), "LVL_E": frozenset(), "HDT_N": {"l"}, "HDT_S": {"l"}}
+    cut = usable_dodges(links, info.lane_movements, "custom2", info.turn_lanes, info.banned)
+    dirs = {(a, j, next(lk.direction for lk in links[a][i] if lk.to_edge == e)) for a, i, e, j in cut}
+    assert dirs == {(a, j, "t") for a in info.lanes for j in (0, 1)} | {(a, 0, "l") for a in ("LVL_W", "LVL_E")}
+    assert all(i == 2 for _a, i, _e, _j in cut)
+    assert _compute_dodge_vclasses(str(net_path), site) == {"passenger", "motorcycle", "custom1", "custom2"}
 
 
 def test_queue_space_seeking_libsumo_traci_same(f2_sidewalk, tmp_path):

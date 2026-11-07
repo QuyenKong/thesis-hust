@@ -247,6 +247,9 @@ illegal_left:
 violator_classes:              # vClasses of the violator vTypes (PLAN 0; not field data, same as config/site.yaml)
   moto: custom1
   car: custom2
+violator_turn_lanes: {l: [0], u: [0, 1]}   # movement -> wrong lanes a violator may ride (queue_space_seeking wrong_lane)
+violator_turn_lanes_source: "Viktor, 2026-10-29 (field, not measured; report/2026-10-29/DECISIONS.md V3): violators turn left from lane 0 (approaches where the left is not banned) and make U-turns from lanes 0 and 1. Owner decision 2026-11-04: no violator-only connections (they split the straight movements into one-lane internal edges and caused lane collisions); the wrong_lane option of queue_space_seeking rides that lane and cuts back to the lane marked for the movement over the last right_lane_length_m before the stop line (PLAN 4.5)"
+violator_turn_lanes_evidence: field_observation
 f2_measured_approaches: [LVL_W, LVL_E]
 f2_measured_approaches_source: "Viktor, 2026-10-28 (field, not measured): riders use the sidewalk on Le Van Luong in both directions, LVL_W to go straight or right into Nguyen Tuan, LVL_E to go straight or right into Hoang Minh Giam; sidewalk geometry assumed (ruling R39)"
 f2_measured_approaches_evidence: assumed

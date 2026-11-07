@@ -3,7 +3,8 @@ lane while its own signal is green does not wait: most motorcycles squeeze past 
 adjacent lane), cars rarely do. One rule entry per archetype group, so motorcycles and cars carry their own `p`.
 
 - Blocker: a vehicle on a stop-line lane of an approach, speed < `HALT_SPEED_MPS`, whose route takes a U-turn link
-  (direction `t`) from that lane. Any reason for its stop counts (waiting for a gap in the opposing stream on a
+  (direction `t`) from that lane, or, when that lane has no link to its next edge, from another lane of the approach
+  (a U-turner of the cut-back wrong_lane option of queue_space_seeking standing in lane 0 or 1, 2026-11-08). Any reason for its stop counts (waiting for a gap in the opposing stream on a
   permissive green, or for its own arrow).
 - Follower: a vehicle of the rule's vTypes in the same lane, behind the blocker with a gap (blocker rear to follower
   front) of at most `BLOCK_GAP_M`, standing, overlapping the blocker laterally, not a U-turner itself, whose own link
@@ -66,6 +67,13 @@ class UturnBypass(Rule):
         nxt = self._route_next[vid]
         return next((lk for lk in self.info.links.get(lane, ()) if lk.to_edge == nxt), None)
 
+    def _route_dir(self, app: str, vid: str) -> str | None:
+        """Direction of the approach's link to `vid`'s next edge when its own lane has none (a cut-back U-turner of
+        queue_space_seeking standing in lane 0 or 1, site violator_turn_lanes)."""
+        nxt = self._route_next.get(vid)
+        return next((lk.direction for ln in self.info.lanes[app] for lk in self.info.links.get(ln, ())
+                     if lk.to_edge == nxt), None)
+
     def on_step(self, s: Step) -> list[Intervention]:
         out = self.left_zone(s)
         for vid in sorted(self.active):
@@ -99,7 +107,7 @@ class UturnBypass(Rule):
                     if b.speed >= HALT_SPEED_MPS:
                         continue
                     lk = self._link(s, bid)
-                    if lk is None or lk.direction != "t":
+                    if (lk.direction if lk is not None else self._route_dir(app, bid)) != "t":
                         continue
                     b_rear = s.dist(bid) + self.info.vtype_length[b.vtype]
                     bw = self._w(b.vtype)

@@ -21,8 +21,8 @@ from thesis_sumo.llm.client import HARNESS_KEYS, LLMClient, PendingResponse, llm
 from thesis_sumo.llm.feedback import (DayDataLeak, assert_no_day_data, build_context, build_feedback, build_retry,
                                       calibration_targets, system_prompt)
 from thesis_sumo.metrics.distance import DistanceReport, MetricReport
-from thesis_sumo.rules.schema import load_bounds, load_excluded
-from thesis_sumo.rules.validator import structure_issues, validate
+from thesis_sumo.rules.schema import DISTRIBUTIONS_OF_VCLASS, VCLASSES, load_bounds, load_excluded
+from thesis_sumo.rules.validator import distribution_of, structure_issues, validate
 
 B1 = REPO_ROOT / "rules" / "specs" / "B1_manual.json"
 PROXY_SITE = REPO_ROOT / "config" / "site.proxy.yaml"
@@ -237,8 +237,10 @@ def test_feedback_has_no_validation_days(base):
     cal, val = exp["data_split"]["calibration_days"], exp["data_split"]["validation_days"]
     text = build_feedback([_result("c_it01_s00", cal)], {"c_it01_s01": [{"path": "x", "code": "logic", "message": "m"}]})
     assert "PROXY_D" not in text and not any(d in text for d in cal + val)
-    assert "M3/share/moto" in text and "R 2.00" in text and "drawn_right_lane" in text and "[logic]" in text
-    assert "max_end_backlog" in text
+    assert "M3/share/moto" in text and "R 2.00" in text and "lane_blocked" in text and "[logic]" in text
+    assert "max_end_backlog" in text and "s00 = c_it01_s00: S " in text and "s00 0.1 (sim>obs) R 2.00" in text
+    old = build_feedback([_result("c_it01_s00", cal)], prompt_version="v003")  # pre-v004 layout, counters included
+    assert "## Spec c_it01_s00: S = " in old and "drawn_right_lane" in old
     with pytest.raises(DayDataLeak):
         build_feedback([_result("c_it01_s00", cal + val[:1])])
     with pytest.raises(DayDataLeak):
@@ -285,6 +287,18 @@ def test_v003_context_describes_28_10_scenario(site, base):
     assert "HDT_N and HDT_S" not in old.split("## Behaviours")[1] and system_prompt("v001")   # v001 still loads
 
 
+def test_v004_context_describes_cut_back_wrong_lane(site):
+    """v004 (2026-11-08): behaviour 5 exists on the proxy site as the cut-back wrong lane (site violator_turn_lanes);
+    the p_wrong_lane entry of the parameter dictionary describes it."""
+    targets = {"M1/moto": {"label": "discharge headway", "unit": "s", "obs_mean": 0.25, "evidence": "literature"}}
+    text = build_context("full", None, site, load_bounds(), targets, schema=llm_schema("full"), prompt_version="v004")
+    behaviours = text.split("## Behaviours")[1].split("## Parameter dictionary")[0]
+    assert "cuts back into lane 2" in behaviours and "`p_wrong_lane`. It does not exist" not in behaviours
+    assert "violator_turn_lanes" in text.split("## Parameter dictionary")[1]
+    v3 = build_context("full", None, site, load_bounds(), targets, schema=llm_schema("full"), prompt_version="v003")
+    assert "cuts back into lane 2" not in v3
+
+
 def test_feedback_lists_every_per_approach_metric(base):
     """Feedback passes every metric of the report through (no approach filter)."""
     keys = ["M7/HDT_N", "M7/HDT_S", "M10/LVL_W", "M10/LVL_E"]
@@ -315,14 +329,27 @@ def test_llm_schema_has_no_unsupported_keywords(base):
         schema = llm_schema(mode, base)
         Draft202012Validator.check_schema(schema)
         assert not _keywords(schema, set()) & UNSUPPORTED, mode
-    props = llm_schema("full")["properties"]["driver_archetypes"]["items"]["properties"]["params"]["properties"]
-    assert set(props) == {n for n, b in load_bounds().items() if not b.fixed}
+    variants = llm_schema("full")["properties"]["driver_archetypes"]["items"]["anyOf"]
+    assert [v["properties"]["base_vclass"]["enum"] for v in variants] == [[vc] for vc in VCLASSES]
+    for v in variants:   # one variant per base vclass: its attributes, ranges and distributions only
+        vc = v["properties"]["base_vclass"]["enum"][0]
+        props = v["properties"]["params"]["properties"]
+        assert set(props) == {n for n, b in load_bounds().items() if not b.fixed and vc in b.vclasses}, vc
+        assert v["properties"]["distribution"]["enum"] == list(DISTRIBUTIONS_OF_VCLASS[vc])
+        assert "distribution" in v["required"]
+    assert {v["properties"]["base_vclass"]["enum"][0] for v in variants
+            if "jmTimegapMinor" in v["properties"]["params"]["properties"]} == {"custom1"}
 
 
 def test_b1_round_trips_params_only_lock(tmp_path, site, base):
     answer = _answer(base)
-    for mode in ("params_only", "full"):
-        assert list(Draft202012Validator(llm_schema(mode, base)).iter_errors(answer)) == [], mode
+    assert list(Draft202012Validator(llm_schema("params_only", base)).iter_errors(answer)) == []
+    full = copy.deepcopy(answer)   # full mode requires `distribution` on every archetype (2026-11-08)
+    errors = list(Draft202012Validator(llm_schema("full", base)).iter_errors(full))
+    assert errors and all(e.validator == "anyOf" for e in errors)   # no variant without `distribution`
+    for a in full["driver_archetypes"]:
+        a.setdefault("distribution", distribution_of(a))
+    assert list(Draft202012Validator(llm_schema("full", base)).iter_errors(full)) == []
     client, _ = _openai_client(tmp_path, site, [json.dumps(answer)])
     spec, rec = client.generate_spec(MSGS, "params_only", base, iteration=0, sample_idx=0)
     assert len(rec["attempts"]) == 1 and structure_issues(spec, base) == []

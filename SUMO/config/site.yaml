@@ -115,5 +115,9 @@ illegal_left:
 violator_classes:              # vClasses of the violator vTypes; only they may use the violator-only connections
   moto: custom1                # moto_violator: banned left turn, sidewalk lane
   car: custom2                 # car_violator
+violator_turn_lanes:           # Viktor 2026-10-29 (field, not measured; report/2026-10-29 DECISIONS V3): violators turn left
+  l: [0]                       # from lane 0 (where the left is not banned) and make U-turns from lanes 0 and 1. Since
+  u: [0, 1]                    # 2026-11-04 no connection: the wrong_lane option of queue_space_seeking rides that lane and
+                               # cuts back to the marked lane over the last right_lane_length_m (PLAN 4.5)
 f2_measured_approaches: null   # TODO_MEASURE: 1-2 approaches used to measure F2 (camera sees 50-100 m of queue and the
                                # sidewalk); the sidewalk lane (PLAN 1.4) is built only on these

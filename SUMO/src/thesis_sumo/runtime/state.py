@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 import traci.constants as tc
 
 from thesis_sumo.config import Site
-from thesis_sumo.runtime.wrong_lane import LaneLink
+from thesis_sumo.runtime.wrong_lane import LaneLink, banned_movements
 from thesis_sumo.schema_observed import normalise_state
 
 FRONT_ROW_M = 2.5  # front within this distance of the stop line = front row. A second-row vehicle stands at least
@@ -87,6 +87,8 @@ class JunctionInfo:
     box_lanes: dict[str, list[str]] = field(default_factory=dict)   # illegal-left approach -> internal chain
     hold_lanes: dict[str, list[str]] = field(default_factory=dict)  # illegal-left approach -> chain before waiting point
     lane_movements: dict[str, list[list[str]]] = field(default_factory=dict)  # approach -> per lane index
+    banned: dict[str, frozenset[str]] = field(default_factory=dict)  # approach -> banned movements (l, u)
+    turn_lanes: dict[str, list[int]] = field(default_factory=dict)  # site violator_turn_lanes (movement -> lanes)
     vtype_length: dict[str, float] = field(default_factory=dict)  # vType id -> length (filled by StepReader)
     segments: dict[str, list[str]] = field(default_factory=dict)  # approach -> edges, stop line first
     chains: dict[str, list[list[str]]] = field(default_factory=dict)  # approach -> per lane index, stop line first
@@ -145,6 +147,8 @@ class JunctionInfo:
                     raise ValueError(f"approaches.{i}.lane_movements has {len(mv)} lanes, the net has "
                                      f"{len(lanes[a['id']])} on {approach_edge[a['id']]}")
                 info.lane_movements[a["id"]] = [list(x) for x in mv]
+                info.banned[a["id"]] = banned_movements(a)
+            info.turn_lanes = {str(m): [int(j) for j in v] for m, v in (site.get("violator_turn_lanes") or {}).items()}
         if need_box:
             info._build_box(backend, site)
         return info

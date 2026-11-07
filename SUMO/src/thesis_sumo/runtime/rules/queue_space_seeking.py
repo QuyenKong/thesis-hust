@@ -25,7 +25,9 @@ Trigger and draw
   redistributed proportionally (PLAN 4.5 "dồn hành vi"); none with the rest. No option with p > 0 exists: no seeking.
   An option exists (static, from the net, as the validator sees it):
   - `wrong_lane`: some lane permitting the movement has an adjacent lane whose markings do not, with a connection to
-    the next edge allowing the vClass (`wrong_lane.dodge_targets`, R27);
+    the next edge allowing the vClass (`wrong_lane.dodge_targets`, R27), or a cut-back wrong lane
+    (`wrong_lane.cut_back_targets`: site `violator_turn_lanes`, left from lane 0 and U-turn from lanes 0 and 1 where
+    the movement is not banned, owner decision 2026-11-04);
   - `right_lane`: movement straight, lane 0's markings do not permit it, the bollard edge forbids lane 0 -> 1 for the
     vClass (`lane.getChangePermissions`) and the upstream lane 0 allows it. On the proxy net since 2026-10-28
     (separator open, lane 0 marked [r, s]) it exists nowhere: straight vehicles that wait in lane 0 come from SUMO's
@@ -51,8 +53,17 @@ lets a TraCI request win; Phase 3A: no lock is needed, violators do not enter la
   rider that leaves the segment without reaching lane 0 keeps its road route (`lane_change_not_done`). `executed` once
   on the sidewalk lane (speed capped at `v_creep`); the cap is lifted at its stop-line crossing.
 - `wrong_lane`: `changeLane(j, HOLD_S)` to the usable wrong adjacent lane with the shortest queue (`no_wrong_lane_here`
-  if the vehicle's lane has none); `executed` once on lane j within `LANE_CHANGE_TIMEOUT_S` (speed capped at
-  `v_creep`), `lane_change_not_done` otherwise; the request and cap end at the stop-line crossing.
+  if the vehicle's lane has none); `executed` once on lane j within `LANE_CHANGE_TIMEOUT_S` per lane to cross (a
+  cut-back from lane 2 to lane 0 crosses two; toy run: 6.6 s) (speed capped at `v_creep`), `lane_change_not_done`
+  otherwise; the request and cap end at the stop-line crossing.
+  Cut-back (no through dodge from the vehicle's lane; detail `;cut_back=<j>-><i>`): j = the cut-back lane with the
+  shortest queue, i = the lane marked for the movement; not sent on the stop-line edge (`past_cut_point`). Once the
+  vehicle reaches the stop-line edge (the last `right_lane_length_m`, where lane 0 is the continuous right-turn lane)
+  the hold on j is replaced by `changeLane(i, HOLD_S)` with laneChangeMode bits 9-8 = 01 ("avoid immediate
+  collisions when following a TraCI request") and SL2015 `lcPushy` 1 per vehicle, as `uturn_bypass` does; both are
+  restored at the outcome. The vehicle merges into lane i where a gap opens, or waits at the end of lane j (no
+  connection there) until one does. Merging only at the stop line, on the movement's green, kept riders standing at
+  the end of lane j for 1.5-8 min behind the full head of lane i (feasibility run, PROXY_D1, report/2026-11-08).
 
 Log (`interventions.csv`): action = the option (the `space` of PLAN 5.1 space_seeking_events), detail =
 `approach=..;trigger=queue|wait|green;queue_m=..;wait_s=..` (+ `;needed_s=..;est_s=..;green_s=..` for green) at the
@@ -65,11 +76,14 @@ import math
 
 from thesis_sumo.runtime.rules.base import Intervention, Rule
 from thesis_sumo.runtime.state import HALT_SPEED_MPS, Step, allowed_classes
-from thesis_sumo.runtime.wrong_lane import MOVEMENT_OF_DIR, dodge_targets
+from thesis_sumo.runtime.wrong_lane import MOVEMENT_OF_DIR, cut_back_targets, dodge_targets
 
 OPTIONS = ("wrong_lane", "right_lane", "sidewalk")
 HOLD_S = 600.0  # changeLane duration of the held requests; always ended explicitly (Phase 3A)
 LANE_CHANGE_TIMEOUT_S = 5.0
+PUSHY = "laneChangeModel.lcPushy"  # as uturn_bypass: SL2015 "willingness to encroach laterally on other drivers"
+LC_TRACI_BITS = 0b11 << 8          # laneChangeMode bits 9-8
+LC_AVOID_COLLISIONS_ONLY = 0b01 << 8
 
 
 def option_probabilities(p: dict[str, float], available) -> dict[str, float]:
@@ -146,7 +160,8 @@ class QueueSpaceSeeking(Rule):
         if key not in self._avail:
             info, marks, out = self.info, self.info.lane_movements[app], set()
             links = info.lane_links(app)
-            if any(mv in marks[i] and dodge_targets(links, marks, i, nxt, vclass)[1] for i in range(len(marks))):
+            if any(mv in marks[i] and (dodge_targets(links, marks, i, nxt, vclass)[1]
+                                       or self._cut_back(app, i, nxt, vclass)) for i in range(len(marks))):
                 out.add("wrong_lane")
             lane0 = info.lanes[app][0]
             if (mv == "s" and mv not in marks[0] and len(info.segments[app]) > 1
@@ -158,6 +173,10 @@ class QueueSpaceSeeking(Rule):
                 out.add("sidewalk")
             self._avail[key] = frozenset(out)
         return self._avail[key]
+
+    def _cut_back(self, app: str, i: int, nxt: str, vclass: str) -> list[int]:
+        return cut_back_targets(self.info.lane_links(app), self.info.lane_movements[app], i, nxt, vclass,
+                                self.info.turn_lanes, self.info.banned.get(app, frozenset()))
 
     def _cancel(self, vid: str, lane: str) -> None:
         """End a held lane request (duration 0 on the vehicle's current lane index)."""
@@ -171,6 +190,12 @@ class QueueSpaceSeeking(Rule):
         a = self.active[vid]
         if a.data["opt"] == "right_lane":
             self._merging.add(vid)
+        if a.data.get("cut_sent"):
+            try:
+                self.b.vehicle.setLaneChangeMode(vid, a.data["lc_mode"])
+                self.b.vehicle.setParameter(vid, PUSHY, a.data["pushy"])
+            except self.b.TraCIException:
+                pass
         if a.data["opt"] != "sidewalk" and lane is not None:
             self._cancel(vid, lane)
         if a.data["logged"]:
@@ -354,16 +379,40 @@ class QueueSpaceSeeking(Rule):
 
     def _start_wrong_lane(self, s: Step, vid: str, app: str, nxt: str, detail: str) -> list[Intervention]:
         i = self.lane_index[s.vehicles[vid].lane]
-        targets = dodge_targets(self.info.lane_links(app), self.info.lane_movements[app], i, nxt,
-                                self._vc(s.vehicles[vid].vtype))[1]
+        vclass = self._vc(s.vehicles[vid].vtype)
+        targets = dodge_targets(self.info.lane_links(app), self.info.lane_movements[app], i, nxt, vclass)[1]
+        cut_to = None
+        if not targets:
+            marked = [(k, self._cut_back(app, k, nxt, vclass)) for k in range(len(self.info.lanes[app]))]
+            cut_to, targets = next(((k, js) for k, js in marked if js), (None, []))
+            if targets and s.vehicles[vid].lane in self.info.lanes[app]:
+                return [self.record(vid, "wrong_lane", s.t, False, "past_cut_point", detail)]
         if not targets:
             return [self.record(vid, "wrong_lane", s.t, False, "no_wrong_lane_here", detail)]
         j = min(targets, key=lambda k: (s.queue_length(self.info.chains[app][k]), k))
-        a = self.start(vid, "wrong_lane", s.t, app=app, opt="wrong_lane", logged=False, detail=detail, target=j)
+        if cut_to is not None:
+            detail += f";cut_back={j}->{cut_to}"
+        a = self.start(vid, "wrong_lane", s.t, app=app, opt="wrong_lane", logged=False, detail=detail, target=j,
+                       cut_to=cut_to, cut_sent=False, n_lanes=max(1, abs(j - i)))
         try:
             self.b.vehicle.changeLane(vid, j, HOLD_S)
         except self.b.TraCIException as e:
             return [self.failed_command(a, s.t, e)]
+        return []
+
+    def _send_cut(self, a, t: float) -> list[Intervention]:
+        """Cut-back: on the stop-line edge, merge back into the marked lane (module docstring)."""
+        vid = a.vid
+        try:
+            mode = self.b.vehicle.getLaneChangeMode(vid)
+            a.data.update(lc_mode=mode, pushy=self.b.vehicle.getParameter(vid, PUSHY) or "0", cut_sent=True)
+            self.b.vehicle.setLaneChangeMode(vid, (mode & ~LC_TRACI_BITS) | LC_AVOID_COLLISIONS_ONLY)
+            self.b.vehicle.setParameter(vid, PUSHY, "1")
+            self.b.vehicle.changeLane(vid, a.data["cut_to"], HOLD_S)
+        except self.b.TraCIException:
+            self.counters["cut_command_failed"] += 1
+            return []
+        self.counters["cut_sent"] += 1
         return []
 
     def _close_merged(self, s: Step) -> None:
@@ -405,9 +454,12 @@ class QueueSpaceSeeking(Rule):
             else:  # wrong_lane
                 if not a.data["logged"] and on_app and self.lane_index.get(lane) == a.data["target"]:
                     out.append(self._executed(vid, s.t))
+                if (a.data["cut_to"] is not None and a.data["logged"] and not a.data["cut_sent"]
+                        and lane in self.info.lanes[app]):
+                    out += self._send_cut(a, s.t)
                 if vid in crossed or not on_app:
                     out += self._end(vid, s.t, "lane_change_not_done", lane)
-                elif not a.data["logged"] and s.t >= a.t0 + LANE_CHANGE_TIMEOUT_S - 1e-9:
+                elif not a.data["logged"] and s.t >= a.t0 + LANE_CHANGE_TIMEOUT_S * a.data["n_lanes"] - 1e-9:
                     out += self._end(vid, s.t, "lane_change_not_done", lane)
         return out
 

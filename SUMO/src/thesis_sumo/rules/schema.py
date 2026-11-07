@@ -127,10 +127,12 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
                            "assumed upper bound (twice the 10 s early-start window, data/proxy/targets.yaml)"),
         "est_noise": RuleParam(0.0, 1.0, "-", "sigma of the multiplicative lognormal error of that estimate (median "
                                "unbiased); 1 = a factor e ~ 2.7 at one sigma; assumed"),
-        "p_wrong_lane": RuleParam(0.0, 1.0, "-", "probability of the wrong_lane option (S_cheat: an adjacent lane whose "
-                                  "markings do not permit the movement but which connects to the vehicle's next "
-                                  "edge); inapplicable on the proxy net (no such lane for any movement, ruling R27), "
-                                  "so it is redistributed"),
+        "p_wrong_lane": RuleParam(0.0, 1.0, "-", "probability of the wrong_lane option (S_cheat, behaviour 5): an adjacent "
+                                  "lane whose markings do not permit the movement but which connects to the vehicle's "
+                                  "next edge (none on the proxy net, R27), or a lane the site lists for the movement "
+                                  "in violator_turn_lanes (left from lane 0, U-turn from lanes 0 and 1, Viktor "
+                                  "2026-10-29): the vehicle rides it past the queue of the marked lane and cuts back "
+                                  "into the marked lane on the stop-line edge (owner decision 2026-11-04)"),
         "p_right_lane": RuleParam(0.0, 1.0, "-", "probability of the right_lane option (behaviour 6, straight vehicles "
                                   "ride the continuous right-turn lane upstream of the bollards, Phase 3A); exists only "
                                   "where straight is not permitted from lane 0 and bollards separate it; not on the "

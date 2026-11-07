@@ -1,0 +1,102 @@
+{
+ "seed": 44,
+ "chain_wall_s": 472.64,
+ "error": null,
+ "valid": true,
+ "n_attempts": 3,
+ "attempts": [
+  {
+   "attempt": 1,
+   "wall_s": 199.8,
+   "error": null,
+   "prompt_tokens": 15919,
+   "completion_tokens": 2644,
+   "total_tokens": 18563,
+   "finish_reason": "stop",
+   "seed_sent": 44,
+   "max_tokens": 4500,
+   "response_format": "json_schema",
+   "reasoning_chars": 4263,
+   "valid": false,
+   "issues": [
+    {
+     "path": "driver_archetypes[5].share",
+     "code": "schema",
+     "message": "0.0 is less than or equal to the minimum of 0"
+    }
+   ],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 15919,
+    "prompt_eval_ms": 352.51,
+    "prompt_eval_tokens": 4,
+    "prompt_tok_s": 11.35,
+    "eval_ms": 197265.36,
+    "eval_tokens": 2644,
+    "gen_tok_s": 13.4,
+    "final_n_tokens": 18562,
+    "truncated": 0
+   }
+  },
+  {
+   "attempt": 2,
+   "wall_s": 132.89,
+   "error": null,
+   "prompt_tokens": 17368,
+   "completion_tokens": 1735,
+   "total_tokens": 19103,
+   "finish_reason": "stop",
+   "seed_sent": 44,
+   "max_tokens": 4500,
+   "response_format": "json_schema",
+   "reasoning_chars": 1681,
+   "valid": false,
+   "issues": [
+    {
+     "path": "driver_archetypes[4].id",
+     "code": "logic",
+     "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+    }
+   ],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 17368,
+    "prompt_eval_ms": 1195.46,
+    "prompt_eval_tokens": 1453,
+    "prompt_tok_s": 1215.43,
+    "eval_ms": 131529.3,
+    "eval_tokens": 1735,
+    "gen_tok_s": 13.18,
+    "final_n_tokens": 19102,
+    "truncated": 0
+   }
+  },
+  {
+   "attempt": 3,
+   "wall_s": 139.67,
+   "error": null,
+   "prompt_tokens": 19100,
+   "completion_tokens": 1749,
+   "total_tokens": 20849,
+   "finish_reason": "stop",
+   "seed_sent": 44,
+   "max_tokens": 4500,
+   "response_format": "json_schema",
+   "reasoning_chars": 1747,
+   "valid": true,
+   "issues": [],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 19100,
+    "prompt_eval_ms": 1420.89,
+    "prompt_eval_tokens": 1736,
+    "prompt_tok_s": 1221.77,
+    "eval_ms": 138143.28,
+    "eval_tokens": 1749,
+    "gen_tok_s": 12.65,
+    "final_n_tokens": 20848,
+    "truncated": 0
+   }
+  }
+ ]
+}

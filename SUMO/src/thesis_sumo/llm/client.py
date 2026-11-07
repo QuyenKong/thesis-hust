@@ -45,7 +45,7 @@ from pathlib import Path
 
 from thesis_sumo.config import REPO_ROOT, Site, load_llm
 from thesis_sumo.llm.feedback import PROMPTS_DIR, build_retry
-from thesis_sumo.rules.schema import DISTRIBUTIONS, TRACI_RULE_PARAMS, VCLASSES, Bound, load_bounds
+from thesis_sumo.rules.schema import DISTRIBUTIONS, DISTRIBUTIONS_OF_VCLASS, TRACI_RULE_PARAMS, VCLASSES, Bound, load_bounds
 from thesis_sumo.rules.validator import ValidityLog, structure_issues, validate
 
 LOGS_DIR = REPO_ROOT / "experiments" / "llm_logs"
@@ -103,11 +103,21 @@ def _rule_schema(rtype: str, names=None, applies_to=None) -> dict:
                 "rationale": {"type": "string"}}}
 
 
-def _archetype_schema(bounds: dict[str, Bound], base: dict | None = None) -> dict:
+def _archetype_schema(bounds: dict[str, Bound], base: dict | None = None, vclass: str | None = None) -> dict:
     props = {"id": {"type": "string"}, "base_vclass": {"enum": list(VCLASSES)}, "distribution": {"enum": list(DISTRIBUTIONS)},
              "share": {"type": "number", "minimum": 0, "maximum": 1}}
     required = ["id", "base_vclass", "share", "params", "rationale"]
-    if base is None:
+    if base is None and vclass is not None:
+        # full (P2), one variant per base vclass (2026-11-08, report/2026-11-08): `distribution` required and limited
+        # to the ones the vclass may join, params limited to the attributes allowed on it with its ranges. qwen3.5:9b
+        # left `distribution` out (two custom1 archetypes fell into moto_violator, report/2026-11-03) and put
+        # jmTimegapMinor (custom1 only, R15) on motorcycles; a constrained decoder cannot produce either now.
+        required.insert(2, "distribution")
+        props.update(base_vclass={"enum": [vclass]}, distribution={"enum": list(DISTRIBUTIONS_OF_VCLASS[vclass])})
+        params = {"type": "object", "additionalProperties": False,
+                  "properties": {n: _attr_schema(b, [vclass]) for n, b in bounds.items()
+                                 if not b.fixed and vclass in b.vclasses}}
+    elif base is None:
         params = {"type": "object", "additionalProperties": False,
                   "properties": {n: _attr_schema(b, b.vclasses) for n, b in bounds.items() if not b.fixed}}
     else:
@@ -131,7 +141,8 @@ def llm_schema(mode: str, base_spec: dict | None = None, bounds: dict[str, Bound
         raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
     bounds = bounds if bounds is not None else load_bounds()
     if mode == "full":
-        archs = {"type": "array", "minItems": 1, "items": _archetype_schema(bounds)}
+        archs = {"type": "array", "minItems": 1, "items": {"anyOf": [_archetype_schema(bounds, vclass=v)
+                                                                     for v in VCLASSES]}}
         rules = {"type": "array", "items": {"anyOf": [_rule_schema(t) for t in TRACI_RULE_PARAMS]}}
     else:
         if base_spec is None:

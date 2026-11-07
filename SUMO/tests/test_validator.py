@@ -63,6 +63,7 @@ def _dodge_net(d, connections: str = "") -> tuple:
     for a in data["approaches"]:
         a["edge"], a["lane_widths_m"] = edge[a["id"]], [3.5, 3.5]
         a["lane_movements"] = [["r", "s"], ["l", "u"]] if a["id"] == "LVL_W" else [["r", "s"], ["s", "l", "u"]]
+    data["violator_turn_lanes"] = None  # through dodges only (cut-back dodges: test_queue_space_seeking_cut_back)
     return Site(data, d / "site.tiny.yaml"), d / "tiny.net.xml"
 
 
@@ -473,7 +474,7 @@ def test_car_rules_allowed(spec, dodge):
     car_id, moto_id = _arch(spec, "passenger")["id"], _arch(spec, "motorcycle")["id"]
     for rule_type in ("early_start", "swarm_red_running"):
         _rule(spec, rule_type)["applies_to"].append(car_id)
-    _with_seek(spec, [_arch(spec, "custom1")["id"]])
+    _with_seek(spec, [_sidewalk_rider(spec)])
     spec["traci_rules"].append({"rule_type": "slow_lane_center", "applies_to": [moto_id],
                                 "params": EXTRA_RULES["slow_lane_center"], "rationale": "test"})
     assert validate(spec, site, net=net) == []
@@ -518,20 +519,35 @@ def test_queue_space_seeking_redistribution_is_valid(spec, site):
 
 
 def test_queue_space_seeking_inapplicable_on_proxy_site(spec, site):
-    """Ruling R27: the options that do not exist on the proxy net are inapplicable. No class has a wrong-lane dodge
-    (left and U-turn only from lane 2, owner decision 2026-11-04), right_lane does not exist (no bollards, straight
-    from lane 0 legal) and the sidewalk is custom1-only: a custom1 archetype in moto_violator (no sidewalk route,
-    illegal left only) with only wrong_lane / right_lane is inapplicable."""
+    """Ruling R27: the options that do not exist on the proxy net are inapplicable. right_lane does not exist (no
+    bollards, straight from lane 0 legal), the sidewalk is custom1-only, and a custom1 archetype in moto_violator
+    drives only the banned illegal left, for which no option exists (no lane is marked for it)."""
     vio = _arch(spec, "custom1")["id"]
+    assert vio == "moto_violator_saval"
     issues = validate(_with_seek(spec, [vio], p_wrong_lane=0.5, p_right_lane=0.5), site)
     assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]")]
     assert "inapplicable on this site" in issues[0]["message"]
     spec = json.loads(B1.read_text(encoding="utf-8"))
     rid = _sidewalk_rider(spec)
-    issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5, p_right_lane=0.0, p_sidewalk=0.0), site)
-    assert _codes(issues) == ["logic"] and "existing:" in issues[0]["message"] and "sidewalk" in issues[0]["message"]
     issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.0, p_right_lane=0.5), site)
-    assert _codes(issues) == ["logic"] and "existing:" in issues[0]["message"] and "sidewalk" in issues[0]["message"]
+    assert _codes(issues) == ["logic"] and "existing: wrong_lane, sidewalk" in issues[0]["message"]
+    issues = validate(_with_seek(spec, [rid, "car_seeker"], p_wrong_lane=0.0, p_right_lane=0.0, p_sidewalk=0.5), site)
+    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[1]")]
+    assert "existing: wrong_lane)" in issues[0]["message"]
+
+
+def test_queue_space_seeking_cut_back(spec, site):
+    """Site violator_turn_lanes (owner decision 2026-11-04): the cut-back wrong lane (left from lane 0, U-turn from
+    lanes 0 and 1, no connection there) makes wrong_lane exist for custom1 in moto and custom2 in car on the proxy net;
+    without the site key it exists for nobody (left and U-turn have connections only from lane 2)."""
+    rid = _sidewalk_rider(spec)
+    assert validate(_with_seek(spec, [rid, "car_seeker"], p_wrong_lane=0.5, p_right_lane=0.0, p_sidewalk=0.0),
+                    site) == []
+    data = copy.deepcopy(dict(site))
+    data["violator_turn_lanes"] = None
+    issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5, p_right_lane=0.0, p_sidewalk=0.0),
+                      Site(data, site.path))
+    assert _codes(issues) == ["logic"] and "existing: sidewalk)" in issues[0]["message"]
 
 
 def test_queue_space_seeking_params_checked(spec, site):
@@ -558,7 +574,7 @@ def test_queue_space_seeking_checks_vclass_permission(spec, tmp_path):
              'toLane="0"/><connection from="WC" to="CE" fromLane="1" toLane="1" allow="custom1"/>'
              '<connection from="WC" to="CN" fromLane="1" toLane="1"/>')
     site, net = _dodge_net(tmp_path, conns)
-    issues = validate(_with_seek(spec, [_arch(spec, "custom1")["id"], "car_seeker"]), site, net=net)
+    issues = validate(_with_seek(spec, [_sidewalk_rider(spec), "car_seeker"]), site, net=net)
     assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[1]")]
     assert "inapplicable on this site" in issues[0]["message"] and "custom2" in issues[0]["message"]
 

@@ -51,7 +51,9 @@ Resume (state under experiments/campaigns/<campaign>/loop/; the LLM logs stay in
 
 Prompt: [system, context (calibration targets of `days`, mode, base for params_only)] + for every previous iteration
 one user message with its specs as a compact JSON block and `feedback.build_feedback` of its results (validator
-issues included); every added text passes `assert_no_day_data`.
+issues included); every added text passes `assert_no_day_data`. From prompt v004 (`feedback.compact`) only the latest
+iteration is sent that way and each older one as a few summary lines (`_summary_message`), so that the prompt of
+iteration 3 fits a 32k-token context (report/2026-11-08).
 
 Specs are evaluated concurrently (threads, each evaluate_spec using a spawn pool of min(nproc, runs per spec)) only
 when that pool has >= 2 workers: with 1 worker evaluate runs SUMO in-process (libsumo is a process singleton).
@@ -71,11 +73,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from thesis_sumo import evaluate
-from thesis_sumo.config import load_experiment, load_site
+from thesis_sumo.config import load_experiment, load_llm, load_site
 from thesis_sumo.llm import client as llm_client
 from thesis_sumo.llm.client import HARNESS_KEYS, LLMClient, PendingResponse, llm_config, llm_schema
 from thesis_sumo.llm.feedback import (assert_no_day_data, build_context, build_feedback, calibration_targets,
-                                      system_prompt)
+                                      compact, system_prompt)
 from thesis_sumo.rules.schema import load_bounds
 from thesis_sumo.rules.validator import ValidityLog, validate
 
@@ -157,6 +159,26 @@ def _history_message(iteration: int, specs: dict[str, dict], results: list, prom
     return {"role": "user", "content": assert_no_day_data(text)}
 
 
+def _summary_message(iteration: int, specs: dict[str, dict], results: list) -> dict:
+    """v004: an older iteration in a few lines (per spec: S, eligibility, archetypes, rules); the latest one is sent
+    in full (`_history_message`)."""
+    by_id = {r.spec_id: r for r in results}
+    lines = [f"# Iteration {iteration} (summary)"]
+    for sid in sorted(set(specs) | set(by_id)):
+        r, sp = by_id.get(sid), specs.get(sid)
+        score = ("rejected by the validator" if r is not None and not r.valid else "not evaluated" if r is None
+                 else f"S {r.S:.4f}, {r.eligibility}, collisions/h {r.collisions_per_hour:.1f} (lane "
+                      f"{r.lane_collisions_per_hour:.1f}), jam+yield teleports/h {r.jam_yield_teleports_per_hour:.1f}")
+        struct = ""
+        if sp is not None:
+            archs = ", ".join(f"{a['id']} ({a['base_vclass']}, {a.get('distribution', '-')}, {a['share']:g})"
+                              for a in sp.get("driver_archetypes", []))
+            rules = ", ".join(sorted({x["rule_type"] for x in sp.get("traci_rules", [])}))
+            struct = f"; archetypes {archs}; rules {rules or 'none'}"
+        lines.append(f"- {sid}: {score}{struct}")
+    return {"role": "user", "content": assert_no_day_data("\n".join(lines))}
+
+
 def pending_requests(campaign: str, log_root: Path | None = None) -> list[Path]:
     """Request files of the file backend with no response file yet."""
     d = Path(log_root if log_root is not None else llm_client.LOGS_DIR) / campaign
@@ -166,10 +188,13 @@ def pending_requests(campaign: str, log_root: Path | None = None) -> list[Path]:
 def run_loop(campaign: str, mode: str, base_spec: dict | None, *, b0_lane_collisions_per_hour: float,
              n_iter: int = 3, max_iter: int = 5, n_samples: int | None = None, budget_runs: int = 36,
              days: list[str] | None = None, seeds: list[int] = (1,), nproc: int = 1, site_path: Path | None = None,
-             sim_end_s: float | None = None, prompt_version: str | None = None) -> LoopResult:
+             sim_end_s: float | None = None, prompt_version: str | None = None,
+             llm_profile: str | None = None) -> LoopResult:
     """Run (or resume) the loop of `campaign`: `n_iter` planned iterations, then R45 extras up to `max_iter` while
     the budget covers a spec (module doc). `b0_lane_collisions_per_hour` (R10 cap of select_best) is required, as in
-    the Optuna baseline. `prompt_version` overrides llm.yaml's (locked per campaign). Raises LoopPending."""
+    the Optuna baseline. `prompt_version` overrides llm.yaml's (locked per campaign); `llm_profile` selects the
+    llm.yaml block instead of its `active` key (ollama on the Windows machine, standin on Linux). Raises
+    LoopPending."""
     if mode not in BEST_FILES:
         raise ValueError(f"mode must be one of {tuple(BEST_FILES)}, got {mode!r}")
     if mode == "params_only" and base_spec is None:
@@ -184,7 +209,10 @@ def run_loop(campaign: str, mode: str, base_spec: dict | None, *, b0_lane_collis
     days = list(days) if days else list(exp["data_split"]["calibration_days"])
     seeds = [int(s) for s in seeds]
     evaluate.check_days(days, exp)
-    cfg = llm_config()
+    doc = load_llm()
+    if llm_profile is not None:
+        doc["active"] = llm_profile
+    cfg = llm_config(doc)
     if prompt_version is not None:
         cfg["prompt_version"] = prompt_version
     n_samples = int(n_samples if n_samples is not None else cfg.get("n_samples") or 0)
@@ -224,6 +252,7 @@ def run_loop(campaign: str, mode: str, base_spec: dict | None, *, b0_lane_collis
                 {"role": "user", "content": build_context(
                     mode, base_spec, site, bounds, calibration_targets(days, exp=exp, site=site),
                     schema=llm_schema(mode, base_spec, bounds), prompt_version=pv, exp=exp)}]
+    base_messages, history = list(messages), []
     all_results: list[evaluate.EvalResult] = []
     iterations, conv, best_s, stop = [], [], math.inf, "max_iter"
     all_status: list[str] = []
@@ -344,8 +373,12 @@ def run_loop(campaign: str, mode: str, base_spec: dict | None, *, b0_lane_collis
         if any(status[s] == "unaffordable" for s in sids):
             stop = "budget"
             break
-        messages = messages + [_history_message(it, {s: specs[s] for s in sids if s in specs},
-                                                it_results, pv)]
+        history.append((it, {s: specs[s] for s in sids if s in specs}, it_results))
+        if compact(pv):  # v004: the latest iteration in full, the older ones summarised
+            messages = (base_messages + [_summary_message(*h) for h in history[:-1]]
+                        + [_history_message(*history[-1], pv)])
+        else:
+            messages = messages + [_history_message(*history[-1], pv)]
 
     if stop == "max_iter" and budget.remaining < cost:   # cap reached exactly as the budget ran out
         stop = "budget"
@@ -398,6 +431,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="B0 mean lane collisions/h for the R10 cap of select_best (same value as the Optuna run)")
     ap.add_argument("--prompt-version", default=None,
                     help="prompts/<version>/ (default: llm.yaml prompt_version); locked per campaign")
+    ap.add_argument("--llm", default=None, help="llm.yaml block to use (default: its `active` key), e.g. ollama")
     ap.add_argument("--write-best", type=Path, default=None,
                     help=f"write the best spec here (spec_id = file stem), e.g. rules/specs/{BEST_FILES['params_only']}"
                          f".json")
@@ -408,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
                        n_samples=args.samples,
                        budget_runs=args.budget, days=args.days, seeds=args.seeds, nproc=args.nproc,
                        site_path=args.site, sim_end_s=args.end, b0_lane_collisions_per_hour=args.b0_lane_collisions,
-                       prompt_version=args.prompt_version)
+                       prompt_version=args.prompt_version, llm_profile=args.llm)
     except LoopPending as e:
         print(f"{e}; answer each request file with the response file next to it, then rerun:")
         for p in e.paths:

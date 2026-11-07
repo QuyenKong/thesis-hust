@@ -1,0 +1,69 @@
+{
+ "seed": 42,
+ "chain_wall_s": 298.87,
+ "error": null,
+ "valid": true,
+ "n_attempts": 2,
+ "attempts": [
+  {
+   "attempt": 1,
+   "wall_s": 166.93,
+   "error": null,
+   "prompt_tokens": 15984,
+   "completion_tokens": 2046,
+   "total_tokens": 18030,
+   "finish_reason": "stop",
+   "seed_sent": 42,
+   "max_tokens": 4500,
+   "response_format": "json_schema",
+   "reasoning_chars": 2679,
+   "valid": false,
+   "issues": [
+    {
+     "path": "driver_archetypes[4].id",
+     "code": "logic",
+     "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+    }
+   ],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 15984,
+    "prompt_eval_ms": 10395.75,
+    "prompt_eval_tokens": 15984,
+    "prompt_tok_s": 1537.55,
+    "eval_ms": 153767.35,
+    "eval_tokens": 2046,
+    "gen_tok_s": 13.3,
+    "final_n_tokens": 18029,
+    "truncated": 0
+   }
+  },
+  {
+   "attempt": 2,
+   "wall_s": 131.6,
+   "error": null,
+   "prompt_tokens": 17597,
+   "completion_tokens": 1706,
+   "total_tokens": 19303,
+   "finish_reason": "stop",
+   "seed_sent": 42,
+   "max_tokens": 4500,
+   "response_format": "json_schema",
+   "reasoning_chars": 1817,
+   "valid": true,
+   "issues": [],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 17597,
+    "prompt_eval_ms": 1387.26,
+    "prompt_eval_tokens": 1617,
+    "prompt_tok_s": 1165.61,
+    "eval_ms": 130107.6,
+    "eval_tokens": 1706,
+    "gen_tok_s": 13.1,
+    "final_n_tokens": 19302,
+    "truncated": 0
+   }
+  }
+ ]
+}
