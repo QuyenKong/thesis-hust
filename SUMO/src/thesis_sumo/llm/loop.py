@@ -89,7 +89,7 @@ except ImportError:  # pragma: no cover - openai is a project dependency
 
 BEST_FILES = {"params_only": "P1_best", "full": "P2_best"}
 LLM_RECORD_KEYS = ("profile", "runtime", "server", "model", "quant", "temperature", "seed", "prompt_version",
-                   "max_attempts")
+                   "max_attempts", "reasoning_effort")
 
 
 class LoopPending(Exception):

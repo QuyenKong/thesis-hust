@@ -265,6 +265,8 @@ class LLMClient:
             kw["seed"] = int(self.cfg["seed"]) + sample_idx  # same seed for every sample = identical samples
         if self.cfg.get("max_tokens") is not None:
             kw["max_tokens"] = int(self.cfg["max_tokens"])
+        if self.cfg.get("reasoning_effort") is not None:  # Ollama: "none" turns thinking off (qwen3.5)
+            kw["reasoning_effort"] = str(self.cfg["reasoning_effort"])
         extras = {k: v for k, v in kw.items() if k != "messages"}
         if self.structured:
             fmt = {"type": "json_schema", "json_schema": {"name": "rule_spec", "schema": schema}}

@@ -25,6 +25,10 @@ ollama:                        # PROVISIONAL (plan Task 12); not run yet on any 
   seed: 42                     # provisional; sample j uses seed + j (identical seeds would give identical samples)
   n_samples: 4                 # TODO_DECIDE: provisional, specs per iteration (plan budget 3 rounds x 4 specs x 3 seeds)
   max_attempts: 3              # PLAN 6.1: validate then retry, at most 3 attempts
+  reasoning_effort: none       # 2026-11-08: thinking off for the P1/P2 campaigns (same setting for both). With thinking
+                               # the P1 request (9.5k tokens) was cut at 4500 and at 7000 tokens (28.6k chars of reasoning,
+                               # no JSON; report/2026-11-08/data/ollama/p1_cap4500, p1_cap7000_think); off: P1 3/3 valid
+                               # (93-197 s), P2 iteration-2 request 2/3 valid (thinking on: 6/6), p1_nothink, p2_nothink
   max_tokens: 7000             # 2026-11-08: 4500 -> 7000: the first P1 attempt (prompt 9.5k tokens) was cut at 4500
                                # (reasoning 18.5k chars + the full B1 structure; report/2026-11-08/data/ollama/p1_cap4500);
                                # 7000 keeps P2 iteration 3 with v004 (~21.3k prompt + ~4k of retries) inside 32768.
