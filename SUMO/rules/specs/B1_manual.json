@@ -8,7 +8,7 @@
     "sample_idx": 0,
     "reference": "Saval A, Minh DP, Chapuis K, Tranouez P, Caron C, Daude E, Taillandier P (2023). Dealing with mixed and non-normative traffic. An agent-based simulation with the GAMA platform. PLOS ONE 18(3): e0281658. doi:10.1371/journal.pone.0281658"
   },
-  "description": "B1 = hand-crafted spec transferred from Saval et al. (2023), the GAMA model of mixed car-motorcycle traffic calibrated on Hanoi video (Tay Son street). Its structure (3 archetypes, the params listed, the rules early_start / swarm_red_running) is the fixed structure in which P1 and B2 tune values (E1). Transferred: Table 11 'Driver parameter values for Hanoi' (IDM a, b, T, s0 -> SUMO Krauss accel, decel, tau, minGap: same meaning, different model, so literature_transferred) and Sec 4 'Description of the model and parameters used' (cars always stop at red, front-row motorcycles stop with probability 0.5; motorcycle lane pitch 0.8 m = 0.7 m width + 0.1 m spacing). Not transferred: the MOBIL parameters of Table 11 (politeness p, threshold athr, bsafe, abias), which have no one-to-one SL2015 counterpart in the bound space (SL2015 defaults kept); vehicle lengths 3.8 / 2 m and max speeds 130 / 60 km/h (geometry and maxSpeed are not in the space; B0 values kept); step 0.5 s (ours 0.1 s); pblock_node and prespect_priorities (no Hanoi values given). The paper has no illegal left turn, no early start and no gap acceptance: those entries are assumed and set to neutral values (rule off or SUMO default) so that only the paper's content changes behaviour vs B0. The illegal_left_box rule is left out (ruling R26): the paper has no box waiting, so the box behaves natively as in B0 (B1 has no M7 lever). F2 structure (Viktor 2026-10-27): violator archetypes moto_seeker (custom1 in moto) and car_seeker (custom2 in car), share 0.1 each, Saval params copied from moto_saval / car_saval, and a queue_space_seeking rule with every p = 0 and the green check off, so B1 behaves as before apart from the type split; P1/B2 tune it.",
+  "description": "B1 = hand-crafted spec transferred from Saval et al. (2023), the GAMA model of mixed car-motorcycle traffic calibrated on Hanoi video (Tay Son street). Its structure (3 archetypes, the params listed, the rules early_start / swarm_red_running / queue_space_seeking / uturn_bypass) is the fixed structure in which P1 and B2 tune values (E1). Transferred: Table 11 'Driver parameter values for Hanoi' (IDM a, b, T, s0 -> SUMO Krauss accel, decel, tau, minGap: same meaning, different model, so literature_transferred) and Sec 4 'Description of the model and parameters used' (cars always stop at red, front-row motorcycles stop with probability 0.5; motorcycle lane pitch 0.8 m = 0.7 m width + 0.1 m spacing). Not transferred: the MOBIL parameters of Table 11 (politeness p, threshold athr, bsafe, abias), which have no one-to-one SL2015 counterpart in the bound space (SL2015 defaults kept); vehicle lengths 3.8 / 2 m and max speeds 130 / 60 km/h (geometry and maxSpeed are not in the space; B0 values kept); step 0.5 s (ours 0.1 s); pblock_node and prespect_priorities (no Hanoi values given). The paper has no illegal left turn, no early start and no gap acceptance: those entries are assumed and set to neutral values (rule off or SUMO default) so that only the paper's content changes behaviour vs B0. The illegal_left_box rule is left out (ruling R26): the paper has no box waiting, so the box behaves natively as in B0 (B1 has no M7 lever). F2 structure (Viktor 2026-10-27): violator archetypes moto_seeker (custom1 in moto) and car_seeker (custom2 in car), share 0.1 each, Saval params copied from moto_saval / car_saval, and a queue_space_seeking rule with every p = 0 and the green check off, so B1 behaves as before apart from the type split; P1/B2 tune it. Rule uturn_bypass (added 2026-11-04, owner decision D2; not in Saval et al. 2023): values assumed from the owner's qualitative field description of 2026-10-30 (most motorcycles pass a standing U-turner, cars rarely; report/2026-10-29 DECISIONS C6): p = 0.8 for the motorcycle archetypes, 0.1 for the car archetypes, t_wait = 2 s; part of the fixed structure in which P1/B2 tune p and t_wait. Same rules as rules/specs/B1_uturn_bypass.json (kept as the record of the 30/10 video).",
   "driver_archetypes": [
     {
       "id": "car_saval",
@@ -123,6 +123,31 @@
         "merge_zone_m": 15.0
       },
       "rationale": "Not in Saval et al. 2023 (assumed): the paper has no space seeking (wrong lane, right-turn-lane blocking, sidewalk), so every p = 0 and the green check is off (t_g_s = 0), like early_start p = 0. It is part of the fixed structure (Viktor 2026-10-27) so that P1/B2 can tune behaviours 5-7. q = 30 m, v_creep = 3 m/s and merge_zone_m = 15 m (the Phase 3A setting) are assumed mid-range values without effect while every p = 0. Not applied to car_seeker (custom2) since 2026-10-28: without bollards no option exists for custom2 on the proxy net (right_lane needs bollards, wrong_lane none (R27), the sidewalk is custom1 only), so the validator would reject every spec with p > 0 (R27)."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p": 0.8,
+        "t_wait": 2.0
+      },
+      "rationale": "Viktor 2026-10-30 (field): most motorcycles behind a standing U-turner squeeze past it or move to the next lane; p = 0.8 and t_wait = 2 s assumed (no count)."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "car_saval",
+        "car_seeker"
+      ],
+      "params": {
+        "p": 0.1,
+        "t_wait": 2.0
+      },
+      "rationale": "Viktor 2026-10-30 (field): cars rarely change lane to pass a standing U-turner; p = 0.1 and t_wait = 2 s assumed (no count)."
     }
   ]
 }

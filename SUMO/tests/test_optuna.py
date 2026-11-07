@@ -6,7 +6,6 @@ import json
 import random
 from types import SimpleNamespace
 
-import optuna
 import pytest
 
 from thesis_sumo import evaluate
@@ -14,6 +13,8 @@ from thesis_sumo.baselines import optuna_search as opt
 from thesis_sumo.config import REPO_ROOT, load_site
 from thesis_sumo.rules.schema import load_bounds
 from thesis_sumo.rules.validator import narrowest_lane, validate
+
+import optuna  # after optuna_search, which on Windows must load libsumo before optuna (DLL clash, see there)
 
 PROXY_SITE = REPO_ROOT / "config" / "site.proxy.yaml"
 B1 = json.loads((REPO_ROOT / "rules" / "specs" / "B1_manual.json").read_text(encoding="utf-8"))
@@ -65,10 +66,11 @@ def test_search_space_b1_names():
         assert {n.split(".")[2] for n in names if n.startswith(f"arch.{a['id']}.")} == set(a["params"])
     assert {"rule.2.queue_space_seeking.p_total", "rule.2.queue_space_seeking.split_wrong_lane",
             "rule.2.queue_space_seeking.split_right_lane", "rule.0.swarm_red_running.p_max_frac",
-            "share.car.car_saval", "share.moto.moto_saval"} <= names
+            "share.car.car_saval", "share.moto.moto_saval", "rule.3.uturn_bypass.p", "rule.3.uturn_bypass.t_wait",
+            "rule.4.uturn_bypass.p", "rule.4.uturn_bypass.t_wait"} <= names
     assert not any(n.endswith((".p_wrong_lane", ".p_right_lane", ".p_sidewalk", ".p_max", ".t_w")) for n in names)
     assert not any(n.startswith("share.moto_violator") for n in names)   # one archetype: no share param
-    assert len(names) == 41
+    assert len(names) == 45
 
 
 def test_built_spec_keeps_structure():
@@ -151,8 +153,7 @@ def test_deterministic_with_sampler_seed(env):
     params = []
     for c, seed in (("a", 0), ("b", 0), ("c", 1)):
         _run(c, budget=12, sampler_seed=seed)
-        study = optuna.load_study(study_name=c, storage=optuna.storages.journal.JournalStorage(
-            optuna.storages.journal.JournalFileBackend(str(evaluate.CAMPAIGNS_DIR / c / "study.journal"))))
+        study = optuna.load_study(study_name=c, storage=opt.journal_storage(evaluate.CAMPAIGNS_DIR / c / "study.journal"))
         params.append([t.params for t in study.trials])
     assert params[0] == params[1] and params[0] != params[2]
 
@@ -183,8 +184,7 @@ def test_best_via_select_best(env, monkeypatch, tmp_path):
 
 def test_n_startup_recorded(env):
     _run("B2", budget=3)
-    study = optuna.load_study(study_name="B2", storage=optuna.storages.journal.JournalStorage(
-        optuna.storages.journal.JournalFileBackend(str(evaluate.CAMPAIGNS_DIR / "B2" / "study.journal"))))
+    study = optuna.load_study(study_name="B2", storage=opt.journal_storage(evaluate.CAMPAIGNS_DIR / "B2" / "study.journal"))
     assert study.user_attrs["n_startup_trials"] == opt.N_STARTUP_TRIALS == 4
 
 

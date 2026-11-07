@@ -129,7 +129,8 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
                                "unbiased); 1 = a factor e ~ 2.7 at one sigma; assumed"),
         "p_wrong_lane": RuleParam(0.0, 1.0, "-", "probability of the wrong_lane option (S_cheat: an adjacent lane whose "
                                   "markings do not permit the movement but which connects to the vehicle's next "
-                                  "edge); inapplicable on the proxy net (ruling R27), so it is redistributed"),
+                                  "edge); inapplicable on the proxy net (no such lane for any movement, ruling R27), "
+                                  "so it is redistributed"),
         "p_right_lane": RuleParam(0.0, 1.0, "-", "probability of the right_lane option (behaviour 6, straight vehicles "
                                   "ride the continuous right-turn lane upstream of the bollards, Phase 3A); exists only "
                                   "where straight is not permitted from lane 0 and bollards separate it; not on the "

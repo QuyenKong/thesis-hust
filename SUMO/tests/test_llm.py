@@ -18,7 +18,7 @@ from jsonschema import Draft202012Validator
 from thesis_sumo.config import REPO_ROOT, load_experiment, load_site
 from thesis_sumo.evaluate import EvalResult
 from thesis_sumo.llm.client import HARNESS_KEYS, LLMClient, PendingResponse, llm_config, llm_schema
-from thesis_sumo.llm.feedback import (DayDataLeak, assert_no_day_data, build_context, build_feedback,
+from thesis_sumo.llm.feedback import (DayDataLeak, assert_no_day_data, build_context, build_feedback, build_retry,
                                       calibration_targets, system_prompt)
 from thesis_sumo.metrics.distance import DistanceReport, MetricReport
 from thesis_sumo.rules.schema import load_bounds, load_excluded
@@ -51,13 +51,16 @@ def _bad(spec: dict) -> dict:
     return a
 
 
-def _completion(content: str) -> dict:
+def _completion(content: str, finish_reason: str = "stop") -> dict:
     return {"id": "c", "object": "chat.completion", "created": 0, "model": "m",
-            "choices": [{"index": 0, "finish_reason": "stop",
+            "choices": [{"index": 0, "finish_reason": finish_reason,
                          "message": {"role": "assistant", "content": content, "reasoning": "thinking text"}}]}
 
 
-def _openai_client(tmp_path, site, answers: list[str], reject_schema: bool = False):
+CUT = "\x00cut"  # answer marker: the server stops at the output cap (finish_reason length, empty content)
+
+
+def _openai_client(tmp_path, site, answers: list[str], reject_schema: bool = False, **cfg_extra):
     calls = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -65,11 +68,12 @@ def _openai_client(tmp_path, site, answers: list[str], reject_schema: bool = Fal
         calls.append(body)
         if reject_schema and "response_format" in body:
             return httpx.Response(400, json={"error": {"message": "response_format not supported"}})
-        return httpx.Response(200, json=_completion(answers[len([c for c in calls if not (
-            reject_schema and "response_format" in c)]) - 1]))
+        answer = answers[len([c for c in calls if not (reject_schema and "response_format" in c)]) - 1]
+        return httpx.Response(200, json=_completion("", "length") if answer == CUT else _completion(answer))
 
     cfg = {"runtime": "openai", "server": "ollama", "base_url": "http://llm.test/v1", "model": "qwen3.5:9b",
-           "temperature": 0.7, "quant": "Q4_K_M", "seed": 42, "max_attempts": 3, "prompt_version": "v001", "profile": "test"}
+           "temperature": 0.7, "quant": "Q4_K_M", "seed": 42, "max_attempts": 3, "prompt_version": "v001", "profile": "test",
+           **cfg_extra}
     client = LLMClient(cfg, site=site, campaign="t12", log_root=tmp_path,
                        http_client=httpx.Client(transport=httpx.MockTransport(handler)))
     return client, calls
@@ -94,6 +98,7 @@ def test_retry_on_invalid_then_success(tmp_path, site, base):
     assert validate(spec, site) == []
     assert [a["issues"][0]["code"] for a in rec["attempts"][:2]] == ["schema", "out_of_bounds"]
     assert calls[0]["response_format"]["type"] == "json_schema" and calls[0]["seed"] == 44
+    assert "max_tokens" not in calls[0]                                    # no cap configured -> none sent
     assert "out_of_bounds" in calls[2]["messages"][-1]["content"]          # structured issues fed back
     assert calls[2]["messages"][-2] == {"role": "assistant", "content": json.dumps(_bad(base))}
     logs = sorted((tmp_path / "t12").glob("t12__it01_s02_a*.json"))
@@ -108,6 +113,48 @@ def test_gives_up_after_3(tmp_path, site, base):
     spec, rec = client.generate_spec(MSGS, "full", iteration=0, sample_idx=0)
     assert spec is None and not rec["valid"] and len(rec["attempts"]) == 3 and len(calls) == 3
     assert len(_validity_rows(client)) == 3
+
+
+def test_answer_cut_at_output_cap_is_a_failed_attempt(tmp_path, site, base):
+    client, calls = _openai_client(tmp_path, site, [CUT, json.dumps(_answer(base))], max_tokens=4500)
+    spec, rec = client.generate_spec(MSGS, "full", iteration=0, sample_idx=0)
+    assert spec is not None and [a["valid"] for a in rec["attempts"]] == [False, True]
+    assert all(c["max_tokens"] == 4500 for c in calls)
+    assert "cut off" in rec["attempts"][0]["issues"][0]["message"] and "4500" in calls[1]["messages"][-1]["content"]
+    log = json.loads((tmp_path / "t12" / "t12__it00_s00_a1.json").read_text(encoding="utf-8"))
+    assert log["request"]["max_tokens"] == 4500 and not log["valid"]
+    # replay from the log reproduces the failure without asking the server again
+    again, _ = _openai_client(tmp_path, site, [], max_tokens=4500)
+    spec2, rec2 = again.generate_spec(MSGS, "full", iteration=0, sample_idx=0)
+    assert spec2 == spec and [a["cached"] for a in rec2["attempts"]] == [True, True]
+
+
+def test_retry_lists_distribution_members_and_rule_vclasses(site, base):
+    spec = copy.deepcopy(base)
+    spec["driver_archetypes"].append({**copy.deepcopy(spec["driver_archetypes"][4]), "id": "moto_violator",
+                                      "share": 0.2})  # reserved id; moto_violator now sums to 1.2
+    spec["traci_rules"][2]["applies_to"].append("moto_saval")  # queue_space_seeking on a motorcycle
+    issues = validate(spec, site)
+    text = build_retry(issues, spec, prompt_version="v003")
+    state = text.split("Current state of your spec:")[1]
+    assert "`moto_violator`: sum 1.2: moto_violator_saval (share 1, base_vclass custom1), moto_violator (share 0.2" \
+        in state
+    assert "`moto`: sum 1: moto_saval (share 0.9, base_vclass motorcycle), moto_seeker (share 0.1, base_vclass " \
+           "custom1)" in state
+    assert "`queue_space_seeking` allows base_vclass custom1, custom2; it is applied to moto_seeker (custom1), " \
+           "moto_saval (motorcycle)" in state
+    assert "Current state" not in build_retry([{"path": "(response)", "code": "schema", "message": "x"}], None)
+    assert "Current state" not in build_retry(issues, spec, prompt_version="v002")  # old template: unchanged
+
+
+def test_v003_system_prompt_states_code_mappings():
+    from thesis_sumo.rules.schema import DISTRIBUTION_OF_VCLASS, RULE_VCLASSES
+    text = system_prompt("v003")
+    assert "$" not in text
+    for vc, dist in DISTRIBUTION_OF_VCLASS.items():
+        assert f"base_vclass {vc}: without `distribution` it joins `{dist}`" in text
+    for rule, vcs in RULE_VCLASSES.items():
+        assert f"`{rule}`: base_vclass {', '.join(vcs)}" in text
 
 
 def test_structured_output_rejected_falls_back_to_plain(tmp_path, site, base):
@@ -215,12 +262,12 @@ def test_context_lists_only_bounds_attrs(site, base):
     assert "DEFAULT_" in system_prompt()
 
 
-def test_v002_context_describes_28_10_scenario(site, base):
+def test_v003_context_describes_28_10_scenario(site, base):
     """Scenario of 2026-10-28 (site.proxy.yaml): banned lefts at HDT_N / HDT_S, legal protected LVL lefts and
-    U-turns, 3 signal stages, sidewalks on LVL_W and LVL_E, continuous right lane on every approach."""
-    assert llm_config()["prompt_version"] == "v002"   # default for new campaigns
+    U-turns, 3 signal stages, sidewalks on LVL_W and LVL_E, continuous right lane on every approach; v003 adds
+    rule uturn_bypass (owner decision D2, 2026-11-04)."""
     targets = {"M1/moto": {"label": "discharge headway", "unit": "s", "obs_mean": 0.25, "evidence": "literature"}}
-    text = build_context("full", None, site, load_bounds(), targets, schema=llm_schema("full"), prompt_version="v002")
+    text = build_context("full", None, site, load_bounds(), targets, schema=llm_schema("full"), prompt_version="v003")
     site_part = text.split("## Intersection")[1].split("## Behaviours")[0]
     assert "from HDT_N, HDT_S" in site_part
     assert "LVL_straight 42 s (green LVL_W:s, LVL_E:s)" in site_part
@@ -232,6 +279,7 @@ def test_v002_context_describes_28_10_scenario(site, base):
     behaviours = text.split("## Behaviours")[1].split("## Parameter dictionary")[0]
     assert "bollard" not in behaviours and "`p_right_lane` does not exist on this site" in behaviours
     assert "HDT_N and HDT_S" in behaviours and "LVL_W and LVL_E" in behaviours and "LVL_left" in behaviours
+    assert "`uturn_bypass`" in behaviours and "uturn_bypass" in text.split("## Parameter dictionary")[1]
     assert "LVL_green" not in text and "PROXY_D" not in text
     old = build_context("full", None, site, load_bounds(), targets, schema={}, prompt_version="v001")
     assert "HDT_N and HDT_S" not in old.split("## Behaviours")[1] and system_prompt("v001")   # v001 still loads

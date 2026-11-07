@@ -404,12 +404,6 @@ def test_continuous_right_turn_never_red(site_net, proxy):
         assert all(state[i] == "g" for state in _states(site_net) for i in rights), a["id"]
 
 
-def _is_extra(c) -> bool:
-    """A violator-only link added on the right-turn stretch (lane0_extras): left from lane 0 or U-turn from lane 0/1."""
-    mv, lane = movement_of(c.getDirection()), c.getFromLane().getIndex()
-    return (mv == "l" and lane == 0) or (mv == "t" and lane in (0, 1))
-
-
 def _lane0_check(net, approaches, expected: set):
     """Lane 0 straight carries `expected` vClasses only; lane 0 right and lanes 1-2 straight stay open to all."""
     for a in approaches:
@@ -462,21 +456,16 @@ def test_right_lane_split_when_open(built, site_net, proxy):
     assert not (out_dir / "patches" / "site.proxy" / "bollards.edg.xml").exists()
 
 
-def test_lane0_violator_left_and_u_turn(site_net, proxy):
-    """Viktor 2026-10-29: on the right-turn stretch lane 0 also has a left (approaches whose left is not banned) and a
-    U-turn, lane 1 a U-turn, for custom1 / custom2 only; they follow the signal state of the approach's left / U-turn."""
-    for a in _continuous(proxy):
+def test_no_turn_links_from_lanes_0_and_1(site_net, proxy):
+    """Owner decision 2026-11-04: no left from lane 0 and no U-turn from lanes 0/1 (such links split the approach's
+    straights into one-lane internal edges, where sublane vehicles collided); the three straights of an approach share
+    one internal edge."""
+    for a in proxy["approaches"]:
         conns = _conns_from(site_net, a["edge"])
-        for mv, lanes in (("l", [0] if not a["left_turn_banned"] else []), ("t", [0, 1])):
-            for i in lanes:
-                (c,) = [c for c in conns if c.getFromLane().getIndex() == i and movement_of(c.getDirection()) == mv]
-                assert c.allows("custom1") and c.allows("custom2"), (a["id"], mv, i)
-                assert not c.allows("passenger") and not c.allows("motorcycle"), (a["id"], mv, i)
-                (own,) = [o.getTLLinkIndex() for o in conns if o.getFromLane().getIndex() == 2
-                          and movement_of(o.getDirection()) == mv]
-                assert all(st[c.getTLLinkIndex()] == st[own] for st in _states(site_net)), (a["id"], mv, i)
-        if a["left_turn_banned"]:
-            assert not [c for c in conns if c.getFromLane().getIndex() == 0 and movement_of(c.getDirection()) == "l"]
+        assert not [c for c in conns if movement_of(c.getDirection()) in ("l", "t") and c.getFromLane().getIndex() < 2]
+        straights = [c for c in conns if movement_of(c.getDirection()) == "s"]
+        assert len(straights) == 3, a["id"]
+        assert len({site_net.getLane(c.getViaLaneID()).getEdge().getID() for c in straights}) == 1, a["id"]
 
 
 def test_gui_highlight_on_every_continuous_lane(built, proxy):
@@ -523,9 +512,8 @@ def test_lane0_straight_only_violators_with_paint(built, site_net, proxy, tmp_pa
     assert violators == {"custom1", "custom2"}
     _lane0_check(paint, _continuous(proxy), violators)
     key = lambda c: (c.getFromLane().getIndex(), c.getTo().getID(), c.getTLLinkIndex())
-    for a in proxy["approaches"]:  # the open net has the violator-only lane-0/1 left and U-turn links on top
-        assert sorted(map(key, _conns_from(paint, a["edge"]))) == sorted(
-            map(key, (c for c in _conns_from(site_net, a["edge"]) if not _is_extra(c))))
+    for a in proxy["approaches"]:
+        assert sorted(map(key, _conns_from(paint, a["edge"]))) == sorted(map(key, _conns_from(site_net, a["edge"])))
 
 
 def test_non_right_states_unchanged_without_continuous_lane(built, site_net, proxy, tmp_path):
@@ -541,18 +529,16 @@ def test_non_right_states_unchanged_without_continuous_lane(built, site_net, pro
     rights = {c.getTLLinkIndex() for e in [a["edge"] for a in proxy["approaches"]] + list(sidewalk_edges(site_net))
               for c in _conns_from(site_net, e) if movement_of(c.getDirection()) == "r"}
     on_states, off_states = _states(site_net), _states(off)
-    extra_idx = {c.getTLLinkIndex() for a in proxy["approaches"] for c in _conns_from(site_net, a["edge"])
-                 if _is_extra(c)}
     assert len(on_states) == len(off_states)
     for on, of in zip(on_states, off_states):
-        assert len(on) == len(of) + len(extra_idx)  # the violator-only links come last; G vs g: the closed lane-0 straight next to a sidewalk yields (apply_patches)
+        assert len(on) == len(of)  # G vs g: the lane-0 straight next to a sidewalk yields (apply_patches)
         assert [ch.upper() for i, ch in enumerate(on[:len(of)]) if i not in rights] == \
             [ch.upper() for i, ch in enumerate(of) if i not in rights]
     assert any(on[i] != of[i] for on, of in zip(on_states, off_states) for i in rights)  # off: red in HDT/LVL phases
     for a in proxy["approaches"]:
         key = lambda c: (c.getFromLane().getIndex(), c.getTo().getID(), c.getTLLinkIndex())
         assert sorted(map(key, _conns_from(off, a["edge"]))) == sorted(
-            map(key, (c for c in _conns_from(site_net, a["edge"]) if not _is_extra(c))))
+            map(key, _conns_from(site_net, a["edge"])))
         assert all(c.allows("passenger") for c in _conns_from(off, a["edge"]) if movement_of(c.getDirection()) == "s")
 
 

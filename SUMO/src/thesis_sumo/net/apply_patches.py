@@ -14,11 +14,9 @@
   going straight from the right-turn lane on green is legal, no separator) the straight connections from lane 0 are
   left as netconvert builds them (the lane's permissions, everyone) and follow the approach's straight signal.
   Lane 0 is the right-turn lane only over the last `right_lane_length_m` (Viktor 2026-10-29, field: 30 m; upstream
-  all lanes are ordinary): the approach is split there (node `<edge>.right_lane`, see `split.edg.xml` below) and
-  `lane0_extras` adds, on the stop-line edge only, links for the violators (`violator_classes`, custom1 custom2):
-  a left from lane 0 (not on an approach whose left is banned) and a U-turn from lanes 0 and 1. Each copies the exit
-  and exit lane of the approach's existing left / U-turn and follows its signal state, so a U-turn on a red left
-  arrow is a red-light run of the TraCI rules, not a signal state. With
+  all lanes are ordinary): the approach is split there (node `<edge>.right_lane`, see `split.edg.xml` below). No
+  extra links are added (owner decision 2026-11-04: the former violator-only left from lane 0 and U-turns from lanes
+  0/1 split each approach's straights into one-lane internal edges, where sublane vehicles collided). With
   the other values every straight connection from lane 0 is deleted and re-added: with `none` or `paint` with
   `allow="<violator_classes.moto> <violator_classes.car>"` (custom1 custom2: PLAN behaviour 6, violators going
   straight from the right-turn lane); with `bollards` (Viktor 2026-10-26: a physical separator) with
@@ -289,10 +287,7 @@ def _turn_patch(net, vals: dict) -> etree._Element:
         if a["continuous_right_lane"] and a["right_lane_separator"] == "open":
             root.append(etree.Comment(f" {a['id']}: lane 0 = continuous right-turn lane over the last "
                                       f"{a['right_lane_length_m']} m, separator open; straight kept as built (everyone, "
-                                      f"approach straight signal); violator-only left / U-turn links follow "))
-            for _, _, frm, to, fl, tl, _, allow in (x for x in lane0_extras(net, {**vals, "approaches": [a]})):
-                etree.SubElement(root, "connection", **{"from": frm}, to=to, fromLane=str(fl), toLane=str(tl),
-                                 allow=allow)
+                                      f"approach straight signal) "))
         elif a["continuous_right_lane"]:
             closed = a["right_lane_separator"] == "bollards"
             perm = {"disallow": "all"} if closed else {"allow": " ".join(vals["violators"])}
@@ -301,29 +296,6 @@ def _turn_patch(net, vals: dict) -> etree._Element:
             _readd(root, a["edge"], [c for c in conns if c.getFromLane().getIndex() == 0
                                      and movement_of(c.getDirection()) == "s"], **perm)
     return root
-
-
-def lane0_extras(net, vals: dict) -> list[tuple]:
-    """Violator-only links added on the stop-line edge of an `open` continuous-right-lane approach (Viktor 2026-10-29):
-    a left from lane 0 (approaches whose left is not banned) and a U-turn from lanes 0 and 1. They copy the exit and
-    exit lane of the approach's existing left / U-turn (the one from the highest lane) and follow its signal state.
-    Tuples (approach, movement, from edge, to edge, fromLane, toLane, dir, allow)."""
-    out = []
-    for a in vals["approaches"]:
-        if not (a["continuous_right_lane"] and a["right_lane_separator"] == "open"):
-            continue
-        conns = [c for cs in net.getEdge(a["edge"]).getOutgoing().values() for c in cs]
-        for mv, lanes, banned in (("l", (0,), a["left_turn_banned"]), ("t", (0, 1), a["u_turn_banned"])):
-            src = [c for c in conns if movement_of(c.getDirection()) == mv]
-            if not src:
-                continue
-            c = max(src, key=lambda c: c.getFromLane().getIndex())
-            if mv == "l" and banned:
-                continue  # a banned left has no lane-0 version: only the box waiters of lane 2 exist
-            allow = vals["vclass"] if banned else " ".join(vals["violators"])
-            out += [(a["id"], mv, a["edge"], c.getTo().getID(), i, c.getToLane().getIndex(), c.getDirection(), allow)
-                    for i in lanes]
-    return out
 
 
 def _readd(root: etree._Element, edge: str, conns: list, **perm: str) -> None:
@@ -444,11 +416,9 @@ def _key(c) -> tuple:
     return c.getFrom().getID(), c.getTo().getID(), c.getFromLane().getIndex(), c.getToLane().getIndex()
 
 
-def _box_pins(net_path: Path, vals: dict, extras: list[tuple] = ()) -> tuple[float | None, etree._Element]:
+def _box_pins(net_path: Path, vals: dict) -> tuple[float | None, etree._Element]:
     """(internal lane width of the banned links that wait in the box, or None if none has an internal junction;
-    `<connection contPos>` for every other link with an internal junction at its default position in `net_path`; a
-    pinned `extras` link (lane0_extras) repeats its `allow`, since a later `<connection>` replaces the earlier one)."""
-    allow = {(x[2], x[3], x[4], x[5]): x[7] for x in extras}
+    `<connection contPos>` for every other link with an internal junction at its default position in `net_path`)."""
     net = sumolib.net.readNet(str(net_path), withInternal=True)
     banned = {a["edge"]: {m for m, b in (("l", a["left_turn_banned"]), ("t", a["u_turn_banned"])) if b}
               for a in vals["approaches"]}
@@ -462,9 +432,8 @@ def _box_pins(net_path: Path, vals: dict, extras: list[tuple] = ()) -> tuple[flo
                 box.append(via.getWidth())
             else:
                 k = _key(c)
-                perm = {"allow": allow[k]} if k in allow else {}
                 etree.SubElement(pins, "connection", **{"from": k[0]}, to=k[1], fromLane=str(k[2]), toLane=str(k[3]),
-                                 contPos=f"{via.getLength():.2f}", **perm)
+                                 contPos=f"{via.getLength():.2f}")
     return (max(box) if box else None), pins
 
 
@@ -571,17 +540,15 @@ def build_site_net(site: Site, base: Path, out: Path) -> Path:
     links = _links(net, approach_of)
     sw_links = _sidewalk_patches(net, vals, target_node(tls).getID(), {})[2]
     continuous = frozenset((a["id"], "r") for a in vals["approaches"] if a["continuous_right_lane"])
-    extras = lane0_extras(net, vals)
     states = phase_states([(approach_of[c.getFrom().getID()], movement_of(c.getDirection())) for c in links]
-                          + [lk[:2] for lk in sw_links] + [x[:2] for x in extras], vals["phases"], vals["cycle_s"],
-                          continuous)
+                          + [lk[:2] for lk in sw_links], vals["phases"], vals["cycle_s"], continuous)
     # the lane-0 straight of a sidewalk approach targets the exit lane of the sidewalk straight; SUMO warns on two G
     # links into one lane ("unsafe green"), so the road link is g (yield): closed (bollards, R37) nobody drives it; open
     # (2026-10-28) it yields to the riders leaving the sidewalk, as netconvert's foe matrix already has it
     sw_targets = {(to, tl) for _, mv, _, to, _, tl in sw_links if mv == "s"}
     merging = {i for i, c in enumerate(links) if (c.getTo().getID(), c.getToLane().getIndex()) in sw_targets}
     states = ["".join("g" if i in merging and ch == "G" else ch for i, ch in enumerate(s)) for s in states]
-    all_links = [_key(c) for c in links] + [lk[2:] for lk in sw_links] + [lk[2:6] for lk in extras]
+    all_links = [_key(c) for c in links] + [lk[2:] for lk in sw_links]
 
     patch_dir = out.parent / "patches" / out.name.removesuffix(".net.xml")
     files = {"lanes.edg.xml": _lane_patch(net, vals), "turns.con.xml": _turn_patch(net, vals),
@@ -624,11 +591,10 @@ def build_site_net(site: Site, base: Path, out: Path) -> Path:
             raise RuntimeError(f"{out}: split distances from the stop line {real} (site, realised) differ by more "
                                f"than {SPLIT_TOL_M} m after {SPLIT_PASSES} netconvert passes")
         shift = {n: shift.get(n, 0.0) + d - r for n, (d, r) in real.items()}
-    width, pins = _box_pins(out, vals, extras)
+    width, pins = _box_pins(out, vals)
     if width:  # moves internal junctions only, no junction shape, so no split moves
         files["box_pins.con.xml"] = pins
         con.append("box_pins.con.xml")
         convert("--internal-junctions.vehicle-width", f"{width:.2f}")
-    _check_site_net(out, all_links, [c.getDirection() for c in links] + [mv for _, mv, *_ in sw_links]
-                     + [x[6] for x in extras], states, vals)
+    _check_site_net(out, all_links, [c.getDirection() for c in links] + [mv for _, mv, *_ in sw_links], states, vals)
     return out

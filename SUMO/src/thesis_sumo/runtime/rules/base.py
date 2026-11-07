@@ -38,7 +38,7 @@ import random
 from collections import Counter
 from dataclasses import dataclass, field
 
-from thesis_sumo.runtime.state import JunctionInfo, Step
+from thesis_sumo.runtime.state import JunctionInfo, Link, Step
 
 RED_LIGHT_BIT = 1 << 4
 LOG_COLUMNS = ("t", "veh_id", "rule", "action", "executed", "reason", "t_end", "detail")
@@ -165,17 +165,23 @@ class Rule:
     def applies(self, s: Step, vid: str) -> bool:
         return s.vehicles[vid].vtype in self.vtypes and not self.cmd.busy(vid)
 
-    def link_of(self, s: Step, vid: str) -> int | None:
-        """TLS link index of the connection `vid` takes from its stop-line lane to its route's next edge (its own
-        signal, `Step.signal`); None when that lane has no link to the edge: the approach group's signal applies."""
+    def link_to(self, s: Step, vid: str) -> Link | None:
+        """The connection `vid` takes from its stop-line lane to its route's next edge; None when that lane has no
+        link to the edge."""
         lane = s.vehicles[vid].lane
         if vid not in self._route_next:  # one getRoute per vehicle; the edge after the approach never changes
             route, edge = list(self.b.vehicle.getRoute(vid)), lane.rsplit("_", 1)[0]
             i = route.index(edge) if edge in route else -1
             self._route_next[vid] = route[i + 1] if 0 <= i < len(route) - 1 else None
         nxt = self._route_next[vid]
-        return next((self.info.link_of_internal[lk.via] for lk in self.info.links.get(lane, ())
+        return next((lk for lk in self.info.links.get(lane, ())
                      if lk.to_edge == nxt and lk.via in self.info.link_of_internal), None)
+
+    def link_of(self, s: Step, vid: str) -> int | None:
+        """TLS link index of `link_to` (its own signal, `Step.signal`); None when its lane has no link to the next
+        edge: the approach group's signal applies."""
+        lk = self.link_to(s, vid)
+        return None if lk is None else self.info.link_of_internal[lk.via]
 
     def start(self, vid: str, action: str, t: float, **data) -> Active:
         self.cmd.begin(vid, self.rule_type, t)

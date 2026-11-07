@@ -1,0 +1,109 @@
+{
+ "seed": 42,
+ "chain_wall_s": 1153.38,
+ "error": null,
+ "valid": true,
+ "n_attempts": 3,
+ "attempts": [
+  {
+   "attempt": 1,
+   "wall_s": 211.05,
+   "error": null,
+   "prompt_tokens": 26145,
+   "completion_tokens": 1954,
+   "total_tokens": 28099,
+   "finish_reason": "stop",
+   "seed_sent": 42,
+   "response_format": "json_schema",
+   "reasoning_chars": 2511,
+   "valid": false,
+   "issues": [
+    {
+     "path": "driver_archetypes",
+     "code": "share_sum",
+     "message": "shares of vTypeDistribution 'moto' sum to 0.7; they must sum to 1 (moto_normal=0.6, moto_slow=0.1)."
+    },
+    {
+     "path": "driver_archetypes",
+     "code": "share_sum",
+     "message": "shares of vTypeDistribution 'moto_violator' sum to 1.2; they must sum to 1 (moto_seeker=0.2, moto_violator=1)."
+    },
+    {
+     "path": "driver_archetypes[4].id",
+     "code": "logic",
+     "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+    }
+   ],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 26145,
+    "prompt_eval_ms": 535.55,
+    "prompt_eval_tokens": 4,
+    "prompt_tok_s": 7.47,
+    "eval_ms": 208251.35,
+    "eval_tokens": 1954,
+    "gen_tok_s": 9.38,
+    "final_n_tokens": 28098,
+    "truncated": 0
+   }
+  },
+  {
+   "attempt": 2,
+   "wall_s": 518.16,
+   "error": null,
+   "prompt_tokens": 27670,
+   "completion_tokens": 4393,
+   "total_tokens": 32063,
+   "finish_reason": "stop",
+   "seed_sent": 42,
+   "response_format": "json_schema",
+   "reasoning_chars": 12276,
+   "valid": false,
+   "issues": [
+    {
+     "path": "driver_archetypes",
+     "code": "share_sum",
+     "message": "shares of vTypeDistribution 'moto_violator' sum to 1.2; they must sum to 1 (moto_seeker=0.2, viola_moto=1)."
+    }
+   ],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 27670,
+    "prompt_eval_ms": 1361.47,
+    "prompt_eval_tokens": 1529,
+    "prompt_tok_s": 1123.05,
+    "eval_ms": 516666.78,
+    "eval_tokens": 4393,
+    "gen_tok_s": 8.5,
+    "final_n_tokens": 32062,
+    "truncated": 0
+   }
+  },
+  {
+   "attempt": 3,
+   "wall_s": 423.98,
+   "error": null,
+   "prompt_tokens": 29101,
+   "completion_tokens": 3398,
+   "total_tokens": 32499,
+   "finish_reason": "stop",
+   "seed_sent": 42,
+   "response_format": "json_schema",
+   "reasoning_chars": 10735,
+   "valid": true,
+   "issues": [],
+   "server": {
+    "n_ctx_slot": 32768,
+    "task_n_tokens": 29101,
+    "prompt_eval_ms": 1511.53,
+    "prompt_eval_tokens": 1435,
+    "prompt_tok_s": 949.37,
+    "eval_ms": 422214.39,
+    "eval_tokens": 3398,
+    "gen_tok_s": 8.05,
+    "final_n_tokens": 32498,
+    "truncated": 0
+   }
+  }
+ ]
+}

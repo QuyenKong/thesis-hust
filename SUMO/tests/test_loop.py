@@ -172,7 +172,7 @@ def test_new_campaign_id_has_own_budget_and_state(env):
 def test_prompt_version_default_override_and_lock(env):
     res = _drive(env, "P1_n28", n_iter=1, budget_runs=12)
     lock = json.loads((evaluate.CAMPAIGNS_DIR / "P1_n28" / "loop" / "loop.json").read_text(encoding="utf-8"))
-    assert lock["llm"]["prompt_version"] == "v002" and res.best_spec["provenance"]["prompt_version"] == "v002"
+    assert lock["llm"]["prompt_version"] == "v003" and res.best_spec["provenance"]["prompt_version"] == "v003"
     with pytest.raises(ValueError, match="other settings"):   # a campaign keeps its prompt version
         _run("P1_n28", n_iter=1, budget_runs=12, prompt_version="v001")
     with pytest.raises(ValueError, match="prompt"):

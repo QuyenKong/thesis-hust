@@ -453,7 +453,7 @@ def test_rule_wrong_vclass(spec, site, dodge):
     spec["traci_rules"].append({"rule_type": "illegal_left_box", "applies_to": [moto_id],  # B1 has none (R26)
                                 "params": {"release_lag_s": 0.0}, "rationale": "test"})
     issues = validate(spec, site)
-    assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[3].applies_to[0]")]
+    assert [(i["code"], i["path"]) for i in issues] == [("logic", f"traci_rules[{len(spec['traci_rules']) - 1}].applies_to[0]")]
     assert "custom1" in issues[0]["message"] and moto_id in issues[0]["message"]
     dodge_site, dodge_net = dodge
     for rule_type, vclass in (("queue_space_seeking", "motorcycle"), ("queue_space_seeking", "passenger"),
@@ -518,18 +518,18 @@ def test_queue_space_seeking_redistribution_is_valid(spec, site):
 
 
 def test_queue_space_seeking_inapplicable_on_proxy_site(spec, site):
-    """Ruling R27: the options that do not exist on the proxy net are inapplicable. Since 2026-10-29 a custom1
-    archetype in moto_violator can turn left from lane 0 (a wrong-lane dodge), so p_wrong_lane alone is applicable
-    for it; right_lane (no bollards, straight from lane 0 legal) and sidewalk do not exist for it, so a spec with only
-    those is inapplicable."""
+    """Ruling R27: the options that do not exist on the proxy net are inapplicable. No class has a wrong-lane dodge
+    (left and U-turn only from lane 2, owner decision 2026-11-04), right_lane does not exist (no bollards, straight
+    from lane 0 legal) and the sidewalk is custom1-only: a custom1 archetype in moto_violator (no sidewalk route,
+    illegal left only) with only wrong_lane / right_lane is inapplicable."""
     vio = _arch(spec, "custom1")["id"]
-    assert validate(_with_seek(spec, [vio], p_wrong_lane=0.5, p_right_lane=0.3, p_sidewalk=0.2), site) == []
-    issues = validate(_with_seek(spec, [vio], p_wrong_lane=0.0, p_right_lane=0.5, p_sidewalk=0.5), site)
+    issues = validate(_with_seek(spec, [vio], p_wrong_lane=0.5, p_right_lane=0.5), site)
     assert [(i["code"], i["path"]) for i in issues] == [("logic", "traci_rules[2].applies_to[0]")]
     assert "inapplicable on this site" in issues[0]["message"]
     spec = json.loads(B1.read_text(encoding="utf-8"))
     rid = _sidewalk_rider(spec)
-    assert validate(_with_seek(spec, [rid], p_wrong_lane=0.5), site) == []  # custom1 can turn left from lane 0 (2026-10-29)
+    issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.5, p_right_lane=0.0, p_sidewalk=0.0), site)
+    assert _codes(issues) == ["logic"] and "existing:" in issues[0]["message"] and "sidewalk" in issues[0]["message"]
     issues = validate(_with_seek(spec, [rid], p_wrong_lane=0.0, p_right_lane=0.5), site)
     assert _codes(issues) == ["logic"] and "existing:" in issues[0]["message"] and "sidewalk" in issues[0]["message"]
 
@@ -546,7 +546,7 @@ def test_queue_space_seeking_params_checked(spec, site):
         assert [(i["code"], i["path"]) for i in issues] == [("rule_params", f"traci_rules[2].params.{name}")], name
     bad = json.loads(B1.read_text(encoding="utf-8"))
     r = _sidewalk_rider(bad)
-    rule = _with_seek(bad, [r], p_sidewalk=0.2)["traci_rules"][-1]
+    rule = _rule(_with_seek(bad, [r], p_sidewalk=0.2), "queue_space_seeking")
     del rule["params"]["merge_zone_m"]  # only t_w may be left out
     assert [i["path"] for i in validate(bad, site)] == ["traci_rules[2].params"]
 

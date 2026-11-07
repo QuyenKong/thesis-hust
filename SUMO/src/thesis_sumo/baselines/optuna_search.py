@@ -15,8 +15,8 @@ final F2 net (experiments/runs/B0__PROXY_D1-D3/seed_01-03 manifests) = 12/9 = 1.
 Same objective (`evaluate.evaluate_spec(...).S`, lower is better) and the same SUMO-run budget (`evaluate.RunBudget`,
 1 spec x 1 day x 1 seed = 1 run) as the LLM loop; best spec by `evaluate.select_best` (R10/R32/R42), never by S
 alone. Campaign files (experiments/campaigns/<campaign>/, next to evaluate's budget.json / compiled/ / runs/):
-`study.journal` (Optuna JournalStorage), `optuna_results/<spec_id>.pkl` (the EvalResult of each finished trial),
-`convergence.csv` (SUMO runs used vs best S so far).
+`study.journal` (Optuna JournalStorage, see `journal_storage`), `optuna_results/<spec_id>.pkl` (the EvalResult of
+each finished trial), `convergence.csv` (SUMO runs used vs best S so far).
 
 Search space (`search_space`, ruling R20), structure = what the spec declares:
 - Archetype params: exactly the attributes present in the structure, range `Bound.for_vclass(base_vclass)`;
@@ -56,9 +56,17 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+if sys.platform == "win32":
+    # Load libsumo before optuna. optuna -> sqlalchemy -> sqlite3 loads Python's DLLs/sqlite3.dll; Windows then binds
+    # _libsumo's sqlite3.dll import to that already-loaded module (same base name) instead of sumo_data/bin's copy,
+    # and `import libsumo` fails ("DLL load failed ... procedure could not be found"). In the other order, Python's
+    # _sqlite3 binds to sumo_data's sqlite3.dll and works. The runner imports libsumo in this process (nproc 1) and
+    # in each spawned worker, which re-imports this module as __mp_main__ under `-m`.
+    import libsumo  # noqa: F401
+
 import optuna
 from optuna.distributions import CategoricalDistribution, FloatDistribution
-from optuna.storages.journal import JournalFileBackend, JournalStorage
+from optuna.storages.journal import JournalFileBackend, JournalFileOpenLock, JournalStorage
 from optuna.trial import TrialState
 
 from thesis_sumo import evaluate
@@ -68,6 +76,14 @@ from thesis_sumo.rules.validator import SEEK_OPTIONS, narrowest_lane, distributi
 
 SHARE_EPS = 1e-3
 N_STARTUP_TRIALS = 4   # R44: 12 trials per campaign; Optuna's default 10 would be random search
+
+
+def journal_storage(path: Path) -> JournalStorage:
+    """The campaign's Optuna journal. Locked with JournalFileOpenLock (O_CREAT | O_EXCL on `<journal>.lock`), not
+    Optuna's default JournalFileSymlinkLock: creating a symlink needs a privilege Windows users lack by default
+    (WinError 1314). The journal format does not depend on the lock, and both locks claim the same `.lock` path,
+    so existing journals load unchanged and the two cannot hold the lock at the same time."""
+    return JournalStorage(JournalFileBackend(str(path), lock_obj=JournalFileOpenLock(str(path))))
 
 
 @dataclass(frozen=True)
@@ -232,8 +248,8 @@ def run_optuna(structure: dict, campaign: str, budget_runs: int, seeds: list[int
     res_dir.mkdir(parents=True, exist_ok=True)
     budget = evaluate.RunBudget(budget_runs, campaign)
 
-    study = optuna.create_study(study_name=campaign, storage=JournalStorage(JournalFileBackend(
-        str(root / "study.journal"))), direction="minimize", load_if_exists=True)
+    study = optuna.create_study(study_name=campaign, storage=journal_storage(root / "study.journal"),
+                                direction="minimize", load_if_exists=True)
     seed = sampler_seed + len(study.trials)   # a resumed study must not replay the start-up draws
     study.sampler = optuna.samplers.TPESampler(seed=seed, n_startup_trials=N_STARTUP_TRIALS)
     lock = {"days": days, "seeds": seeds, "structure": structure.get("spec_id"),

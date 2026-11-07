@@ -1,0 +1,366 @@
+[
+ {
+  "seed": 42,
+  "chain_wall_s": 765.15,
+  "error": null,
+  "valid": false,
+  "n_attempts": 3,
+  "attempts": [
+   {
+    "attempt": 1,
+    "wall_s": 295.6,
+    "error": null,
+    "prompt_tokens": 27138,
+    "completion_tokens": 2480,
+    "total_tokens": 29618,
+    "finish_reason": "stop",
+    "seed_sent": 42,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 2722,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto' sum to 0.77; they must sum to 1 (moto_normal=0.62, moto_slow=0.15)."
+     },
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto_violator' sum to 1.23; they must sum to 1 (moto_seeker=0.23, moto_violator=1)."
+     },
+     {
+      "path": "driver_archetypes[4].id",
+      "code": "logic",
+      "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 27138,
+     "prompt_eval_ms": 18744.83,
+     "prompt_eval_tokens": 27138,
+     "prompt_tok_s": 1447.76,
+     "eval_ms": 268153.68,
+     "eval_tokens": 2480,
+     "gen_tok_s": 9.24,
+     "final_n_tokens": 29617,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 2,
+    "wall_s": 395.46,
+    "error": null,
+    "prompt_tokens": 29221,
+    "completion_tokens": 3547,
+    "total_tokens": 32768,
+    "finish_reason": "length",
+    "seed_sent": 42,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 13451,
+    "valid": false,
+    "issues": [
+     {
+      "path": "(response)",
+      "code": "schema",
+      "message": "the answer was cut off at the output limit of 4500 tokens (reasoning included) before the JSON was complete; think briefly and answer with the JSON object only"
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 29221,
+     "prompt_eval_ms": 1932.11,
+     "prompt_eval_tokens": 2087,
+     "prompt_tok_s": 1080.17,
+     "eval_ms": 393398.49,
+     "eval_tokens": 3547,
+     "gen_tok_s": 9.01,
+     "final_n_tokens": 32767,
+     "truncated": 1
+    }
+   },
+   {
+    "attempt": 3,
+    "wall_s": 73.96,
+    "error": null,
+    "prompt_tokens": 29521,
+    "completion_tokens": 676,
+    "total_tokens": 30197,
+    "finish_reason": "stop",
+    "seed_sent": 42,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 2436,
+    "valid": false,
+    "issues": [
+     {
+      "path": "(response)",
+      "code": "schema",
+      "message": "the answer is not valid JSON (Expecting value at line 1 column 1); answer with one JSON object only"
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 29521,
+     "prompt_eval_ms": 609.75,
+     "prompt_eval_tokens": 304,
+     "prompt_tok_s": 498.56,
+     "eval_ms": 73217.55,
+     "eval_tokens": 676,
+     "gen_tok_s": 9.22,
+     "final_n_tokens": 30196,
+     "truncated": 0
+    }
+   }
+  ]
+ },
+ {
+  "seed": 43,
+  "chain_wall_s": 693.65,
+  "error": null,
+  "valid": false,
+  "n_attempts": 3,
+  "attempts": [
+   {
+    "attempt": 1,
+    "wall_s": 235.91,
+    "error": null,
+    "prompt_tokens": 27138,
+    "completion_tokens": 2185,
+    "total_tokens": 29323,
+    "finish_reason": "stop",
+    "seed_sent": 43,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 2870,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto' sum to 0.65; they must sum to 1 (moto_std=0.55, moto_slow=0.1)."
+     },
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto_violator' sum to 1.25; they must sum to 1 (moto_seek=0.25, moto_violator=1)."
+     },
+     {
+      "path": "driver_archetypes[4].id",
+      "code": "logic",
+      "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 27138,
+     "prompt_eval_ms": 438.54,
+     "prompt_eval_tokens": 4,
+     "prompt_tok_s": 9.12,
+     "eval_ms": 233349.94,
+     "eval_tokens": 2185,
+     "gen_tok_s": 9.36,
+     "final_n_tokens": 29322,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 2,
+    "wall_s": 228.13,
+    "error": null,
+    "prompt_tokens": 28947,
+    "completion_tokens": 2093,
+    "total_tokens": 31040,
+    "finish_reason": "stop",
+    "seed_sent": 43,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 3116,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto' sum to 0.9; they must sum to 1 (moto_std=0.7, moto_slow=0.2)."
+     },
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto_violator' sum to 1.25; they must sum to 1 (moto_seek=0.25, moto_illegal=1)."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 28947,
+     "prompt_eval_ms": 1665.22,
+     "prompt_eval_tokens": 1813,
+     "prompt_tok_s": 1088.74,
+     "eval_ms": 226353.81,
+     "eval_tokens": 2093,
+     "gen_tok_s": 9.24,
+     "final_n_tokens": 31039,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 3,
+    "wall_s": 229.45,
+    "error": null,
+    "prompt_tokens": 30711,
+    "completion_tokens": 2057,
+    "total_tokens": 32768,
+    "finish_reason": "length",
+    "seed_sent": 43,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 3852,
+    "valid": false,
+    "issues": [
+     {
+      "path": "(response)",
+      "code": "schema",
+      "message": "the answer was cut off at the output limit of 4500 tokens (reasoning included) before the JSON was complete; think briefly and answer with the JSON object only"
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 30711,
+     "prompt_eval_ms": 1693.72,
+     "prompt_eval_tokens": 1768,
+     "prompt_tok_s": 1043.86,
+     "eval_ms": 227633.02,
+     "eval_tokens": 2057,
+     "gen_tok_s": 9.03,
+     "final_n_tokens": 32767,
+     "truncated": 1
+    }
+   }
+  ]
+ },
+ {
+  "seed": 44,
+  "chain_wall_s": 640.26,
+  "error": null,
+  "valid": false,
+  "n_attempts": 3,
+  "attempts": [
+   {
+    "attempt": 1,
+    "wall_s": 225.75,
+    "error": null,
+    "prompt_tokens": 27138,
+    "completion_tokens": 2087,
+    "total_tokens": 29225,
+    "finish_reason": "stop",
+    "seed_sent": 44,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 2012,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes[5].share",
+      "code": "schema",
+      "message": "0.0 is less than or equal to the minimum of 0"
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 27138,
+     "prompt_eval_ms": 353.8,
+     "prompt_eval_tokens": 4,
+     "prompt_tok_s": 11.31,
+     "eval_ms": 223249.97,
+     "eval_tokens": 2087,
+     "gen_tok_s": 9.34,
+     "final_n_tokens": 29224,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 2,
+    "wall_s": 208.82,
+    "error": null,
+    "prompt_tokens": 28734,
+    "completion_tokens": 1931,
+    "total_tokens": 30665,
+    "finish_reason": "stop",
+    "seed_sent": 44,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 1838,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto' sum to 0.8; they must sum to 1 (moto_normal=0.65, moto_slow=0.15)."
+     },
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto_violator' sum to 1.2; they must sum to 1 (moto_seeker=0.2, moto_violator=1)."
+     },
+     {
+      "path": "driver_archetypes[4].id",
+      "code": "logic",
+      "message": "archetype id 'moto_violator' clashes with a vTypeDistribution id (car, moto, moto_violator, car_violator are reserved); choose another id."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 28734,
+     "prompt_eval_ms": 1569.91,
+     "prompt_eval_tokens": 1600,
+     "prompt_tok_s": 1019.16,
+     "eval_ms": 207135.48,
+     "eval_tokens": 1931,
+     "gen_tok_s": 9.32,
+     "final_n_tokens": 30664,
+     "truncated": 0
+    }
+   },
+   {
+    "attempt": 3,
+    "wall_s": 205.55,
+    "error": null,
+    "prompt_tokens": 30689,
+    "completion_tokens": 1845,
+    "total_tokens": 32534,
+    "finish_reason": "stop",
+    "seed_sent": 44,
+    "max_tokens": 4500,
+    "response_format": "json_schema",
+    "reasoning_chars": 1645,
+    "valid": false,
+    "issues": [
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto' sum to 0.8; they must sum to 1 (moto_normal=0.6, moto_slow=0.2)."
+     },
+     {
+      "path": "driver_archetypes",
+      "code": "share_sum",
+      "message": "shares of vTypeDistribution 'moto_violator' sum to 1.2; they must sum to 1 (moto_seeker=0.2, violation_rider=1)."
+     }
+    ],
+    "server": {
+     "n_ctx_slot": 32768,
+     "task_n_tokens": 30689,
+     "prompt_eval_ms": 1797.89,
+     "prompt_eval_tokens": 1959,
+     "prompt_tok_s": 1089.61,
+     "eval_ms": 203640.81,
+     "eval_tokens": 1845,
+     "gen_tok_s": 9.06,
+     "final_n_tokens": 32533,
+     "truncated": 0
+    }
+   }
+  ]
+ }
+]

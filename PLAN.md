@@ -135,8 +135,8 @@ signal:
 illegal_left:
   approaches: null             # TODO_MEASURE: nhánh có người rẽ trái trái phép
 violator_classes:
-  moto: custom1                # xe máy vi phạm: rẽ trái bị cấm, rẽ trái/quay đầu từ làn 0 và làn 1 (vượt đèn đỏ), làn vỉa hè
-  car: custom2                 # ô tô vi phạm: rẽ trái/quay đầu từ làn 0 và làn 1 (vượt đèn đỏ)
+  moto: custom1                # xe máy vi phạm: rẽ trái bị cấm, làn vỉa hè
+  car: custom2                 # ô tô vi phạm
 f2_measured_approaches: null   # TODO: 1–2 nhánh dùng để đo nhóm F2 (camera thấy hàng chờ 50–100 m, vỉa hè)
 ```
 
@@ -157,7 +157,8 @@ f2_measured_approaches: null   # TODO: 1–2 nhánh dùng để đo nhóm F2 (ca
    - `lanes.edg.xml`: bề rộng làn thực đo.
    - `turns.con.xml`:
      - Với nhánh `left_turn_banned: true`, xóa connection rẽ trái hợp lệ, rồi **thêm lại connection rẽ trái chỉ cho phép vClass `custom1`** (kiểm tra cú pháp permission ở mức `<connection>` trong docs netconvert). Làm tương tự với `u_turn_banned`.
-     - **Làn rẽ phải liên tục** (Viktor 28 và 29/10): cạnh nhánh được cắt ở `right_lane_length_m` (30 m) trước vạch dừng; đoạn thượng nguồn là ba làn thường. Ở đoạn 30 m cuối, làn 0 có connection rẽ phải (luôn `g`) và đi thẳng (mọi xe, theo đèn đi thẳng). Thêm **connection rẽ trái từ làn 0** (nhánh không cấm rẽ trái) và **quay đầu từ làn 0 và làn 1**, chỉ cho `custom1` và `custom2`, theo đèn rẽ trái của nhánh; xe tuân thủ vẫn rẽ trái và quay đầu từ làn 2.
+     - **Làn rẽ phải liên tục** (Viktor 28 và 29/10): cạnh nhánh được cắt ở `right_lane_length_m` (30 m) trước vạch dừng; đoạn thượng nguồn là ba làn thường. Ở đoạn 30 m cuối, làn 0 có connection rẽ phải (luôn `g`) và đi thẳng (mọi xe, theo đèn đi thẳng); vạch làn ở đoạn này là nét đứt nên không cấm chuyển làn. Rẽ trái và quay đầu chỉ từ làn 2. Quyết định của chủ đề tài 04/11/2026: bỏ các connection rẽ trái từ làn 0 và quay đầu từ làn 0, 1 chỉ cho `custom1`/`custom2` (thêm ngày 29/10). Chúng tách ba hướng đi thẳng của mỗi nhánh thành các cạnh nội bộ một làn, nên với mô hình sublane các xe đi thẳng ở làn cạnh nhau không thấy nhau trong nút và va chạm ở cạnh ra (B0 PROXY_D1, 5 seed: 50 va chạm làn khi có, 5 khi không).
+     - **TODO (quyết định 04/11/2026):** làm lại hai hành vi hiếm này (rẽ trái từ làn 0, quay đầu từ làn 0 và 1 của xe vi phạm) bằng một luật TraCI, không thêm connection vào mạng. Chưa làm.
    - `sidewalk.edg.xml` / `sidewalk.con.xml`: trên các nhánh trong `f2_measured_approaches`, thêm **một làn vỉa hè** ở mép phải (bề rộng = `sidewalk_width_m`, chỉ `allow="custom1"`, tốc độ thấp), nối vào hướng rẽ phải và vào làn ngoài cùng trước vạch dừng. Người đi bộ nằm ngoài phạm vi, nên làn này không có tương tác với người đi bộ.
    - `signal.tll.xml`: chương trình đèn static từ `site.yaml → signal`. Link rẽ trái trái phép có trạng thái `g` trong pha xanh đi thẳng của nhánh nó. **Link rẽ phải liên tục ở trạng thái xanh trong mọi pha** (không bị đèn điều khiển).
    - Khi `site.yaml` còn `null`: sinh mạng dùng giá trị OSM hiện tại và **in cảnh báo rõ ràng** là đang dùng giá trị chưa đo.
@@ -199,7 +200,7 @@ f2_measured_approaches: null   # TODO: 1–2 nhánh dùng để đo nhóm F2 (ca
 Bốn thí nghiệm nhỏ, mỗi cái một kịch bản riêng, báo cáo kèm số liệu.
 
 ### 3A. Chặn làn rẽ phải liên tục
-Làn 0 ở 30 m cuối cho đi thẳng khi xanh, nên xe đi thẳng đứng chờ đèn đỏ ở đó đến từ cách SUMO chọn làn và từ hàng chờ. Câu hỏi: tần suất xe đi thẳng đứng chờ ở làn 0 có gần mục tiêu M9 không, xe rẽ phải phía sau bị kẹt bao lâu, và rẽ trái hoặc quay đầu từ làn 0 và làn 1 lúc đèn đỏ (connection chỉ cho `custom1`/`custom2`) gây bao nhiêu xung đột với dòng đi thẳng từ làn 1 và 2?
+Làn 0 ở 30 m cuối cho đi thẳng khi xanh, nên xe đi thẳng đứng chờ đèn đỏ ở đó đến từ cách SUMO chọn làn và từ hàng chờ. Câu hỏi: tần suất xe đi thẳng đứng chờ ở làn 0 có gần mục tiêu M9 không, và xe rẽ phải phía sau bị kẹt bao lâu?
 
 ### 3B. Làn vỉa hè
 Xe `custom1` có vào làn vỉa hè, đi hết và nhập lại đúng chỗ không; có kẹt hoặc teleport ở điểm nhập không.
@@ -272,7 +273,7 @@ Thêm cho 3D: xe đang vượt đỏ nhờ tham số `jm*` có còn nhường xe
 | minGapLat / encroachment | `minGapLat`, `latAlignment`, `lcSublane`, `lcPushy`, `lcMaxSpeedLatStanding` | — |
 | f (ảo tưởng) | `lcAssertive`, `lcPushyGap`, `jmTimegapMinor`, `jmIgnoreFoeProb`, `tau` | — |
 | S_cheat (sai làn né đèn) | — | `queue_space_seeking` (lựa chọn `wrong_lane`) |
-| Chặn làn rẽ phải liên tục | tham số vType và cách SUMO chọn làn; rẽ trái/quay đầu từ làn 0 và 1 qua luật vượt đèn đỏ của `custom1`/`custom2` | `queue_space_seeking` (lựa chọn `right_lane`, chỉ khi mạng cấm đi thẳng từ làn 0) |
+| Chặn làn rẽ phải liên tục | tham số vType và cách SUMO chọn làn | `queue_space_seeking` (lựa chọn `right_lane`, chỉ khi mạng cấm đi thẳng từ làn 0) |
 | Đi trên vỉa hè | tham số của `custom1` | `queue_space_seeking` (lựa chọn `sidewalk`) |
 | Đi ngược chiều (sau) | tham số LC đối diện nếu 3C khả thi | `queue_space_seeking` (lựa chọn `opposite`) |
 | I_slow | `speedFactor`, `speedDev` (archetype riêng) | `slow_lane_center` (tùy chọn) |
@@ -298,7 +299,7 @@ Thêm cho 3D: xe đang vượt đỏ nhờ tham số `jm*` có còn nhường xe
   - Khôi phục mode sau khi can thiệp xong.
 - Logic các rule (tham số là ngưỡng/xác suất mà LLM điền):
   - `early_start`: trong `t_before_green` giây cuối pha đỏ, xe đầu hàng thuộc archetype áp dụng nhích qua vạch với xác suất `p`, tốc độ ≤ `v_max`. Cần đọc thời gian còn lại của pha từ TLS.
-  - `swarm_red_running`: xác suất vượt đỏ của một xe tăng theo số xe đã vượt đỏ trong `Δt` giây gần nhất trên cùng nhánh: `p = p0 + k·n` (cắt ở `p_max`).
+  - `swarm_red_running`: xác suất vượt đỏ của một xe tăng theo số xe đã vượt đỏ trong `Δt` giây gần nhất trên cùng nhánh: `p = p0 + k·n` (cắt ở `p_max`). Quyết định rút một lần khi xe tới vạch. Xe đã quyết định vượt chỉ được vào nút khi nút thông (D1, 04/11): làn ra của link còn chỗ cho xe (length + minGap), không có xe nào trên làn nội bộ cắt link, và không có xe đứng (v < 5 km/h) trên làn nội bộ của link. Nút chưa thông thì xe đợi ở vạch và vào ngay khi thông nếu đèn vẫn đỏ; đèn hết đỏ trước thì ghi là không thực hiện (`junction_blocked`). Đây là hai quy tắc vào nút của chính SUMO, nên không thêm tham số.
   - `queue_space_seeking` (gộp sai làn, chặn làn rẽ phải, vỉa hè, ngược chiều): kích hoạt khi hàng chờ ở làn đúng dài ≥ `q`, hoặc thời gian chờ ≥ `t_w`, hoặc đèn sắp xanh. Xe chọn một khoảng trống thay thế **đang tồn tại trong mạng** (`wrong_lane`, `right_lane`, `sidewalk`, `opposite`) theo xác suất `p_*` do LLM điền, tốc độ ≤ `v_creep`. Khi một lựa chọn không có trong mạng (ví dụ phương án chính sách đã chặn vỉa hè), xác suất của nó được **phân bổ lại** cho các lựa chọn còn lại theo tỷ lệ — đây là cơ chế "dồn hành vi" dùng trong đánh giá phương án. Ngoài khi được kích hoạt, xe vi phạm phải bị khóa không vào các làn/liên kết vi phạm (dùng `setLaneChangeMode` hoặc cơ chế tương đương, theo kết quả 3A).
   - `illegal_left_box`: theo kết quả Phase 3.
   - `slow_lane_center` (tùy chọn): giữ archetype I_slow chạy ở giữa làn.

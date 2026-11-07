@@ -22,7 +22,9 @@ from string import Template
 import numpy as np
 
 from thesis_sumo.config import Site, load_experiment
-from thesis_sumo.rules.schema import RULE_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound
+from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, DISTRIBUTIONS, DISTRIBUTIONS_OF_VCLASS,
+                                      OPTIONAL_DISTRIBUTIONS, RULE_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound)
+from thesis_sumo.rules.validator import distribution_of
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 DAY_NAME_RE = re.compile(r"PROXY_D\d+")
@@ -41,12 +43,32 @@ class DayDataLeak(ValueError):
     """A prompt text names an observed day (PLAN 5.4: the LLM never sees validation-day data)."""
 
 
-def load_prompt(name: str, version: str = "v002") -> Template:
+def load_prompt(name: str, version: str = "v003") -> Template:
     return Template((PROMPTS_DIR / version / f"{name}.md").read_text(encoding="utf-8"))
 
 
-def system_prompt(version: str = "v002") -> str:
-    return load_prompt("system", version).template.strip()
+def distribution_text() -> str:
+    """Which vTypeDistribution each base vclass joins (default and allowed), from rules/schema.py."""
+    out = []
+    for vc in VCLASSES:
+        default, allowed = DISTRIBUTION_OF_VCLASS[vc], DISTRIBUTIONS_OF_VCLASS[vc]
+        others = [d for d in allowed if d != default]
+        alt = f"; with `distribution` it may join {' or '.join(others)} instead" if others else ""
+        out.append(f"  - base_vclass {vc}: without `distribution` it joins `{default}`{alt}")
+    opt = ", ".join(OPTIONAL_DISTRIBUTIONS)
+    out.append(f"  - distributions {', '.join(f'`{d}`' for d in DISTRIBUTIONS)}: each needs at least one archetype "
+               f"(except optional {opt}), and the shares of its members sum to exactly 1. These ids are reserved: "
+               f"no archetype may use them as its id.")
+    return "\n".join(out)
+
+
+def rule_vclass_text() -> str:
+    return "\n".join(f"  - `{r}`: base_vclass {', '.join(vcs)}" for r, vcs in RULE_VCLASSES.items())
+
+
+def system_prompt(version: str = "v003") -> str:
+    return load_prompt("system", version).substitute(distributions=distribution_text(),
+                                                     rule_vclasses=rule_vclass_text()).strip()
 
 
 def assert_no_day_data(text: str, exp: dict | None = None) -> str:
@@ -77,15 +99,11 @@ def _site_text(site: Site) -> str:
         if a.get("left_turn_banned"):
             parts.append(f"left turn banned{_ev(a, 'left_turn_banned')}")
         if a.get("continuous_right_lane") and a.get("right_lane_separator") == "open":
-            extra = [m for m, banned in (("left", a.get("left_turn_banned")), ("U-turn", a.get("u_turn_banned")))
-                     if not banned]
             parts.append(f"lane 0 is a continuous right-turn lane over the last {a.get('right_lane_length_m')} m before "
                          f"the stop line{_ev(a, 'right_lane_length_m')} (an ordinary lane upstream of it): right turn at "
                          f"any time (not signal controlled), straight from it legal on the approach's straight green "
                          f"(no separator){_ev(a, 'right_lane_separator')}; standing in it at red while going straight, "
-                         f"left or U-turn is a violation"
-                         + (f"; violator classes may also {' / '.join(extra)} from it on the arrow (wrong lane)"
-                            if extra else ""))
+                         f"left or U-turn is a violation")
         elif a.get("continuous_right_lane"):
             parts.append(f"lane 0 is a continuous right-turn lane (not signal controlled), separated by "
                          f"{a.get('right_lane_separator')} over the last {a.get('bollard_length_m')} m"
@@ -161,7 +179,7 @@ def _targets_text(targets_calib: dict) -> str:
 
 
 def build_context(mode: str, base_spec: dict | None, site: Site, bounds: dict[str, Bound], targets_calib: dict,
-                  *, schema: dict, prompt_version: str = "v002", exp: dict | None = None) -> str:
+                  *, schema: dict, prompt_version: str = "v003", exp: dict | None = None) -> str:
     """The context message. `targets_calib` = `calibration_targets(...)` (key -> label, unit, obs_mean, evidence,
     scored); `schema` = `client.llm_schema(mode, base_spec)`."""
     if mode not in MODE_RULES:
@@ -236,7 +254,7 @@ def _result_text(r, interventions: dict | None) -> str:
 
 
 def build_feedback(prev_results: list, issues: dict[str, list[dict]] | None = None,
-                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v002",
+                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v003",
                    exp: dict | None = None) -> str:
     """Feedback message on the previous iteration. `prev_results`: `evaluate.EvalResult`s (calibration days only);
     `issues`: spec_id -> validator issues of specs that never reached evaluation (the client gave up), merged with
@@ -259,5 +277,46 @@ def build_feedback(prev_results: list, issues: dict[str, list[dict]] | None = No
     return assert_no_day_data(text, exp)
 
 
-def build_retry(issues: list[dict], *, prompt_version: str = "v002") -> str:
-    return load_prompt("retry", prompt_version).substitute(issues=_issues_text(issues))
+ARCH_PATH_RE = re.compile(r"^driver_archetypes(\[\d+\]\.(id|distribution))?$")
+RULE_PATH_RE = re.compile(r"^traci_rules\[(\d+)\]\.applies_to\[\d+\]$")
+
+
+def _state_text(issues: list[dict], spec: dict | None) -> str:
+    """For distribution / archetype-id / rule-vclass issues: the spec's distributions with their members and the
+    base vclasses of the rules involved, so the model sees the whole picture instead of one sum."""
+    if not isinstance(spec, dict):
+        return ""
+    dist_issue = any(i["code"] == "share_sum" or (i["code"] == "logic" and ARCH_PATH_RE.match(i["path"]))
+                     for i in issues)
+    rule_idx = sorted({int(m.group(1)) for i in issues if i["code"] == "logic"
+                       for m in [RULE_PATH_RE.match(i["path"])] if m})
+    if not dist_issue and not rule_idx:
+        return ""
+    archs = [a for a in spec.get("driver_archetypes") or [] if isinstance(a, dict)]
+    lines = ["Current state of your spec:",
+             "Distributions (an archetype without `distribution` joins the default of its base_vclass):"]
+    by_dist: dict[str, list[dict]] = {}
+    for a in archs:
+        by_dist.setdefault(distribution_of(a), []).append(a)
+    for d in list(DISTRIBUTIONS) + [d for d in by_dist if d not in DISTRIBUTIONS]:
+        members = by_dist.get(d, [])
+        total = sum(a["share"] for a in members)
+        listed = ", ".join(f"{a['id']} (share {a['share']:g}, base_vclass {a['base_vclass']})" for a in members)
+        lines.append(f"- `{d}`: sum {total:g}: {listed or 'no archetype'}")
+    lines += ["Where each base_vclass may go:", distribution_text()]
+    rules = spec.get("traci_rules") or []
+    rtypes = dict.fromkeys(rules[i]["rule_type"] for i in rule_idx if i < len(rules))
+    if rtypes:
+        vc = {a["id"]: a["base_vclass"] for a in archs}
+        lines.append("Rules named in the issues (base_vclass each allows; archetypes it is applied to):")
+        for r in rtypes:
+            used = dict.fromkeys(aid for rule in rules if rule["rule_type"] == r for aid in rule["applies_to"])
+            on = ", ".join(f"{aid} ({vc.get(aid, 'unknown id')})" for aid in used)
+            lines.append(f"- `{r}` allows base_vclass {', '.join(RULE_VCLASSES[r])}; it is applied to {on}")
+    return "\n" + "\n".join(lines) + "\n"
+
+
+def build_retry(issues: list[dict], spec: dict | None = None, *, prompt_version: str = "v003") -> str:
+    """Retry message; templates with a `$state` field also get `_state_text` (older versions ignore it)."""
+    return load_prompt("retry", prompt_version).substitute(issues=_issues_text(issues),
+                                                          state=_state_text(issues, spec))

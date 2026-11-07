@@ -4,7 +4,9 @@ Backends (`cfg["runtime"]`, config/llm.yaml; `llm_config()` returns the active b
 - `openai`: any OpenAI-compatible server (Ollama / vLLM / LM Studio) through the `openai` package. Structured output
   via `response_format = {"type": "json_schema", ...}` with `llm_schema`; if the server rejects it (HTTP 400/422)
   the client switches to plain JSON for the rest of the session and relies on validate + retry. Reasoning text
-  (`reasoning_content` (vLLM) / `reasoning` (Ollama) / inline `<think>...</think>`) is kept in the log.
+  (`reasoning_content` (vLLM) / `reasoning` (Ollama) / inline `<think>...</think>`) is kept in the log. Optional
+  `max_tokens` caps the output incl. reasoning (Ollama maps it to num_predict); an answer cut at the cap
+  (finish_reason `length`) is a failed attempt like an invalid one.
 - `file`: the stand-in LLM (Linux has no Ollama; a Claude subagent driven by the controller). The request is
   written to `<log_dir>/requests/<request_id>.json`; the answer is read from `<log_dir>/responses/<request_id>.json`
   (either `{"content": <JSON text or object>, "reasoning": ...}` or the spec object itself). A missing answer raises
@@ -146,8 +148,22 @@ def llm_schema(mode: str, base_spec: dict | None = None, bounds: dict[str, Bound
 # ---------------------------------------------------------------- client
 
 
-def _parse(text: str | None) -> tuple[dict | None, str | None, list[dict]]:
+def _finish_reason(raw) -> str | None:
+    try:
+        return raw["choices"][0]["finish_reason"]
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def _parse(text: str | None, finish_reason: str | None = None,
+           max_tokens: int | None = None) -> tuple[dict | None, str | None, list[dict]]:
     """(object, inline reasoning, issues) of a raw answer."""
+    if finish_reason == "length":  # output cap (max_tokens) or the server's context window reached
+        cap = f"output cap of {max_tokens} tokens or the context window" if max_tokens else "context window"
+        return None, None, [{"path": "(response)", "code": "schema",
+                             "message": f"the answer was cut off at the token limit ({cap}, reasoning included) "
+                                        f"before the JSON was complete; think briefly and answer with the JSON "
+                                        f"object only"}]
     text = text or ""
     think = "\n".join(m.strip() for m in THINK_RE.findall(text)) or None
     body = THINK_RE.sub("", text).strip()
@@ -236,6 +252,8 @@ class LLMClient:
             kw["temperature"] = self.cfg["temperature"]
         if self.cfg.get("seed") is not None:
             kw["seed"] = int(self.cfg["seed"]) + sample_idx  # same seed for every sample = identical samples
+        if self.cfg.get("max_tokens") is not None:
+            kw["max_tokens"] = int(self.cfg["max_tokens"])
         extras = {k: v for k, v in kw.items() if k != "messages"}
         if self.structured:
             fmt = {"type": "json_schema", "json_schema": {"name": "rule_spec", "schema": schema}}
@@ -281,12 +299,12 @@ class LLMClient:
                 if same:
                     raise ValueError(f"{log_path}: logged attempt came from another LLM setup {same} (logged, "
                                      f"config); its answer would be relabelled; use a new campaign or log root")
-                text, reasoning = log["response"]["text"], log["response"]["reasoning"]
+                text, reasoning, raw = log["response"]["text"], log["response"]["reasoning"], log["response"]["raw"]
             elif self.cfg["runtime"] == "file":
                 text, reasoning, raw, extras = self._call_file(rid, messages, schema, mode, attempt)
             else:
                 text, reasoning, raw, extras = self._call_openai(messages, schema, sample_idx)
-            obj, think, issues = _parse(text)
+            obj, think, issues = _parse(text, _finish_reason(raw), self.cfg.get("max_tokens"))
             spec = None
             if obj is not None:
                 spec = {"spec_id": spec_id, "source": "llm", "provenance": provenance,
@@ -311,5 +329,6 @@ class LLMClient:
                 record["valid"] = True
                 return spec, record
             messages += [{"role": "assistant", "content": text or ""},
-                         {"role": "user", "content": build_retry(issues, prompt_version=self.cfg["prompt_version"])}]
+                         {"role": "user", "content": build_retry(issues, spec,
+                                                                 prompt_version=self.cfg["prompt_version"])}]
         return None, record

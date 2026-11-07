@@ -303,6 +303,69 @@ def test_intervened_window_until_past_junction(one_lane, tmp_path):
         assert not ctl.intervened("r", seen["t_out"] + 1.0)
 
 
+@pytest.mark.parametrize("blocker", ["none", "conflict", "exit"])
+def test_swarm_waits_for_clear_junction(one_lane, tmp_path, blocker):
+    """Owner decision D1: a runner drawn while the junction is blocked is held at the line (no command) and starts its
+    pass, still on red, once it is clear. `r` stands 1 m before the red W stop line from 10 s (drawn at once, p = 1).
+    conflict: a car halted (setSpeed 0, released at 25 s) on the N -> S internal lane, which crosses r's link.
+    exit: a motorcycle stopped until 20 s with its rear 2.3 m into CE, r's exit lane (r needs length + minGap)."""
+    import libsumo
+    release = {"none": 10.0, "conflict": 25.0, "exit": 20.0}[blocker]
+    seen = {"r_in": None}
+
+    def probe(b, t, c):
+        ids = b.vehicle.getIDList()
+        if "b" in ids and b.vehicle.getLaneID("b").startswith(":") and "held" not in seen:
+            b.vehicle.setSpeed("b", 0.0)
+            seen["held"] = t
+        if "b" in ids and t >= release and seen.get("held") is not None and "freed" not in seen:
+            b.vehicle.setSpeed("b", -1)
+            seen["freed"] = t
+        if "r" in ids and b.vehicle.getLaneID("r").startswith(":") and seen["r_in"] is None:
+            seen["r_in"] = t
+
+    xml = '<vType id="slow_car" vClass="passenger" accel="0.8"/>'
+    if blocker == "conflict":  # starts halted 1 m before the green N stop line, creeps into the junction
+        xml += ('<vehicle id="b" type="slow_car" depart="0" departPos="140" departSpeed="0"><route edges="NC CS"/>'
+                '</vehicle>')
+    elif blocker == "exit":
+        xml += ('<vehicle id="x" type="moto" depart="0" departPos="4.5" departSpeed="0"><route edges="CE"/>'
+                '<stop lane="CE_0" endPos="4.5" until="20"/></vehicle>')
+    xml += ('<vehicle id="r" type="rule_moto" depart="10" departPos="140" departSpeed="0"><route edges="WC CE"/>'
+            '</vehicle>')
+    rule = _rule("swarm_red_running", ["rule_moto"], p0=1.0, k=0.0, p_max=1.0, dt=10.0)
+    ctl, rows = _simulate(libsumo, one_lane, xml, [rule], _site(tmp_path), tmp_path, 44, probe=probe)
+    if blocker == "conflict":
+        assert seen.get("held") is not None and seen["held"] < 10.0  # b stands in the junction before r arrives
+    (run,) = [r for r in rows if r["veh_id"] == "r"]
+    assert run["action"] == "run_red" and run["executed"] == "True"
+    swarm = ctl.rules[0]
+    assert swarm.counters["decided_run"] == 1 and swarm.counters["held"] == (blocker != "none")
+    t_draw, t_cmd = swarm.draw_log[0][0], float(run["t"])
+    if blocker == "none":
+        assert t_cmd == pytest.approx(t_draw) and run["detail"] == ""
+    else:
+        assert t_draw < 11.0 and release <= t_cmd < W_GREEN_ONSET and run["detail"] == f"held_s={t_cmd - t_draw:.1f}"
+    assert t_cmd <= seen["r_in"] < W_GREEN_ONSET and seen["r_in"] == pytest.approx(float(run["t_end"]))
+
+
+def test_swarm_held_until_red_ends(one_lane, tmp_path):
+    """A runner whose exit stays blocked for the whole red never gets the command: logged not executed,
+    `junction_blocked`, at the red's end; it then crosses on green."""
+    import libsumo
+    xml = ('<vehicle id="x" type="moto" depart="0" departPos="4.5" departSpeed="0"><route edges="CE"/>'
+           '<stop lane="CE_0" endPos="4.5" until="50"/></vehicle>'
+           '<vehicle id="r" type="rule_moto" depart="10" departPos="140" departSpeed="0"><route edges="WC CE"/>'
+           '</vehicle>')
+    rule = _rule("swarm_red_running", ["rule_moto"], p0=1.0, k=0.0, p_max=1.0, dt=10.0)
+    ctl, rows = _simulate(libsumo, one_lane, xml, [rule], _site(tmp_path), tmp_path, 60)
+    assert [(r["veh_id"], r["executed"], r["reason"]) for r in rows] == [("r", "False", "junction_blocked")]
+    t_draw = ctl.rules[0].draw_log[0][0]
+    assert t_draw < 11.0 and float(rows[0]["t"]) == pytest.approx(t_draw)
+    assert float(rows[0]["t_end"]) > W_GREEN_ONSET - 3.0
+    assert not ctl.cmd.intervened("r", 30.0)
+
+
 # ---------------------------------------------------------------- queue_space_seeking
 
 
@@ -538,12 +601,13 @@ def test_junction_info_on_proxy_net():
     # green check: the continuous right turn (g in every phase) does not count, the open lane-0 straight does
     assert all(rule.signalled[a] == {0, 1, 2} for a in info.lanes), rule.signalled
     x = "711526326#1"
-    assert info.segments["LVL_W"] == [x, x + ".up"]  # split at the sidewalk start only: no bollards (2026-10-28)
-    e = "37876499#0"  # split like LVL_W since the LVL_E sidewalk (2026-10-28)
-    assert info.segments["LVL_E"] == [e, e + ".up"]
-    assert info.segments["HDT_N"] == ["953158817#2"]
+    # split at the sidewalk start and at stop line - right_lane_length_m (`.mid` between them, 2026-10-29); no bollards
+    assert info.segments["LVL_W"] == [x, x + ".mid", x + ".up"]
+    e = "37876499#0"  # split like LVL_W (sidewalk and right-turn lane)
+    assert info.segments["LVL_E"] == [e, e + ".mid", e + ".up"]
+    assert info.segments["HDT_N"] == ["953158817#2", "953158817#2.up"]  # right-turn lane split only (no sidewalk)
     # no bollard edge: the seeking zone is the whole approach, the stop-line edge included
-    assert rule.bollard == set() and rule._in_zone(f"{x}_1", "LVL_W") and rule._in_zone(f"{x}.up_1", "LVL_W")
+    assert rule.bollard == set() and all(rule._in_zone(f"{x}{s}_1", "LVL_W") for s in ("", ".mid", ".up"))
     assert not rule._in_zone(x + ".sidewalk_0", "LVL_W")
     assert info.sidewalk == {"LVL_W": x + ".sidewalk_0", "LVL_E": e + ".sidewalk_0"}
     assert info.approach_lanes[e + ".sidewalk_0"] == "LVL_E" and e + ".sidewalk_0" in info.lane_approach
@@ -565,12 +629,15 @@ def test_junction_info_on_proxy_net():
         assert info.lane_offset[ln] == pytest.approx(want), ln
         want += net.getLane(ln).getLength()
     assert len(info.group_links["LVL_W"]) == 3  # the road's straight links only (not the sidewalk's)
-    # the lane-0 straight is open (lane 0 marked [r, s]): not a wrong lane, so no dodge exists: runtime = validator (R27)
+    # the lane-0 straight is open (lane 0 marked [r, s]): not a wrong lane; left and U-turn only from lane 2, so no
+    # class has a dodge (owner decision 2026-11-04: no violator-only links); runtime = validator (R27)
+    from thesis_sumo.rules.validator import _compute_dodge_vclasses
     from thesis_sumo.runtime.wrong_lane import usable_dodges
     (open_s,) = [lk for lk in info.links[f"{x}_0"] if lk.direction == "s"]
     assert {"passenger", "motorcycle", "custom1", "custom2"} <= open_s.allowed
     links = {a: info.lane_links(a) for a in info.lanes}
     assert all(usable_dodges(links, info.lane_movements, v) == [] for v in ("custom1", "custom2", "motorcycle"))
+    assert _compute_dodge_vclasses(str(net_path), site) == frozenset()
 
 
 def test_queue_space_seeking_libsumo_traci_same(f2_sidewalk, tmp_path):
@@ -771,7 +838,8 @@ def test_runner_runs_B1_with_controller(tmp_path):
                               REPO_ROOT / "scenario" / "demand" / "routes_SYNTHETIC.rou.xml", tmp_path / "B1_manual")
     res = runner.run("B1_manual", "SYNTHETIC", seed=1, sim_end_s=200, runs_root=tmp_path / "runs", inputs=inputs)
     m = res.manifest
-    assert set(m["interventions"]) == {"swarm_red_running", "early_start", "queue_space_seeking"}  # no box rule (R26)
+    assert set(m["interventions"]) == {"swarm_red_running", "early_start", "queue_space_seeking",
+                                       "uturn_bypass"}  # no box rule (R26)
     seek = m["interventions"]["queue_space_seeking"]  # F2 structure with every p = 0: draws, never an intervention
     assert seek["attempted"] == 0 and seek["counters"].get("draws", 0) == seek["counters"].get("no_seek", 0)
     for s in m["interventions"].values():

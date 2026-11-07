@@ -8,8 +8,9 @@
 #                   the local-LLM method).
 
 active: standin                # ollama | standin
-prompt_version: v002           # prompts/<version>/; v002 = scenario of 2026-10-28 (v001 = the earlier scenario, kept
-                               # for the old campaigns); per campaign: loop --prompt-version
+prompt_version: v003           # prompts/<version>/; v003 (2026-11-04) = v002 + rule uturn_bypass (owner decision D2);
+                               # v002 = scenario of 2026-10-28, v001 = the earlier scenario, both kept for the old
+                               # campaigns; per campaign: loop --prompt-version
 
 ollama:                        # PROVISIONAL (plan Task 12); not run yet on any machine
   runtime: openai
@@ -22,7 +23,13 @@ ollama:                        # PROVISIONAL (plan Task 12); not run yet on any 
   seed: 42                     # provisional; sample j uses seed + j (identical seeds would give identical samples)
   n_samples: 4                 # TODO_DECIDE: provisional, specs per iteration (plan budget 3 rounds x 4 specs x 3 seeds)
   max_attempts: 3              # PLAN 6.1: validate then retry, at most 3 attempts
-  timeout_s: 600
+  max_tokens: 4500             # output cap incl. reasoning (Ollama: max_tokens -> num_predict; max_completion_tokens is
+                               # ignored, probe 2026-11-04 report/2026-11-04/data/ollama/). 2026-11-03 measurement at
+                               # OLLAMA_CONTEXT_LENGTH=32768 (report/2026-11-03/data/ollama/measurements.md): answers
+                               # 1.9k-4.4k tokens, 1 of 9 filled the context with reasoning. A cut answer = failed attempt
+                               # 2026-11-04 (report/2026-11-04/data/ollama/retry): the v003 P2 request is 27.1k prompt
+                               # tokens, so from attempt 2 the 32768 window, not this cap, cut 2 of 9 answers
+  timeout_s: 1800
 
 standin:
   runtime: file
