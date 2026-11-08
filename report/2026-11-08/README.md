@@ -1,6 +1,6 @@
-# Báo cáo 08/11/2026: chốt thay đổi ngày 04/11, B0/B1 tham chiếu trên mạng 04/11
+# Báo cáo 08/11/2026: thay đổi ngày 04/11, luật cắt về, prompt v004, campaign B2/P1/P2 trên mạng 04/11
 
-Repo `D:\hust-master\Thesis`, branch `master`, máy Windows, SUMO 1.27.0. Mọi số liệu quan sát là proxy (`LITERATURE_PROXY`), không phải số đo tại nút Lê Văn Lương × Hoàng Đạo Thúy. Không chạy campaign B2/P1/P2.
+Repo `D:\hust-master\Thesis`, branch `master`, máy Windows, SUMO 1.27.0. Mọi số liệu quan sát là proxy (`LITERATURE_PROXY`), không phải số đo tại nút Lê Văn Lương × Hoàng Đạo Thúy. P1 và P2 dùng qwen3.5:9b chạy cục bộ qua Ollama.
 
 ## 1. Thay đổi được chốt (làm ngày 04/11, commit ngày 08/11)
 
@@ -110,3 +110,67 @@ Kích thước prompt P2, dựng lại từ kết quả campaign `P2_n28b` (`exp
 | B | 44 | 3 | 388 s | tổng share `moto` 1,1 và id `moto_violator`; `queue_space_seeking` trên xe máy thường |
 
 Cả 6 chuỗi đều ra spec hợp lệ trong 3 lần thử (ngày 04/11 với `v003`: 0/3; ngày 03/11 với `v002`: 1/3). Prompt dài 15.919–19.678 token, câu trả lời 1.526–4.500 token, tốc độ sinh 12,5–13,5 token/s. Một lần thử mất 2–6 phút. Lỗi id `moto_violator` xuất hiện ở 4/6 chuỗi dù prompt đã cấm, nhưng lần thử sau đều sửa được. Sáu chuỗi chưa đủ để so lượt A với lượt B.
+
+## 5. Campaign B2, P1, P2 trên mạng 04/11 (`*_n1108`)
+
+Cấu hình chung: PROXY_D1–D3 × seed 1, ngân sách 36 run SUMO mỗi campaign (R44), mỗi run 1800 s. Trần va chạm trong làn khi chọn spec tốt nhất (R10) là 1,8667 + 1 va chạm/h, với 1,8667 là B0 của `REF_n1104s5`. Lệnh, chạy từ `SUMO/`:
+
+```
+bash experiments/operator/n1108/run_campaigns.sh b2   # cũng: p1, p2
+```
+
+B2 là Optuna với 3 tiến trình. P1 (`params_only`, nền `B1_manual`) và P2 (`full`) dùng qwen3.5:9b (`--llm ollama`), prompt `v004`, 4 mẫu mỗi vòng, tối đa 3 lần thử mỗi mẫu, `max_tokens` 7000, thinking tắt. B2 chạy song song với P1, P2 chạy sau P1.
+
+Thinking tắt bằng `reasoning_effort: none` trong profile `ollama` của `config/llm.yaml` (commit 7706ede). Hai lần khởi động P1 đầu tiên đều hỏng ở lần thử đầu tiên của vòng 1: câu trả lời bị cắt ở 4500 token rồi ở 7000 token, trong đó phần thinking dài 18.554 và 28.585 ký tự, chưa kịp tới JSON. Hai thư mục campaign đó bị xóa trước khi có run nào được tính. Log của chúng nằm ở `data/ollama/p1_cap4500/` và `data/ollama/p1_cap7000_think/`. Với thinking tắt, chạy thử trên prompt vòng 1 cho 3/3 chuỗi P1 và 2/3 chuỗi P2 hợp lệ (`data/ollama/p1_nothink/`, `data/ollama/p2_nothink/`). Chế độ thinking là một phần cấu hình của campaign, nên được ghi vào `loop.json` (`llm.reasoning_effort`).
+
+| | B2 | P1 | P2 |
+|---|---|---|---|
+| Thời gian | 3 h 25 (06:03–09:28) | khoảng 2 h 25 (đến 09:20) | 1 h 56 (09:20–11:16) |
+| Trial hoặc vòng | 12 trial | 4 vòng (3 + 1 theo R45) | 5 vòng (3 + 2 theo R45) |
+| Mẫu hợp lệ | 12/12 | 12/16 | 14/20, 2 mẫu hợp lệ nhưng hết ngân sách |
+| Lần thử hợp lệ | không có LLM | 12/27 | 14/36 |
+| Spec được chạy | 12 | 12 | 12 |
+| Spec eligible | 0 | 0 | 0 |
+| Run eligible D1 / D2 / D3 | 0/12, 0/12, 0/12 | 0/12, 0/12, 0/12 | 0/12, 6/12, 5/12 |
+| S thấp nhất | 1,1438 (`t003`) | 1,2386 (`it01_s01`) | 1,1680 (`it04_s03`) |
+| Spec chọn theo R42 | `t002`, S 1,2088 | `it01_s02`, S 1,2984 | `it03_s02`, S 1,1744 |
+
+Giờ là giờ Hà Nội ngày 08/11. Không campaign nào có spec eligible, nên `select_best` xếp hạng theo R42: ít teleport kẹt/nhường nhất, rồi S, không xét trần va chạm. Ba file `rules/specs/{B2,P1,P2}_n1108_best.json` là spec ít tắc nhất theo nghĩa đó, không phải spec eligible. Các campaign chỉ dùng seed 1, nên S ở bảng trên không so trực tiếp được với S của B0 (1,2174) và B1 (1,2494) ở mục 2, vốn tính trên 5 seed.
+
+Lý do bị loại:
+- B2 và P1: còn xe chờ chèn vào mạng lúc kết thúc ở cả ba ngày. P1 có ở 36/36 run (PROXY_D1 301–623 xe, PROXY_D2 23–179, PROXY_D3 133–297). B2 có ở 21/36 run (PROXY_D1 20–338 xe ở cả 12 run). Gần như mọi spec đều có run với hơn 1 va chạm có xe đang bị TraCI can thiệp. B2 có thêm 9/12 trial vượt trần va chạm trong làn (4/h mỗi run) ở ít nhất một run. P1 không có run nào bị loại vì lý do này.
+- P2: chỉ PROXY_D1 còn xe chờ chèn (4–163 xe, cả 12 spec). Ở PROXY_D2 và PROXY_D3, 11/24 run eligible. Các run còn lại bị loại vì va chạm trong làn vượt 4/h hoặc vì hơn 1 va chạm có xe đang bị TraCI can thiệp.
+
+P1 giữ cấu trúc của B1, mà chính B1 đã có 14/15 run còn xe chờ chèn (mục 2). Vì vậy P1 không thể ra spec eligible, dù qwen chọn tham số thế nào.
+
+Spec của P2 có cấu trúc khác B1. Từ vòng 2, cả 12 spec P2 được chạy có cùng cấu trúc với `it02_s01`. Cấu trúc đó có 5 archetype (`car_compliant`, `car_early_starter`, `moto_compliant`, `moto_slow_center` và `moto_violator_left` lớp `custom1`) và 3 luật (`early_start` cho ô tô, `swarm_red_running` cho xe máy thường, `illegal_left_box`). Các vòng sau chỉ đổi share và tham số. Cấu trúc này không có `queue_space_seeking`, không có `uturn_bypass` (chỉ `it01_s02` có), không có `slow_lane_center` dù có archetype tên `moto_slow_center`, và không có xe đi sai làn. Như vậy S thấp hơn của P2 đến từ spec bỏ bớt một số hành vi của PLAN §0. Ba campaign chưa tách được phần giảm xe chờ chèn của P2 là do tham số vType hay do bỏ các luật có thể chặn làn (cắt về, lách qua xe quay đầu).
+
+## 6. qwen3.5:9b trong campaign
+
+Prompt dài 9.471–24.441 token ở P1 và 7.063–19.895 token ở P2. Câu trả lời dài 1.257–2.256 token. Cả 63 câu trả lời đều kết thúc bình thường (`finish_reason` = stop), không câu nào bị cắt. Mỗi lần thử mất khoảng 1,5–3,5 phút.
+
+P1: 14/15 lần thử hỏng là lỗi tổng share, và cả 14 lần đều sai ở phân phối `moto_violator`. Phân phối này chỉ có một archetype (`moto_violator_saval`), nên share của nó phải là 1, nhưng qwen đổi thành 0,9, 0,85, 0,5, 0,1 hoặc 0,05. Ở 2 lần thử của `it03_s03`, qwen chuyển 0,1 và 0,05 share từ `moto` sang `moto_violator`, nên cả hai phân phối đều sai. Có 4 mẫu (`it01_s03`, `it02_s00`, `it02_s02`, `it04_s00`) hỏng cả 3 lần thử vì lỗi này, dù tin nhắn retry đã nêu rõ tổng share. P1 còn lặp lại một spec: `it01_s02`, `it02_s03`, `it03_s01` và `it04_s02` giống nhau (`early_start` `p` 0,13, `p_sidewalk` 0,75, `p_wrong_lane` 0,25, phần còn lại như B1). Spec này là spec R42 chọn sau vòng 1, nên phản hồi giới thiệu nó là tốt nhất. Ba lần nộp lại tốn 9 run và cho cùng S 1,2984.
+
+P2: ở vòng 1 và 2, 6/8 mẫu không hợp lệ sau 3 lần thử. Đếm theo lỗi trên mọi lần thử hỏng ở P2:
+
+| Lỗi | Số lần |
+|---|---|
+| id archetype trùng tên phân phối (`car`, `moto`, `moto_violator`, `car_violator`) | 19 |
+| tổng share của một phân phối khác 1 | 15 |
+| phân phối mà demand dùng không có archetype nào | 7 |
+| `queue_space_seeking` áp cho lớp xe không được phép | 6 |
+| `queue_space_seeking` không áp dụng được trên site cho archetype trong `moto_violator` | 5 |
+| `illegal_left_box` áp cho xe máy thường | 4 |
+| giá trị ngoài cận (schema) | 4 |
+| `early_start` áp hai lần cho cùng archetype | 1 |
+
+Từ vòng 3, 11/12 mẫu hợp lệ ngay lần thử đầu. Từ vòng 2, lịch sử gửi cho qwen có JSON của một spec hợp lệ (`it02_s01`), và các spec vòng 3–5 giữ đúng cấu trúc đó. Các lỗi ở bảng trên đều là lỗi cấu trúc, và chúng không xuất hiện lại khi qwen giữ nguyên cấu trúc đã qua validator.
+
+## 7. Việc còn lại
+
+- PROXY_D1 còn xe chờ chèn ở mọi spec của cả ba campaign, và ở B1 (mục 2). Khi lỗi này còn, không spec nào eligible được. Trước khi chạy campaign tiếp cần kiểm tra demand của PROXY_D1 so với năng lực thông qua của mạng 04/11. Demand này là số liệu proxy, nên cách xử lý cần chủ đề tài quyết.
+- M8 và luật cắt về (mục 3): chọn giữa connection cho xe vi phạm và luật cắt về, cần chủ đề tài quyết.
+- Vòng LLM: spec trùng với một spec đã chạy (cùng hash) đang bị tính run lại. Có thể lấy lại kết quả cũ thay vì chạy lại.
+- Ở chế độ `params_only`, schema có thể ép share bằng 1 cho phân phối chỉ có một archetype. Ở P1, 12/15 lần thử hỏng chỉ có lỗi ở phân phối đó.
+- P2 bỏ `queue_space_seeking`, `uturn_bypass` và `slow_lane_center`. Muốn spec có đủ các hành vi của PLAN §0 thì phải đưa yêu cầu này vào validator hoặc vào điểm số. Việc này cần chủ đề tài quyết.
+- Kết quả campaign chỉ có seed 1. Spec R42 chọn của B2 và P2 cần chạy lại với 5 seed, như `REF_n1104s5`, trước khi so với B0 và B1.

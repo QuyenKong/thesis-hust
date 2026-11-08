@@ -1,0 +1,82 @@
+{
+  "spec_id": "P2_n1108_it04_s02",
+  "archetypes": {
+    "car_compliant": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_compliant",
+      "share": 0.75
+    },
+    "car_early_starter": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_early_starter",
+      "share": 0.25
+    },
+    "moto_compliant": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_compliant",
+      "share": 0.35
+    },
+    "moto_slow_center": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_slow_center",
+      "share": 0.65
+    },
+    "moto_violator_left": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_violator_left",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "car_compliant",
+        "car_early_starter"
+      ],
+      "vtype_ids": [
+        "car_compliant",
+        "car_early_starter"
+      ],
+      "params": {
+        "t_before_green": 6.0,
+        "p": 0.15,
+        "v_max": 2.5
+      }
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_compliant",
+        "moto_slow_center"
+      ],
+      "vtype_ids": [
+        "moto_compliant",
+        "moto_slow_center"
+      ],
+      "params": {
+        "p0": 0.25,
+        "k": 0.2,
+        "p_max": 0.6,
+        "dt": 30.0
+      }
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_violator_left"
+      ],
+      "vtype_ids": [
+        "moto_violator_left"
+      ],
+      "params": {
+        "release_lag_s": 2.5
+      }
+    }
+  ]
+}

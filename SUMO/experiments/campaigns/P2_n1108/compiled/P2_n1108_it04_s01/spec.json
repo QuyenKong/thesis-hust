@@ -1,0 +1,145 @@
+{
+  "spec_id": "P2_n1108_it04_s01",
+  "source": "llm",
+  "provenance": {
+    "model": "qwen3.5:9b",
+    "prompt_version": "v004",
+    "iteration": 4,
+    "sample_idx": 1,
+    "runtime": "ollama"
+  },
+  "driver_archetypes": [
+    {
+      "id": "car_compliant",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.93,
+      "params": {
+        "tau": 1.5,
+        "minGap": 2.8,
+        "accel": 2.6,
+        "decel": 4.5,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "latAlignment": "right",
+        "lcAssertive": 1.0,
+        "lcImpatience": 0.2
+      },
+      "rationale": "Standard compliant car behavior targeting M1/car discharge headway (observed 0.34s) and low early-start share (M2/early/car). Increased minGap to reduce excessive braking delays while maintaining flow."
+    },
+    {
+      "id": "car_early_starter",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.07,
+      "params": {
+        "tau": 1.5,
+        "minGap": 2.8,
+        "accel": 2.6,
+        "decel": 4.5,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "latAlignment": "right",
+        "lcAssertive": 2.0,
+        "lcImpatience": 0.8
+      },
+      "rationale": "Impatient car archetype to increase M2/early/car observed share (target ~0.011). High lcImpatience drives early creep."
+    },
+    {
+      "id": "moto_compliant",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.4,
+      "params": {
+        "tau": 1.0,
+        "minGap": 2.0,
+        "accel": 6.0,
+        "decel": 10.0,
+        "sigma": 0.2,
+        "speedFactor": 1.0,
+        "latAlignment": "right",
+        "lcSublane": 1.0,
+        "lcPushy": 0.0,
+        "lcAssertive": 1.5
+      },
+      "rationale": "Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed 0.29s) and reducing M4/overshoot_depth by aligning to the right side of the lane rather than center."
+    },
+    {
+      "id": "moto_slow_center",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.6,
+      "params": {
+        "tau": 1.2,
+        "minGap": 1.8,
+        "accel": 5.0,
+        "decel": 9.0,
+        "sigma": 0.3,
+        "speedFactor": 0.7,
+        "latAlignment": "center",
+        "lcSublane": 1.0,
+        "lcPushy": 0.0
+      },
+      "rationale": "Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration and lower minGap."
+    },
+    {
+      "id": "moto_violator_left",
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "share": 1.0,
+      "params": {
+        "tau": 2.5,
+        "minGap": 2.5,
+        "accel": 6.0,
+        "decel": 8.0,
+        "sigma": 0.3,
+        "speedFactor": 1.0,
+        "latAlignment": "arbitrary",
+        "lcSublane": 4.5,
+        "lcPushy": 0.6,
+        "jmTimegapMinor": 2.0
+      },
+      "rationale": "Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share). High lcSublane pushes vehicle into adjacent lanes."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "car_compliant",
+        "car_early_starter"
+      ],
+      "params": {
+        "t_before_green": 8,
+        "p": 0.12,
+        "v_max": 3.0
+      },
+      "rationale": "Increases early start creep window and probability for cars to match M2/early/car share (target ~0.011). Reduced p to avoid overshooting the observed mean while keeping t_before_green high."
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_compliant",
+        "moto_slow_center"
+      ],
+      "params": {
+        "p0": 0.25,
+        "k": 0.18,
+        "p_max": 0.6,
+        "dt": 30
+      },
+      "rationale": "Enables red-light running for standard motorcycles to match M3/share/moto (target ~0.098) and M3/per_cycle (target ~3.913). Increased p0 from 0.2 to 0.25 and k to boost probability closer to observation."
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_violator_left"
+      ],
+      "params": {
+        "release_lag_s": 3.0
+      },
+      "rationale": "Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and box clearance metrics. Increased from 2.5s to 3.0s."
+    }
+  ],
+  "description": "Adjusted archetype shares and rule probabilities to reduce red-light running, early starting, and queue-seeking behaviors while maintaining realistic discharge headways and lateral positioning for motorcycles."
+}

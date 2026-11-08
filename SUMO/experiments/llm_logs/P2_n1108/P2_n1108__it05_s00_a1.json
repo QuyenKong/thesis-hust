@@ -1,0 +1,1207 @@
+{
+ "request_id": "P2_n1108__it05_s00_a1",
+ "timestamp": "2026-11-08T03:59:33+00:00",
+ "campaign": "P2_n1108",
+ "iteration": 5,
+ "sample_idx": 0,
+ "attempt": 1,
+ "mode": "full",
+ "runtime": "openai",
+ "server": "ollama",
+ "model": "qwen3.5:9b",
+ "quant": "Q4_K_M",
+ "prompt_version": "v004",
+ "messages_sha256": "1e14e6298bb700f6789f3837e701d0516cf151dedcfd09ebc3bf54b50c6439de",
+ "request": {
+  "messages": [
+   {
+    "role": "system",
+    "content": "You are a traffic-simulation modeller. You write driver-behaviour rule specs for the microscopic simulator SUMO\n(version 1.27, sublane model SL2015) so that a simulation of mixed motorcycle and car traffic at one signalised\nintersection in Hanoi reproduces the observed, often non-compliant, driving behaviour as closely as possible.\n\nA rule spec has two parts:\n1. `driver_archetypes`: driver types. Each one joins a vehicle-type distribution with a `share` and sets SUMO\n   vType attributes in `params`.\n2. `traci_rules`: conditional behaviours that a TraCI controller executes during the run (early start, swarm red\n   running, queue space seeking, illegal-left box waiting, slow riding in the lane centre, passing a standing\n   U-turner), each applied to some archetypes with numeric `params`.\n\nHard constraints (a spec that breaks one is rejected and costs you an attempt):\n- Use only the vType attributes and rule parameters listed in the parameter dictionary, within their ranges for\n  the archetype's base vehicle class. Do not invent attribute names.\n- Vehicle-type distributions: the demand draws every vehicle from one of them, so an archetype counts only in the\n  distribution it joins, and every member of a distribution counts in its sum. Give every archetype its\n  `distribution` explicitly and a share above 0 (leave an archetype out instead of giving it share 0), and before\n  answering add up the shares of each distribution:\n  - base_vclass passenger: without `distribution` it joins `car`\n  - base_vclass motorcycle: without `distribution` it joins `moto`\n  - base_vclass custom1: without `distribution` it joins `moto_violator`; with `distribution` it may join moto instead\n  - base_vclass custom2: without `distribution` it joins `car_violator`; with `distribution` it may join car instead\n  - distributions `car`, `moto`, `moto_violator`, `car_violator`: each needs at least one archetype (except optional car_violator), and the shares of its members sum to exactly 1. These ids are reserved: no archetype may use them as its id.\n- A rule may be applied only to archetypes of these base vehicle classes:\n  - `early_start`: base_vclass passenger, motorcycle, custom1\n  - `swarm_red_running`: base_vclass passenger, motorcycle, custom1\n  - `queue_space_seeking`: base_vclass custom1, custom2\n  - `illegal_left_box`: base_vclass custom1\n  - `slow_lane_center`: base_vclass motorcycle\n  - `uturn_bypass`: base_vclass passenger, motorcycle, custom1, custom2\n- Every archetype and every rule has a short `rationale` that names the observed metric it targets and why the\n  value moves it in the right direction.\n- Archetype ids are unique, start with a letter, use only letters, digits and `_`, never start with `DEFAULT_`, and\n  are never a distribution id (`car`, `moto`, `moto_violator`, `car_violator`): name an archetype after its drivers,\n  e.g. `moto_left_violator`.\n- Answer with one JSON object of the output shape given in the context, and nothing else. Do not add `spec_id`, `source`\n  or `provenance`: the harness inserts them.\n\nGoal: make the simulation realistic, i.e. reduce the weighted distance between simulated and observed metrics.\nA metric with ratio R <= 1 is as close to the observations as two observed days are to each other. Prefer changes\nwith a clear mechanism; change few things at a time when the feedback shows what is wrong."
+   },
+   {
+    "role": "user",
+    "content": "# Task context\n\nMode: full\nYou may change the structure (experiment E2, P2): add, remove or redefine archetypes and rules, as well as all values.\n\n## Intersection\n\nLe Van Luong x Hoang Dao Thuy (Hanoi), signalised, AM peak. Site file source: LITERATURE_PROXY.\n- Approach LVL_W: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'l', 'u']] [assumed] (r right, s straight, l left, u U-turn); lane 0 is a continuous right-turn lane over the last 30 m before the stop line [field_observation] (an ordinary lane upstream of it): right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation]; standing in it at red while going straight, left or U-turn is a violation; rideable sidewalk from 170 m before the stop line, 3.0 m wide [assumed].\n- Approach LVL_E: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'l', 'u']] [assumed] (r right, s straight, l left, u U-turn); lane 0 is a continuous right-turn lane over the last 30 m before the stop line [field_observation] (an ordinary lane upstream of it): right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation]; standing in it at red while going straight, left or U-turn is a violation; rideable sidewalk from 170 m before the stop line, 3.0 m wide [assumed].\n- Approach HDT_N: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'u']] [assumed] (r right, s straight, l left, u U-turn); left turn banned [field_observation]; lane 0 is a continuous right-turn lane over the last 30 m before the stop line [field_observation] (an ordinary lane upstream of it): right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation]; standing in it at red while going straight, left or U-turn is a violation.\n- Approach HDT_S: 3 lanes (index 0 = rightmost), widths [3.5, 3.5, 3.5] m [literature], lane movements [['r', 's'], ['s'], ['s', 'u']] [assumed] (r right, s straight, l left, u U-turn); left turn banned [field_observation]; lane 0 is a continuous right-turn lane over the last 30 m before the stop line [field_observation] (an ordinary lane upstream of it): right turn at any time (not signal controlled), straight from it legal on the approach's straight green (no separator) [field_observation]; standing in it at red while going straight, left or U-turn is a violation.\n- Signal: fixed time, cycle 120 s [literature_transferred]; phases LVL_straight 42 s (green LVL_W:s, LVL_E:s), LVL_straight_yellow 4 s, LVL_straight_allred 2 s, LVL_left 16 s (green LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t), LVL_left_yellow 4 s, LVL_left_allred 2 s, HDT_green 44 s (green HDT_N:s, HDT_N:l (banned, custom1 only), HDT_N:t, HDT_S:s, HDT_S:l (banned, custom1 only), HDT_S:t), HDT_yellow 4 s, HDT_allred 2 s [assumed] (movement <approach>:<r right, s straight, l left, t U-turn>; not listed = red).\n- Illegal left turns (custom1 riders, distribution moto_violator) from HDT_N, HDT_S: they enter the junction on their own green, wait inside the box and turn when the opposing straight green ends [assumed].\n\nThe site values above and the observation targets below are proxy values from the literature or assumptions\n(evidence label per value), not field measurements of this intersection. Do not fit noise: the observed days\nthemselves differ (see R in the feedback).\n\nSignal stages (one cycle): LVL_straight (straight from LVL_W and LVL_E), LVL_left (protected left-turn and U-turn\narrow for LVL_W and LVL_E together, LVL straight red), HDT_green (HDT_N and HDT_S together); each stage is followed\nby its yellow and all-red interval. HDT_N and HDT_S face each other: each is the other's opposing approach.\n\n## Behaviours in scope (11)\n\nGroup F1, signal non-compliance\n1. Patience / red-light running: vType `impatience`, `jmDriveAfterRedTime`, `jmDriveRedSpeed`, `lcImpatience`.\n2. Swarm pressure, red running in groups: rule `swarm_red_running`.\n3. Early start before green: rule `early_start`.\n\nGroup F2, seeking space when queued (a long queue makes drivers look for other space to reach the queue head)\n4. Lateral gap, encroachment, filtering: `minGapLat`, `latAlignment`, `lcSublane`, `lcPushy`,\n   `lcMaxSpeedLatStanding`.\n5. Wrong lane to dodge the queue: rule `queue_space_seeking`, option `p_wrong_lane`. On this site a queued\n   left-turner (LVL_W, LVL_E) rides lane 0 and a queued U-turner (every approach) rides lane 0 or 1, past the queue of\n   lane 2 (the lane marked for its movement), and cuts back into lane 2 over the continuous right-turn stretch before\n   the stop line. Until it gets into lane 2 it stands at the head of lane 0 or 1, where it holds up right-turners or\n   straight vehicles behind it (behaviour 6, and behaviour 11 for a standing U-turner).\n6. Vehicles going straight, left or U-turn that stand waiting at red in lane 0 over the continuous right-turn stretch\n   (the last metres before the stop line, given per approach below), blocking the right turns. Driving through lane 0 is\n   legal, going straight from it on green is legal, and upstream of the stretch lane 0 is an ordinary lane. These\n   vehicles come from SUMO's own lane choice and the queue, and from the wrong-lane riders of behaviour 5; left\n   turns and U-turns enter the junction from lane 2 only.\n   Option `p_right_lane` does not exist on this site (its probability is redistributed to the other options of\n   `queue_space_seeking`).\n7. Riding on the sidewalk to pass the queue: rule `queue_space_seeking`, option `p_sidewalk` (custom1 only;\n   only on the approaches with a rideable sidewalk, LVL_W and LVL_E).\n\nGroup F3, interaction inside the junction\n8. Risky gap acceptance, cutting in: `lcAssertive`, `lcPushyGap`, `jmTimegapMinor`, `tau`.\n9. Illegal left turn from HDT_N and HDT_S (left turn banned there) that enters on the HDT_green stage and waits\n   inside the junction box until the opposing straight green ends: the custom1 archetypes of the `moto_violator`\n   distribution (their `jm*` attributes) and rule `illegal_left_box`.\n10. Slow motorcycles riding in the lane centre: `speedFactor`, `speedDev` (own archetype) and rule\n    `slow_lane_center`.\n\nGroup F2, continued (observed at the site, not from the literature)\n11. Passing a standing U-turner: a vehicle held behind a U-turner that stands in the same stop-line lane while the\n    held vehicle's own movement has green squeezes past it or moves to the next lane: rule `uturn_bypass` (`p` =\n    probability that a held vehicle does so, `t_wait` = how long it stands behind the U-turner first). Observed:\n    most motorcycles pass a standing U-turner, cars rarely do.\n\nNot violations: right turns from the continuous right-turn lane (every approach) at any time, and left turns\nand U-turns from LVL_W and LVL_E on their own LVL_left arrow from the lanes marked for them. A U-turn on a red arrow\nis red-light running. Wrong-way driving is not modelled.\n\nVehicle classes: `passenger` (cars, distribution `car`), `motorcycle` (distribution `moto`), `custom1` (violating\nmotorcycles: distribution `moto_violator` = the illegal-left riders from HDT_N and HDT_S, or `moto` = straight\nriders that may seek space), `custom2` (violating cars: distribution `car_violator` (unused by the demand) or\n`car`). The demand references the distributions `car`, `moto`, `moto_violator`; each needs at least one archetype.\n\n## Parameter dictionary\n\n### vType attributes (set in an archetype's `params`)\n\n- `tau` (carFollow): [0.4, 3] s, SUMO default 1; behaviour f_risk; observed through M1, M5\n- `minGap` (vType): [1, 3] m, SUMO default 2.5 (except motorcycle: [0.5, 2.5], default 2.5; custom1: [0.5, 2.5], default 2.5); behaviour encroachment, illegal_left_box; observed through M1, M5, M7\n- `accel` (carFollow): [0.8, 4] m/s^2, SUMO default 2.6 (except motorcycle: [0.8, 6], default 6; custom1: [0.8, 6], default 6); behaviour I_slow; observed through M1, M6\n- `decel` (carFollow): [2, 7.5] m/s^2, SUMO default 4.5 (except motorcycle: [2, 10], default 10; custom1: [2, 10], default 10); behaviour f_risk; observed through M3, M6\n- `sigma` (carFollow): [0, 1] -, SUMO default 0.5; behaviour I_slow; observed through M1, M6\n- `speedFactor` (vType): [0.5, 1.3] -, SUMO default 1; behaviour I_slow; observed through M6\n- `speedDev` (vType): [0, 0.3] -, SUMO default 0.1; behaviour I_slow; observed through M6\n- `minGapLat` (LC): [0.3, 1] m, SUMO default 0.6; behaviour encroachment; observed through M4, M5, M7\n- `maxSpeedLat` (vType): [0.5, 3] m/s, SUMO default 1; behaviour encroachment; observed through M4\n- `latAlignment` (vType): one of right, center, left, compact, nice, arbitrary; SUMO default center; behaviour encroachment; observed through M4, M8\n- `lcSublane` (LC): [0, 5] -, SUMO default 1; behaviour encroachment; observed through M4\n- `lcPushy` (LC): [0, 1] -, SUMO default 0; behaviour encroachment; observed through M4, M5\n- `lcPushyGap` (LC): [0, 1] m, SUMO default 0.6; behaviour f_risk; observed through M4\n- `lcAssertive` (LC): [0.5, 5] -, SUMO default 1; behaviour f_risk; observed through M4, M8\n- `lcImpatience` (LC): [0, 1] -, SUMO default 0; behaviour patience; observed through M4, M8\n- `lcTimeToImpatience` (LC): [1, 600] s, SUMO default inf; behaviour patience; observed through M4, M8\n- `lcMaxSpeedLatStanding` (LC): [0, 3] m/s, SUMO default 1; behaviour encroachment; observed through M4\n- `lcSpeedGain` (LC): [0, 10] -, SUMO default 1; behaviour encroachment; observed through M8\n- `impatience` (junction): [0, 1] -, SUMO default 0; behaviour patience; observed through M7\n- `jmDriveAfterRedTime` (junction): [0, 10] s, SUMO default -1; behaviour patience; observed through M3\n- `jmDriveRedSpeed` (junction): [1, 13.9] m/s, SUMO default 55.5556; behaviour patience; observed through M3, M6\n- `jmTimegapMinor` (junction): [0.5, 3] s, SUMO default 1; only on base_vclass custom1; behaviour illegal_left_box, f_risk; observed through M7\n\n### TraCI rules (`rule_type`, `params`; all listed params are required unless marked optional)\n\n- `early_start` (applies to base_vclass passenger, motorcycle, custom1):\n  - `t_before_green` [0, 10] s: window before green onset in which a front-row vehicle may creep over the stop line; 10 s = upper end of the M2 target lead time (data/proxy/targets.yaml early_start_lead_s 4-10 s)\n  - `p` [0, 1] -: probability per front-row vehicle and red phase\n  - `v_max` [0.5, 5] m/s: creep speed cap; 5 m/s = 18 km/h, assumed walking-to-slow-rolling range\n- `swarm_red_running` (applies to base_vclass passenger, motorcycle, custom1):\n  - `p0` [0, 1] -: base probability to run the red for a vehicle at the stop line; Saval et al. 2023 (Sec 4) report 0.5 for front-row motorcycles in Hanoi, so the full [0, 1] is kept\n  - `k` [0, 0.5] 1/veh: increase of the probability per vehicle that ran the red on the same approach within dt; 0 = no swarm effect; 0.5 assumed upper (two followers saturate p)\n  - `p_max` [0, 1] -: cap of p0 + k*n; must be >= p0\n  - `dt` [1, 30] s: look-back window for counting red runners; assumed, at most a quarter of the 120 s proxy cycle\n- `queue_space_seeking` (applies to base_vclass custom1, custom2):\n  - `q` [5, 80] m: queue length on the vehicle's correct lanes (lane_movements) that triggers the draw; 80 m = experiment.yaml observation.queue_range_m (queues beyond it are not observed); Phase 3A used 50 m (setting)\n  - `t_w` [5, 120] s (optional): optional: the draw is also triggered once the vehicle has halted this long on its approach (within the controller radius); 120 s = one proxy cycle; assumed\n  - `t_g_s` [0, 20] s: green check (PLAN 4.5 'đèn sắp xanh', Viktor 2026-10-27): this many seconds before its approach's next green each queued vehicle not yet drawn estimates whether it clears the stop line in that green (vehicles ahead x the approach's discharge headway of the previous green, measured live) and draws if not; 0 = off. Viktor's example 7 s; 20 s assumed upper bound (twice the 10 s early-start window, data/proxy/targets.yaml)\n  - `est_noise` [0, 1] -: sigma of the multiplicative lognormal error of that estimate (median unbiased); 1 = a factor e ~ 2.7 at one sigma; assumed\n  - `p_wrong_lane` [0, 1] -: probability of the wrong_lane option (S_cheat, behaviour 5): an adjacent lane whose markings do not permit the movement but which connects to the vehicle's next edge (none on the proxy net, R27), or a lane the site lists for the movement in violator_turn_lanes (left from lane 0, U-turn from lanes 0 and 1, Viktor 2026-10-29): the vehicle rides it past the queue of the marked lane and cuts back into the marked lane on the stop-line edge (owner decision 2026-11-04)\n  - `p_right_lane` [0, 1] -: probability of the right_lane option (behaviour 6, straight vehicles ride the continuous right-turn lane upstream of the bollards, Phase 3A); exists only where straight is not permitted from lane 0 and bollards separate it; not on the proxy net (no bollards, straight from lane 0 legal on green, 2026-10-28), so it is redistributed\n  - `p_sidewalk` [0, 1] -: probability of the sidewalk option (behaviour 7, custom1 only, Phase 3B); p_wrong_lane + p_right_lane + p_sidewalk <= 1\n  - `v_creep` [0.5, 5] m/s: speed cap while in the alternative space (PLAN 4.5 'tốc độ <= v_creep'); 5 m/s = the proxy sidewalk speed (Phase 3B setting); assumed\n  - `merge_zone_m` [3, 20] m: right_lane: the lane-0 request ends this far upstream of the bollard edge and SL2015 merges the vehicle back (Phase 3A: 'a few metres to ~20 m', 15 m tested); assumed; no effect without bollards\n- `illegal_left_box` (applies to base_vclass custom1):\n  - `release_lag_s` [0, 4] s: extra hold added to SUMO's native release of box waiters (setSpeed(0) hold, no safety bits changed); ruling R15. R25 dropped the second param max_clear_into_cross_green_s: holding waiters into the crossing green either locks the crossing road or, with foes told to ignore them, collides\n- `slow_lane_center` (applies to base_vclass motorcycle):\n  - `lat_offset` [-1, 1] m: lateral offset from the lane centre the slow rider keeps (0 = centre); |1 m| keeps a 0.9 m wide motorcycle inside a 3.5 m proxy lane; assumed\n- `uturn_bypass` (applies to base_vclass passenger, motorcycle, custom1, custom2):\n  - `p` [0, 1] -: probability that a vehicle held behind a standing U-turner on its own green passes it (beside it in the lane or in the adjacent lane), one draw per vehicle and blocker\n  - `t_wait` [0, 10] s: time the vehicle stands behind the U-turner before the draw; 10 s assumed upper bound (the early-start window, data/proxy/targets.yaml)\n\n## Observation targets (calibration days, pooled)\n\n- M1/car: discharge headway after green (car): observed mean 0.3467 s (target evidence literature_transferred)\n- M1/moto: discharge headway after green (moto): observed mean 0.2957 s (target evidence literature_transferred)\n- M10a/per_cycle: motorcycles seen on the sidewalk per cycle: observed mean 0.5606 veh/cycle (target evidence assumed)\n- M2/early/car: early-start share, last 10 s of red (car): observed mean 0.01111 share (target evidence literature_transferred)\n- M2/early/moto: early-start share, last 10 s of red (moto): observed mean 0.1302 share (target evidence literature_transferred)\n- M2/first_delay: green onset to first crossing: observed mean 2.832 s (target evidence assumed)\n- M3/per_cycle: red-light violations per cycle: observed mean 3.913 veh/cycle (target evidence assumed)\n- M3/share/car: red-running share (car): observed mean 0.004108 share (target evidence literature_transferred)\n- M3/share/moto: red-running share (moto): observed mean 0.09802 share (target evidence literature_transferred)\n- M3/var_to_mean: red-light violations per cycle, variance/mean: observed mean 1.142 (target evidence assumed)\n- M4/lat_moto: lateral position of halting motorcycles at green onset: observed mean 7.191 m (target evidence assumed)\n- M4/overshoot_depth: stop-line overshoot depth of motorcycles: observed mean 1.992 m (target evidence assumed)\n- M4/overshoot_share: share of halting motorcycles past the stop line at green onset: observed mean 0.6203 share (target evidence literature_transferred)\n- M5/length: queue length at green onset: observed mean 15.83 m (target evidence assumed)\n- M5/moto_density: motorcycle density in the queue at green onset: observed mean 0.05248 veh/m2 (target evidence assumed)\n- M6/approach/illegal_l/moto: time range entry to stop line (illegal_l, moto): observed mean 38.32 s (target evidence literature_transferred)\n- M6/approach/l/car: time range entry to stop line (l, car): observed mean 63.18 s (target evidence literature_transferred)\n- M6/approach/l/moto: time range entry to stop line (l, moto): observed mean 53.58 s (target evidence literature_transferred)\n- M6/approach/r/car: time range entry to stop line (r, car): observed mean 12.37 s (target evidence literature_transferred)\n- M6/approach/r/moto: time range entry to stop line (r, moto): observed mean 11.89 s (target evidence literature_transferred)\n- M6/approach/s/car: time range entry to stop line (s, car): observed mean 42.14 s (target evidence literature_transferred)\n- M6/approach/s/moto: time range entry to stop line (s, moto): observed mean 35.67 s (target evidence literature_transferred)\n- M6/approach/u/car: time range entry to stop line (u, car): observed mean 49.68 s (target evidence literature_transferred)\n- M6/approach/u/moto: time range entry to stop line (u, moto): observed mean 41.79 s (target evidence literature_transferred)\n- M6/junction/illegal_l/moto: time stop line to outbound lane (illegal_l, moto): observed mean 36.8 s (target evidence assumed)\n- M6/junction/l/car: time stop line to outbound lane (l, car): observed mean 7.568 s (target evidence literature_transferred)\n- M6/junction/l/moto: time stop line to outbound lane (l, moto): observed mean 7.57 s (target evidence literature_transferred)\n- M6/junction/r/car: time stop line to outbound lane (r, car): observed mean 2.594 s (target evidence literature_transferred)\n- M6/junction/r/moto: time stop line to outbound lane (r, moto): observed mean 2.401 s (target evidence literature_transferred)\n- M6/junction/s/car: time stop line to outbound lane (s, car): observed mean 7.783 s (target evidence literature_transferred)\n- M6/junction/s/moto: time stop line to outbound lane (s, moto): observed mean 7.428 s (target evidence literature_transferred)\n- M6/junction/u/car: time stop line to outbound lane (u, car): observed mean 3.013 s (target evidence literature_transferred)\n- M6/junction/u/moto: time stop line to outbound lane (u, moto): observed mean 2.74 s (target evidence literature_transferred)\n- M7a/n_waiting: illegal lefts halting in the box at the opposing green end: observed mean 5.59 veh (target evidence assumed)\n- M7a/release_time: box exit time after the opposing green end: observed mean 2.78 s (target evidence assumed)\n- M7b/clear_lag: PET proxy (box clear lag): first box exit after the opposing stream ends: observed mean 5.459 s (target evidence assumed)\n- M7c/slope: crossing-road start delay per box waiter: observed mean 0.2886 s/veh (target evidence assumed)\n- M8/car: wrong-lane share of turning vehicles (car): observed mean 0.06808 share (target evidence assumed)\n- M8/moto: wrong-lane share of turning vehicles (moto): observed mean 0.249 share (target evidence assumed)\n- M9a/per_cycle: straight vehicles standing in the right-turn lane per cycle: observed mean 0.5725 veh/cycle (target evidence assumed)\n- M9b/delay_blocked: delay of blocked right-turners (range entry to stop line): observed mean 18.83 s (target evidence assumed)\n- M9b/share_blocked: share of right-turners blocked in lane 0: observed mean 0.06505 share (target evidence assumed)\n(18 further metrics are reported only, not scored; they are left out here)\n\n## Output\n\nReturn one JSON object with `driver_archetypes`, `traci_rules` and optionally `description`, nothing else. Shape\n(the ids, values and the two entries are only an illustration; use the attributes, rules and ranges of the parameter\ndictionary):\n\n```json\n{\"description\": \"one sentence on the idea of the spec\",\n \"driver_archetypes\": [\n  {\"id\": \"moto_a\", \"base_vclass\": \"motorcycle\", \"distribution\": \"moto\", \"share\": 0.7,\n   \"params\": {\"tau\": 1.0, \"minGapLat\": 0.6}, \"rationale\": \"metric it targets and why\"}],\n \"traci_rules\": [\n  {\"rule_type\": \"early_start\", \"applies_to\": [\"moto_a\"], \"params\": {\"t_before_green\": 2, \"p\": 0.1, \"v_max\": 2},\n   \"rationale\": \"metric it targets and why\"}]}\n```\n\nEvery archetype has `id`, `base_vclass`, `distribution`, `share`, `params`, `rationale`; every rule has `rule_type`,\n`applies_to` (archetype ids), `params` (all its required parameters), `rationale`.\n"
+   },
+   {
+    "role": "user",
+    "content": "# Iteration 1 (summary)\n- P2_n1108_it01_s00: rejected by the validator\n- P2_n1108_it01_s01: rejected by the validator\n- P2_n1108_it01_s02: S 1.2453, excluded, collisions/h 30.0 (lane 3.3), jam+yield teleports/h 0.0; archetypes car_compliant (passenger, car, 0.75), car_early_starter (passenger, car, 0.25), moto_compliant (motorcycle, moto, 0.5), moto_slow_center (motorcycle, moto, 0.5), moto_violator_left (custom1, moto_violator, 1); rules early_start, illegal_left_box, swarm_red_running, uturn_bypass\n- P2_n1108_it01_s03: rejected by the validator"
+   },
+   {
+    "role": "user",
+    "content": "# Iteration 2 (summary)\n- P2_n1108_it02_s00: rejected by the validator\n- P2_n1108_it02_s01: S 1.2076, excluded, collisions/h 23.3 (lane 4.0), jam+yield teleports/h 0.0; archetypes car_compliant (passenger, car, 0.75), car_early_starter (passenger, car, 0.25), moto_compliant (motorcycle, moto, 0.4), moto_slow_center (motorcycle, moto, 0.6), moto_violator_left (custom1, moto_violator, 1); rules early_start, illegal_left_box, swarm_red_running\n- P2_n1108_it02_s02: rejected by the validator\n- P2_n1108_it02_s03: rejected by the validator"
+   },
+   {
+    "role": "user",
+    "content": "# Iteration 3 (summary)\n- P2_n1108_it03_s00: S 1.2209, excluded, collisions/h 31.3 (lane 8.7), jam+yield teleports/h 0.0; archetypes car_compliant (passenger, car, 0.93), car_early_starter (passenger, car, 0.07), moto_compliant (motorcycle, moto, 0.6), moto_slow_center (motorcycle, moto, 0.4), moto_violator_left (custom1, moto_violator, 1); rules early_start, illegal_left_box, swarm_red_running\n- P2_n1108_it03_s01: S 1.1793, excluded, collisions/h 28.7 (lane 7.3), jam+yield teleports/h 0.0; archetypes car_compliant (passenger, car, 0.75), car_early_starter (passenger, car, 0.25), moto_compliant (motorcycle, moto, 0.35), moto_slow_center (motorcycle, moto, 0.65), moto_violator_left (custom1, moto_violator, 1); rules early_start, illegal_left_box, swarm_red_running\n- P2_n1108_it03_s02: S 1.1744, excluded, collisions/h 20.7 (lane 6.0), jam+yield teleports/h 0.0; archetypes car_compliant (passenger, car, 0.93), car_early_starter (passenger, car, 0.07), moto_compliant (motorcycle, moto, 0.4), moto_slow_center (motorcycle, moto, 0.6), moto_violator_left (custom1, moto_violator, 1); rules early_start, illegal_left_box, swarm_red_running\n- P2_n1108_it03_s03: S 1.2016, excluded, collisions/h 30.0 (lane 4.0), jam+yield teleports/h 0.0; archetypes car_compliant (passenger, car, 0.75), car_early_starter (passenger, car, 0.25), moto_compliant (motorcycle, moto, 0.5), moto_slow_center (motorcycle, moto, 0.5), moto_violator_left (custom1, moto_violator, 1); rules early_start, illegal_left_box, swarm_red_running"
+   },
+   {
+    "role": "user",
+    "content": "# Iteration 4: your specs\n\n```json\n{\"P2_n1108_it04_s00\":{\"driver_archetypes\":[{\"id\":\"car_compliant\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.75,\"params\":{\"tau\":1.2,\"minGap\":2.5,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":1.0,\"lcImpatience\":0.05},\"rationale\":\"Standard compliant car behavior targeting M1/car discharge headway (lower tau) and low early-start share (M2/early/car). Reduced from 0.93 to 0.75 share.\"},{\"id\":\"car_early_starter\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.25,\"params\":{\"tau\":1.2,\"minGap\":2.5,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":2.5,\"lcImpatience\":0.9},\"rationale\":\"Highly impatient car archetype to match M2/early/car observed share (~0.011) by increasing early start probability (p=0.15).\"},{\"id\":\"moto_compliant\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.4,\"params\":{\"tau\":0.9,\"minGap\":2.0,\"accel\":6.0,\"decel\":10.0,\"sigma\":0.2,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcSublane\":1.0,\"lcPushy\":0.0,\"lcAssertive\":1.5},\"rationale\":\"Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed mean 0.2957s) by reducing tau to 0.9 and aligning to the right side of the lane to reduce overshoot depth.\"},{\"id\":\"moto_slow_center\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.6,\"params\":{\"tau\":1.2,\"minGap\":1.8,\"accel\":4.5,\"decel\":9.0,\"sigma\":0.3,\"speedFactor\":0.7,\"latAlignment\":\"center\",\"lcSublane\":1.0,\"lcPushy\":0.0},\"rationale\":\"Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration.\"},{\"id\":\"moto_violator_left\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":2.5,\"minGap\":2.5,\"accel\":6.0,\"decel\":8.0,\"sigma\":0.3,\"speedFactor\":1.0,\"latAlignment\":\"arbitrary\",\"lcSublane\":4.5,\"lcPushy\":0.6,\"jmTimegapMinor\":2.0},\"rationale\":\"Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share).\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"car_compliant\",\"car_early_starter\"],\"params\":{\"t_before_green\":6,\"p\":0.15,\"v_max\":2.5},\"rationale\":\"Reduces early start creep probability (p=0.15) and window to bring M2/early/car share (target ~0.011) closer to observed while maintaining realism.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_compliant\",\"moto_slow_center\"],\"params\":{\"p0\":0.15,\"k\":0.12,\"p_max\":0.55,\"dt\":30},\"rationale\":\"Lowers base red-light running probability (p0=0.15) and swarm effect (k=0.12) for standard motorcycles to match M3/share/moto (target ~0.098) and reduce total violations per cycle.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_violator_left\"],\"params\":{\"release_lag_s\":2.0},\"rationale\":\"Adjusts box exit timing for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and reduce excessive holding times.\"}],\"description\":\"Adjusted archetype shares and rule probabilities to reduce red-light running, early starting, and queue-seeking behaviors while maintaining realistic discharge headways and lateral positioning for motorcycles.\"},\"P2_n1108_it04_s01\":{\"driver_archetypes\":[{\"id\":\"car_compliant\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.93,\"params\":{\"tau\":1.5,\"minGap\":2.8,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":1.0,\"lcImpatience\":0.2},\"rationale\":\"Standard compliant car behavior targeting M1/car discharge headway (observed 0.34s) and low early-start share (M2/early/car). Increased minGap to reduce excessive braking delays while maintaining flow.\"},{\"id\":\"car_early_starter\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.07,\"params\":{\"tau\":1.5,\"minGap\":2.8,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":2.0,\"lcImpatience\":0.8},\"rationale\":\"Impatient car archetype to increase M2/early/car observed share (target ~0.011). High lcImpatience drives early creep.\"},{\"id\":\"moto_compliant\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.4,\"params\":{\"tau\":1.0,\"minGap\":2.0,\"accel\":6.0,\"decel\":10.0,\"sigma\":0.2,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcSublane\":1.0,\"lcPushy\":0.0,\"lcAssertive\":1.5},\"rationale\":\"Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed 0.29s) and reducing M4/overshoot_depth by aligning to the right side of the lane rather than center.\"},{\"id\":\"moto_slow_center\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.6,\"params\":{\"tau\":1.2,\"minGap\":1.8,\"accel\":5.0,\"decel\":9.0,\"sigma\":0.3,\"speedFactor\":0.7,\"latAlignment\":\"center\",\"lcSublane\":1.0,\"lcPushy\":0.0},\"rationale\":\"Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration and lower minGap.\"},{\"id\":\"moto_violator_left\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":2.5,\"minGap\":2.5,\"accel\":6.0,\"decel\":8.0,\"sigma\":0.3,\"speedFactor\":1.0,\"latAlignment\":\"arbitrary\",\"lcSublane\":4.5,\"lcPushy\":0.6,\"jmTimegapMinor\":2.0},\"rationale\":\"Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share). High lcSublane pushes vehicle into adjacent lanes.\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"car_compliant\",\"car_early_starter\"],\"params\":{\"t_before_green\":8,\"p\":0.12,\"v_max\":3.0},\"rationale\":\"Increases early start creep window and probability for cars to match M2/early/car share (target ~0.011). Reduced p to avoid overshooting the observed mean while keeping t_before_green high.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_compliant\",\"moto_slow_center\"],\"params\":{\"p0\":0.25,\"k\":0.18,\"p_max\":0.6,\"dt\":30},\"rationale\":\"Enables red-light running for standard motorcycles to match M3/share/moto (target ~0.098) and M3/per_cycle (target ~3.913). Increased p0 from 0.2 to 0.25 and k to boost probability closer to observation.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_violator_left\"],\"params\":{\"release_lag_s\":3.0},\"rationale\":\"Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and box clearance metrics. Increased from 2.5s to 3.0s.\"}],\"description\":\"Adjusted archetype shares and rule probabilities to reduce red-light running, early starting, and queue-seeking behaviors while maintaining realistic discharge headways and lateral positioning for motorcycles.\"},\"P2_n1108_it04_s02\":{\"driver_archetypes\":[{\"id\":\"car_compliant\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.75,\"params\":{\"tau\":1.4,\"minGap\":2.6,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":1.0,\"lcImpatience\":0.2},\"rationale\":\"Standard car behavior targeting M1/car discharge headway (target 0.3467s). Reduced tau from 1.5 to 1.4 to slightly decrease gap acceptance time and improve flow, while maintaining compliance.\"},{\"id\":\"car_early_starter\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.25,\"params\":{\"tau\":1.4,\"minGap\":2.6,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":2.5,\"lcImpatience\":0.9},\"rationale\":\"Highly impatient car archetype targeting M2/early/car share (target ~0.011). High lcImpatience drives creep into the green window.\"},{\"id\":\"moto_compliant\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.35,\"params\":{\"tau\":1.0,\"minGap\":1.8,\"accel\":6.0,\"decel\":10.0,\"sigma\":0.2,\"speedFactor\":1.0,\"latAlignment\":\"center\",\"lcSublane\":1.0,\"lcPushy\":0.0,\"lcAssertive\":1.5},\"rationale\":\"Standard motorcycle behavior targeting M1/moto discharge headway (target 0.2957s). Reduced minGap from 2.0 to 1.8 to improve flow while keeping lateral center position.\"},{\"id\":\"moto_slow_center\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.65,\"params\":{\"tau\":1.3,\"minGap\":2.0,\"accel\":4.5,\"decel\":9.0,\"sigma\":0.3,\"speedFactor\":0.8,\"latAlignment\":\"center\",\"lcSublane\":1.0,\"lcPushy\":0.0},\"rationale\":\"Slow motorcycle archetype targeting M4/lat_moto (lateral position) and M4/overshoot_share. Lower speedFactor keeps them in lane center longer. Increased tau prevents excessive overtaking of slow cars.\"},{\"id\":\"moto_violator_left\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":2.5,\"minGap\":2.5,\"accel\":6.0,\"decel\":8.0,\"sigma\":0.3,\"speedFactor\":1.0,\"latAlignment\":\"arbitrary\",\"lcSublane\":4.5,\"lcPushy\":0.6,\"jmTimegapMinor\":2.0},\"rationale\":\"Violating motorcycle archetype (custom1) targeting M6/approach/l/moto entry timing and M8/moto wrong-lane share. High lcSublane pushes vehicle into adjacent lanes (wrong lane) to mimic illegal left-turn behavior from HDT_N/S.\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"car_compliant\",\"car_early_starter\"],\"params\":{\"t_before_green\":6,\"p\":0.15,\"v_max\":2.5},\"rationale\":\"Moderate early start creep window and probability for cars to match M2/early/car share (target ~0.011). Reduced p from previous iterations to avoid overshooting the low observed mean.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_compliant\",\"moto_slow_center\"],\"params\":{\"p0\":0.25,\"k\":0.2,\"p_max\":0.6,\"dt\":30},\"rationale\":\"Enables red-light running for standard motorcycles to match M3/share/moto (target ~0.098) and M3/per_cycle (target ~3.913). Increased p0 to boost base probability closer to observation, using swarm effect k.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_violator_left\"],\"params\":{\"release_lag_s\":2.5},\"rationale\":\"Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and reduce excessive holding times seen in previous iterations.\"}],\"description\":\"Adjusted archetype shares, lateral parameters, and rule probabilities to reduce red-light running rates, correct early-start share for cars, and enable lane encroachment for violating motorcycles while maintaining realistic discharge headways.\"},\"P2_n1108_it04_s03\":{\"driver_archetypes\":[{\"id\":\"car_compliant\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.92,\"params\":{\"tau\":1.3,\"minGap\":2.5,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":1.0,\"lcImpatience\":0.2},\"rationale\":\"Standard compliant car behavior. Reduced tau (1.3s) slightly to improve discharge headway (M1/car target 0.35s) while maintaining stability.\"},{\"id\":\"car_early_starter\",\"base_vclass\":\"passenger\",\"distribution\":\"car\",\"share\":0.08,\"params\":{\"tau\":1.3,\"minGap\":2.5,\"accel\":2.6,\"decel\":4.5,\"sigma\":0.5,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcAssertive\":2.5,\"lcImpatience\":0.9},\"rationale\":\"Highly impatient car archetype to match M2/early/car observed share (~0.011). High lcImpatience drives early creep.\"},{\"id\":\"moto_compliant\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.4,\"params\":{\"tau\":1.0,\"minGap\":2.0,\"accel\":6.0,\"decel\":10.0,\"sigma\":0.2,\"speedFactor\":1.0,\"latAlignment\":\"right\",\"lcSublane\":1.0,\"lcPushy\":0.0,\"lcAssertive\":1.5},\"rationale\":\"Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed 0.30s) and reducing overshoot depth by aligning to the right side of the lane.\"},{\"id\":\"moto_slow_center\",\"base_vclass\":\"motorcycle\",\"distribution\":\"moto\",\"share\":0.6,\"params\":{\"tau\":1.2,\"minGap\":1.8,\"accel\":5.0,\"decel\":9.0,\"sigma\":0.3,\"speedFactor\":0.7,\"latAlignment\":\"center\",\"lcSublane\":1.0,\"lcPushy\":0.0,\"lcAssertive\":1.5},\"rationale\":\"Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration.\"},{\"id\":\"moto_violator_left\",\"base_vclass\":\"custom1\",\"distribution\":\"moto_violator\",\"share\":1.0,\"params\":{\"tau\":2.5,\"minGap\":2.5,\"accel\":6.0,\"decel\":8.0,\"sigma\":0.3,\"speedFactor\":1.0,\"latAlignment\":\"arbitrary\",\"lcSublane\":4.5,\"lcPushy\":0.6,\"jmTimegapMinor\":2.0},\"rationale\":\"Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share).\"}],\"traci_rules\":[{\"rule_type\":\"early_start\",\"applies_to\":[\"car_compliant\",\"car_early_starter\"],\"params\":{\"t_before_green\":8,\"p\":0.15,\"v_max\":2.5},\"rationale\":\"Increases early start creep window and probability for cars to match M2/early/car share (target ~0.011). Applied to compliant cars too to allow natural variance.\"},{\"rule_type\":\"swarm_red_running\",\"applies_to\":[\"moto_compliant\",\"moto_slow_center\"],\"params\":{\"p0\":0.35,\"k\":0.25,\"p_max\":0.9,\"dt\":30},\"rationale\":\"Enables red-light running for standard motorcycles to match M3/share/moto (target ~0.098) and M3/per_cycle (target ~3.913). Increased p0 to boost the share significantly.\"},{\"rule_type\":\"illegal_left_box\",\"applies_to\":[\"moto_violator_left\"],\"params\":{\"release_lag_s\":2.5},\"rationale\":\"Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and box clearance metrics.\"}],\"description\":\"Adjusted archetype shares, rule probabilities, and motorcycle lateral alignment to reduce red-light running variance, improve discharge headways, and replicate illegal left-turning behavior while mitigating excessive queue lengths and collisions.\"}}\n```\n\n# Feedback on the previous iteration\n\nS is the weighted distance between simulation and observations (lower is better). Per metric: d = distance\n(0 = equal), R = d / (distance between observed days; R <= 1 = as close as the days are to each other), w = weight\nof the metric in S, direction = sim>obs or sim<obs.\n\n- s00 = P2_n1108_it04_s00: S 1.1758 (sourced 0.4653, assumed 0.7105); runs 3, 1 eligible; collisions/h 18.7 (lane 3.3); jam+yield teleports/h 0.0; exclusion reasons (runs): {'collisions involving a vehicle under TraCI intervention': 1, 'lane collisions per hour': 1, 'vehicles waiting for insertion at the end': 1}\n  TraCI executed/attempted: early_start 17/21 (not executed: {'red_ended_before_crossing': 4}); illegal_left_box 421/440 (not executed: {'cannot_stop': 2, 'run_ended': 17}); swarm_red_running 235/266 (not executed: {'junction_blocked': 25, 'red_ended_before_crossing': 6})\n- s01 = P2_n1108_it04_s01: S 1.1794 (sourced 0.4669, assumed 0.7126); runs 3, 2 eligible; collisions/h 22.0 (lane 0.7); jam+yield teleports/h 0.0; exclusion reasons (runs): {'collisions involving a vehicle under TraCI intervention': 1, 'vehicles waiting for insertion at the end': 1}\n  TraCI executed/attempted: early_start 19/21 (not executed: {'red_ended_before_crossing': 2}); illegal_left_box 441/443 (not executed: {'cannot_stop': 1, 'not_held': 1}); swarm_red_running 476/590 (not executed: {'crossed_after_red': 1, 'junction_blocked': 80, 'red_ended_before_crossing': 27, 'run_ended': 6})\n- s02 = P2_n1108_it04_s02: S 1.2125 (sourced 0.4834, assumed 0.7291); runs 3, 1 eligible; collisions/h 25.3 (lane 8.0); jam+yield teleports/h 0.0; exclusion reasons (runs): {'collisions involving a vehicle under TraCI intervention': 1, 'lane collisions per hour': 2, 'vehicles waiting for insertion at the end': 1}\n  TraCI executed/attempted: early_start 15/25 (not executed: {'red_ended_before_crossing': 8, 'run_ended': 2}); illegal_left_box 456/456; swarm_red_running 414/551 (not executed: {'crossed_after_red': 1, 'junction_blocked': 78, 'red_ended_before_crossing': 51, 'run_ended': 7})\n- s03 = P2_n1108_it04_s03: S 1.1680 (sourced 0.4549, assumed 0.7132); runs 3, 0 eligible; collisions/h 29.3 (lane 3.3); jam+yield teleports/h 0.7; exclusion reasons (runs): {'collisions involving a vehicle under TraCI intervention': 2, 'non-collision teleports': 1, 'vehicles waiting for insertion at the end': 1}\n  TraCI executed/attempted: early_start 17/28 (not executed: {'crossed_after_red': 1, 'red_ended_before_crossing': 10}); illegal_left_box 446/460 (not executed: {'run_ended': 14}); swarm_red_running 824/1119 (not executed: {'crossed_after_red': 6, 'crossed_while_held': 1, 'junction_blocked': 237, 'red_ended_before_crossing': 37, 'run_ended': 14})\n\nScored metrics: key (unit, weight): observed mean; per spec: simulated mean (direction), R\n- M1/car (s, w 0.050): obs 0.3467; s00 0.8429 (sim>obs) R 14.59; s01 0.9006 (sim>obs) R 14.59; s02 1.002 (sim>obs) R 14.59; s03 0.8605 (sim>obs) R 14.59\n- M1/moto (s, w 0.050): obs 0.2957; s00 0.6409 (sim>obs) R 16.63; s01 0.6662 (sim>obs) R 17.12; s02 0.697 (sim>obs) R 17.33; s03 0.6767 (sim>obs) R 17.26\n- M10a/per_cycle (veh/cycle, w 0.100): obs 0.5606; s00 0 (sim<obs) R 6.17; s01 0 (sim<obs) R 6.17; s02 0 (sim<obs) R 6.17; s03 0 (sim<obs) R 6.17\n- M2/early/car (share, w 0.033): obs 0.01111; s00 0.01564 (sim>obs) R 0.77; s01 0.02203 (sim>obs) R 0.82; s02 0.01009 (sim<obs) R 0.86; s03 0.02099 (sim>obs) R 0.81\n- M2/early/moto (share, w 0.033): obs 0.1302; s00 0.008182 (sim<obs) R 5.55; s01 0.01634 (sim<obs) R 5.17; s02 0.01172 (sim<obs) R 5.38; s03 0.01436 (sim<obs) R 5.26\n- M2/first_delay (s, w 0.033): obs 2.832; s00 1.718 (sim<obs) R 3.18; s01 2.238 (sim<obs) R 3.46; s02 2.352 (sim<obs) R 3.44; s03 2.157 (sim<obs) R 3.41\n- M3/per_cycle (veh/cycle, w 0.025): obs 3.913; s00 1.029 (sim<obs) R 3.33; s01 1.797 (sim<obs) R 2.43; s02 1.79 (sim<obs) R 2.42; s03 3.623 (sim<obs) R 2.20\n- M3/share/car (share, w 0.025): obs 0.004108; s00 0 (sim<obs) R 0.46; s01 0 (sim<obs) R 0.46; s02 0 (sim<obs) R 0.46; s03 0 (sim<obs) R 0.46\n- M3/share/moto (share, w 0.025): obs 0.09802; s00 0.02714 (sim<obs) R 7.07; s01 0.04806 (sim<obs) R 4.97; s02 0.04618 (sim<obs) R 5.16; s03 0.09478 (sim<obs) R 1.15\n- M3/var_to_mean (w 0.025): obs 1.142; s00 1.866 (sim>obs) R 4.07; s01 1.681 (sim>obs) R 3.04; s02 1.8 (sim>obs) R 3.70; s03 2.983 (sim>obs) R 9.89\n- M4/lat_moto (m, w 0.033): obs 7.191; s00 6.12 (sim<obs) R 13.80; s01 6.143 (sim<obs) R 13.64; s02 6.443 (sim<obs) R 11.18; s03 6.248 (sim<obs) R 12.51\n- M4/overshoot_depth (m, w 0.033): obs 1.992; s00 nan (sim<obs) R 43.44; s01 nan (sim<obs) R 43.44; s02 9.9 (sim>obs) R 43.44; s03 0.04 (sim<obs) R 36.18\n- M4/overshoot_share (share, w 0.033): obs 0.6203; s00 0 (sim<obs) R 28.74; s01 0 (sim<obs) R 28.74; s02 0.0001377 (sim<obs) R 28.73; s03 0.000152 (sim<obs) R 28.73\n- M5/length (m, w 0.050): obs 15.83; s00 56.35 (sim>obs) R 6.10; s01 56.53 (sim>obs) R 6.10; s02 60.21 (sim>obs) R 6.10; s03 56.36 (sim>obs) R 6.10\n- M5/moto_density (veh/m2, w 0.050): obs 0.05248; s00 0.08872 (sim>obs) R 6.20; s01 0.08773 (sim>obs) R 6.04; s02 0.08863 (sim>obs) R 6.21; s03 0.08471 (sim>obs) R 5.62\n- M6/approach/illegal_l/moto (s, w 0.006): obs 38.32; s00 102.6 (sim>obs) R 21.15; s01 104.8 (sim>obs) R 18.68; s02 125.7 (sim>obs) R 22.83; s03 110 (sim>obs) R 19.88\n- M6/approach/l/car (s, w 0.006): obs 63.18; s00 354.7 (sim>obs) R 14.26; s01 399.5 (sim>obs) R 14.26; s02 344 (sim>obs) R 14.26; s03 331.2 (sim>obs) R 14.26\n- M6/approach/l/moto (s, w 0.006): obs 53.58; s00 336.1 (sim>obs) R 14.01; s01 337.3 (sim>obs) R 14.01; s02 352.9 (sim>obs) R 14.01; s03 307.2 (sim>obs) R 14.01\n- M6/approach/r/car (s, w 0.006): obs 12.37; s00 50.85 (sim>obs) R 7.38; s01 56.41 (sim>obs) R 7.38; s02 68.52 (sim>obs) R 7.38; s03 61.5 (sim>obs) R 7.38\n- M6/approach/r/moto (s, w 0.006): obs 11.89; s00 42.92 (sim>obs) R 7.01; s01 55.92 (sim>obs) R 7.01; s02 61.62 (sim>obs) R 7.01; s03 52.91 (sim>obs) R 7.01\n- M6/approach/s/car (s, w 0.006): obs 42.14; s00 61.1 (sim>obs) R 8.19; s01 70.17 (sim>obs) R 11.65; s02 74.66 (sim>obs) R 13.88; s03 63.33 (sim>obs) R 8.90\n- M6/approach/s/moto (s, w 0.006): obs 35.67; s00 63.84 (sim>obs) R 15.72; s01 68.46 (sim>obs) R 18.47; s02 78.4 (sim>obs) R 23.90; s03 60.45 (sim>obs) R 13.90\n- M6/approach/u/car (s, w 0.006): obs 49.68; s00 186.3 (sim>obs) R 10.95; s01 206.3 (sim>obs) R 10.80; s02 230.6 (sim>obs) R 10.95; s03 228.1 (sim>obs) R 10.95\n- M6/approach/u/moto (s, w 0.006): obs 41.79; s00 212.6 (sim>obs) R 26.51; s01 220.4 (sim>obs) R 26.51; s02 239.4 (sim>obs) R 26.51; s03 214.7 (sim>obs) R 26.51\n- M6/junction/illegal_l/moto (s, w 0.006): obs 36.8; s00 35.82 (sim<obs) R 2.05; s01 38.62 (sim>obs) R 2.73; s02 38.83 (sim>obs) R 2.28; s03 38.36 (sim>obs) R 2.18\n- M6/junction/l/car (s, w 0.006): obs 7.568; s00 8.286 (sim>obs) R 2.81; s01 5.661 (sim<obs) R 2.28; s02 8.59 (sim>obs) R 2.87; s03 6.312 (sim<obs) R 2.24\n- M6/junction/l/moto (s, w 0.006): obs 7.57; s00 5.531 (sim<obs) R 4.16; s01 6.994 (sim<obs) R 5.94; s02 7.537 (sim<obs) R 6.74; s03 6.255 (sim<obs) R 4.74\n- M6/junction/r/car (s, w 0.006): obs 2.594; s00 2.247 (sim<obs) R 1.41; s01 2.352 (sim<obs) R 1.90; s02 2.774 (sim>obs) R 2.71; s03 2.317 (sim<obs) R 1.66\n- M6/junction/r/moto (s, w 0.006): obs 2.401; s00 2.712 (sim>obs) R 2.18; s01 2.831 (sim>obs) R 2.95; s02 3.101 (sim>obs) R 5.38; s03 2.99 (sim>obs) R 4.03\n- M6/junction/s/car (s, w 0.006): obs 7.783; s00 4.63 (sim<obs) R 6.05; s01 4.914 (sim<obs) R 6.08; s02 4.638 (sim<obs) R 6.04; s03 4.904 (sim<obs) R 5.86\n- M6/junction/s/moto (s, w 0.006): obs 7.428; s00 4.202 (sim<obs) R 5.93; s01 4.28 (sim<obs) R 5.98; s02 4.305 (sim<obs) R 6.35; s03 4.321 (sim<obs) R 5.89\n- M6/junction/u/car (s, w 0.006): obs 3.013; s00 13.42 (sim>obs) R 4.49; s01 15.28 (sim>obs) R 4.49; s02 14.39 (sim>obs) R 4.49; s03 20.15 (sim>obs) R 4.49\n- M6/junction/u/moto (s, w 0.006): obs 2.74; s00 12.61 (sim>obs) R 5.83; s01 12.2 (sim>obs) R 5.83; s02 12.34 (sim>obs) R 5.83; s03 11.27 (sim>obs) R 5.83\n- M7a/n_waiting (veh, w 0.017): obs 5.59; s00 4.821 (sim<obs) R 1.24; s01 4.897 (sim<obs) R 1.29; s02 5.103 (sim<obs) R 1.13; s03 5.026 (sim<obs) R 1.15\n- M7a/release_time (s, w 0.017): obs 2.78; s00 11.3 (sim>obs) R 3.86; s01 13.11 (sim>obs) R 4.12; s02 15.87 (sim>obs) R 5.07; s03 12.94 (sim>obs) R 4.31\n- M7b/clear_lag (s, w 0.033): obs 5.459; s00 6.036 (sim>obs) R 0.87; s01 6.862 (sim>obs) R 1.18; s02 7.625 (sim>obs) R 1.54; s03 6.421 (sim>obs) R 0.98\n- M7c/slope (s/veh, w 0.033): obs 0.2886; s00 0.4478 (sim>obs) R 9.74; s01 0.483 (sim>obs) R 11.88; s02 0.4967 (sim>obs) R 12.72; s03 0.4185 (sim>obs) R 9.04\n- M8/car (share, w 0.050): obs 0.06808; s00 0 (sim<obs) R 1.03; s01 0 (sim<obs) R 1.03; s02 0 (sim<obs) R 1.03; s03 0 (sim<obs) R 1.03\n- M8/moto (share, w 0.050): obs 0.249; s00 0 (sim<obs) R 3.80; s01 0 (sim<obs) R 3.80; s02 0 (sim<obs) R 3.80; s03 0 (sim<obs) R 3.80\n- M9a/per_cycle (veh/cycle, w 0.050): obs 0.5725; s00 9.435 (sim>obs) R 10.62; s01 9.109 (sim>obs) R 10.62; s02 8.71 (sim>obs) R 10.62; s03 9.261 (sim>obs) R 10.62\n- M9b/delay_blocked (s, w 0.025): obs 18.83; s00 58.05 (sim>obs) R 6.83; s01 72.38 (sim>obs) R 6.83; s02 77.56 (sim>obs) R 6.83; s03 70.07 (sim>obs) R 6.83\n- M9b/share_blocked (share, w 0.025): obs 0.06505; s00 0.6957 (sim>obs) R 6.83; s01 0.7133 (sim>obs) R 6.83; s02 0.754 (sim>obs) R 6.83; s03 0.7116 (sim>obs) R 6.83\n\n## Validator errors of rejected specs\n\n(none)\n\nWrite a new spec that lowers S. Explain in the rationales which metric each change targets.\n"
+   }
+  ],
+  "schema": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "driver_archetypes",
+    "traci_rules"
+   ],
+   "properties": {
+    "description": {
+     "type": "string"
+    },
+    "driver_archetypes": {
+     "type": "array",
+     "minItems": 1,
+     "items": {
+      "anyOf": [
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "id",
+         "base_vclass",
+         "distribution",
+         "share",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "base_vclass": {
+          "enum": [
+           "passenger"
+          ]
+         },
+         "distribution": {
+          "enum": [
+           "car"
+          ]
+         },
+         "share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "tau": {
+            "type": "number",
+            "minimum": 0.4,
+            "maximum": 3.0
+           },
+           "minGap": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 3.0
+           },
+           "accel": {
+            "type": "number",
+            "minimum": 0.8,
+            "maximum": 4.0
+           },
+           "decel": {
+            "type": "number",
+            "minimum": 2.0,
+            "maximum": 7.5
+           },
+           "sigma": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "speedFactor": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1.3
+           },
+           "speedDev": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 0.3
+           },
+           "minGapLat": {
+            "type": "number",
+            "minimum": 0.3,
+            "maximum": 1.0
+           },
+           "maxSpeedLat": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 3.0
+           },
+           "latAlignment": {
+            "enum": [
+             "right",
+             "center",
+             "left",
+             "compact",
+             "nice",
+             "arbitrary"
+            ]
+           },
+           "lcSublane": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 5.0
+           },
+           "lcPushy": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcPushyGap": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcAssertive": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 5.0
+           },
+           "lcImpatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcTimeToImpatience": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 600.0
+           },
+           "lcMaxSpeedLatStanding": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 3.0
+           },
+           "lcSpeedGain": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "impatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "jmDriveAfterRedTime": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "jmDriveRedSpeed": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 13.9
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "id",
+         "base_vclass",
+         "distribution",
+         "share",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "base_vclass": {
+          "enum": [
+           "motorcycle"
+          ]
+         },
+         "distribution": {
+          "enum": [
+           "moto"
+          ]
+         },
+         "share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "tau": {
+            "type": "number",
+            "minimum": 0.4,
+            "maximum": 3.0
+           },
+           "minGap": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.5
+           },
+           "accel": {
+            "type": "number",
+            "minimum": 0.8,
+            "maximum": 6.0
+           },
+           "decel": {
+            "type": "number",
+            "minimum": 2.0,
+            "maximum": 10.0
+           },
+           "sigma": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "speedFactor": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1.3
+           },
+           "speedDev": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 0.3
+           },
+           "minGapLat": {
+            "type": "number",
+            "minimum": 0.3,
+            "maximum": 1.0
+           },
+           "maxSpeedLat": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 3.0
+           },
+           "latAlignment": {
+            "enum": [
+             "right",
+             "center",
+             "left",
+             "compact",
+             "nice",
+             "arbitrary"
+            ]
+           },
+           "lcSublane": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 5.0
+           },
+           "lcPushy": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcPushyGap": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcAssertive": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 5.0
+           },
+           "lcImpatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcTimeToImpatience": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 600.0
+           },
+           "lcMaxSpeedLatStanding": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 3.0
+           },
+           "lcSpeedGain": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "impatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "jmDriveAfterRedTime": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "jmDriveRedSpeed": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 13.9
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "id",
+         "base_vclass",
+         "distribution",
+         "share",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "base_vclass": {
+          "enum": [
+           "custom1"
+          ]
+         },
+         "distribution": {
+          "enum": [
+           "moto_violator",
+           "moto"
+          ]
+         },
+         "share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "tau": {
+            "type": "number",
+            "minimum": 0.4,
+            "maximum": 3.0
+           },
+           "minGap": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2.5
+           },
+           "accel": {
+            "type": "number",
+            "minimum": 0.8,
+            "maximum": 6.0
+           },
+           "decel": {
+            "type": "number",
+            "minimum": 2.0,
+            "maximum": 10.0
+           },
+           "sigma": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "speedFactor": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1.3
+           },
+           "speedDev": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 0.3
+           },
+           "minGapLat": {
+            "type": "number",
+            "minimum": 0.3,
+            "maximum": 1.0
+           },
+           "maxSpeedLat": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 3.0
+           },
+           "latAlignment": {
+            "enum": [
+             "right",
+             "center",
+             "left",
+             "compact",
+             "nice",
+             "arbitrary"
+            ]
+           },
+           "lcSublane": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 5.0
+           },
+           "lcPushy": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcPushyGap": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcAssertive": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 5.0
+           },
+           "lcImpatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcTimeToImpatience": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 600.0
+           },
+           "lcMaxSpeedLatStanding": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 3.0
+           },
+           "lcSpeedGain": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "impatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "jmDriveAfterRedTime": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "jmDriveRedSpeed": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 13.9
+           },
+           "jmTimegapMinor": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 3.0
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "id",
+         "base_vclass",
+         "distribution",
+         "share",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "base_vclass": {
+          "enum": [
+           "custom2"
+          ]
+         },
+         "distribution": {
+          "enum": [
+           "car_violator",
+           "car"
+          ]
+         },
+         "share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "tau": {
+            "type": "number",
+            "minimum": 0.4,
+            "maximum": 3.0
+           },
+           "minGap": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 3.0
+           },
+           "accel": {
+            "type": "number",
+            "minimum": 0.8,
+            "maximum": 4.0
+           },
+           "decel": {
+            "type": "number",
+            "minimum": 2.0,
+            "maximum": 7.5
+           },
+           "sigma": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "speedFactor": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1.3
+           },
+           "speedDev": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 0.3
+           },
+           "minGapLat": {
+            "type": "number",
+            "minimum": 0.3,
+            "maximum": 1.0
+           },
+           "maxSpeedLat": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 3.0
+           },
+           "latAlignment": {
+            "enum": [
+             "right",
+             "center",
+             "left",
+             "compact",
+             "nice",
+             "arbitrary"
+            ]
+           },
+           "lcSublane": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 5.0
+           },
+           "lcPushy": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcPushyGap": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcAssertive": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 5.0
+           },
+           "lcImpatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "lcTimeToImpatience": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 600.0
+           },
+           "lcMaxSpeedLatStanding": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 3.0
+           },
+           "lcSpeedGain": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "impatience": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "jmDriveAfterRedTime": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "jmDriveRedSpeed": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 13.9
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       }
+      ]
+     }
+    },
+    "traci_rules": {
+     "type": "array",
+     "items": {
+      "anyOf": [
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "rule_type",
+         "applies_to",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "rule_type": {
+          "enum": [
+           "early_start"
+          ]
+         },
+         "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+           "type": "string"
+          }
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "t_before_green",
+           "p",
+           "v_max"
+          ],
+          "properties": {
+           "t_before_green": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           },
+           "p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "v_max": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 5.0
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "rule_type",
+         "applies_to",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "rule_type": {
+          "enum": [
+           "swarm_red_running"
+          ]
+         },
+         "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+           "type": "string"
+          }
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "p0",
+           "k",
+           "p_max",
+           "dt"
+          ],
+          "properties": {
+           "p0": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "k": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 0.5
+           },
+           "p_max": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "dt": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 30.0
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "rule_type",
+         "applies_to",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "rule_type": {
+          "enum": [
+           "queue_space_seeking"
+          ]
+         },
+         "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+           "type": "string"
+          }
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "q",
+           "t_g_s",
+           "est_noise",
+           "p_wrong_lane",
+           "p_right_lane",
+           "p_sidewalk",
+           "v_creep",
+           "merge_zone_m"
+          ],
+          "properties": {
+           "q": {
+            "type": "number",
+            "minimum": 5.0,
+            "maximum": 80.0
+           },
+           "t_w": {
+            "type": "number",
+            "minimum": 5.0,
+            "maximum": 120.0
+           },
+           "t_g_s": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 20.0
+           },
+           "est_noise": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "p_wrong_lane": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "p_right_lane": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "p_sidewalk": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "v_creep": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 5.0
+           },
+           "merge_zone_m": {
+            "type": "number",
+            "minimum": 3.0,
+            "maximum": 20.0
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "rule_type",
+         "applies_to",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "rule_type": {
+          "enum": [
+           "illegal_left_box"
+          ]
+         },
+         "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+           "type": "string"
+          }
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "release_lag_s"
+          ],
+          "properties": {
+           "release_lag_s": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 4.0
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "rule_type",
+         "applies_to",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "rule_type": {
+          "enum": [
+           "slow_lane_center"
+          ]
+         },
+         "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+           "type": "string"
+          }
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "lat_offset"
+          ],
+          "properties": {
+           "lat_offset": {
+            "type": "number",
+            "minimum": -1.0,
+            "maximum": 1.0
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "rule_type",
+         "applies_to",
+         "params",
+         "rationale"
+        ],
+        "properties": {
+         "rule_type": {
+          "enum": [
+           "uturn_bypass"
+          ]
+         },
+         "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+           "type": "string"
+          }
+         },
+         "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "p",
+           "t_wait"
+          ],
+          "properties": {
+           "p": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+           },
+           "t_wait": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+           }
+          }
+         },
+         "rationale": {
+          "type": "string"
+         }
+        }
+       }
+      ]
+     }
+    }
+   }
+  },
+  "model": "qwen3.5:9b",
+  "temperature": 0.7,
+  "seed": 42,
+  "max_tokens": 7000,
+  "reasoning_effort": "none",
+  "response_format": "json_schema"
+ },
+ "response": {
+  "text": "{\n \"driver_archetypes\": [\n  {\n   \"id\": \"car_compliant\",\n   \"base_vclass\": \"passenger\",\n   \"distribution\": \"car\",\n   \"share\": 0.93,\n   \"params\": {\n    \"tau\": 1.4,\n    \"minGap\": 2.8,\n    \"accel\": 2.6,\n    \"decel\": 4.5,\n    \"sigma\": 0.5,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"right\",\n    \"lcAssertive\": 1.0,\n    \"lcImpatience\": 0.2\n   },\n   \"rationale\": \"Standard compliant car behavior. Increased share to 0.93 and reduced early-start probability (via low lcImpatience=0.2) to lower the M2/early/car simulation value towards the target (~0.011). Reduced tau slightly to improve discharge headway.\"\n  },\n  {\n   \"id\": \"car_early_starter\",\n   \"base_vclass\": \"passenger\",\n   \"distribution\": \"car\",\n   \"share\": 0.07,\n   \"params\": {\n    \"tau\": 1.4,\n    \"minGap\": 2.8,\n    \"accel\": 2.6,\n    \"decel\": 4.5,\n    \"sigma\": 0.5,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"right\",\n    \"lcAssertive\": 2.5,\n    \"lcImpatience\": 0.9\n   },\n   \"rationale\": \"Highly impatient car archetype to match M2/early/car observed share (~0.011). High lcImpatience (0.9) drives early creep probability up for this small sub-population.\"\n  },\n  {\n   \"id\": \"moto_compliant\",\n   \"base_vclass\": \"motorcycle\",\n   \"distribution\": \"moto\",\n   \"share\": 0.3,\n   \"params\": {\n    \"tau\": 1.0,\n    \"minGap\": 2.0,\n    \"accel\": 6.0,\n    \"decel\": 10.0,\n    \"sigma\": 0.2,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"right\",\n    \"lcSublane\": 1.0,\n    \"lcPushy\": 0.0,\n    \"lcAssertive\": 1.5\n   },\n   \"rationale\": \"Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed mean 0.2957s) and reducing overshoot depth by aligning to the right side of the lane.\"\n  },\n  {\n   \"id\": \"moto_slow_center\",\n   \"base_vclass\": \"motorcycle\",\n   \"distribution\": \"moto\",\n   \"share\": 0.7,\n   \"params\": {\n    \"tau\": 1.2,\n    \"minGap\": 1.8,\n    \"accel\": 4.5,\n    \"decel\": 9.0,\n    \"sigma\": 0.3,\n    \"speedFactor\": 0.7,\n    \"latAlignment\": \"center\",\n    \"lcSublane\": 1.0,\n    \"lcPushy\": 0.0\n   },\n   \"rationale\": \"Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration.\"\n  },\n  {\n   \"id\": \"moto_violator_left\",\n   \"base_vclass\": \"custom1\",\n   \"distribution\": \"moto_violator\",\n   \"share\": 1.0,\n   \"params\": {\n    \"tau\": 2.5,\n    \"minGap\": 2.5,\n    \"accel\": 6.0,\n    \"decel\": 8.0,\n    \"sigma\": 0.3,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"arbitrary\",\n    \"lcSublane\": 4.5,\n    \"lcPushy\": 0.6,\n    \"jmTimegapMinor\": 2.0\n   },\n   \"rationale\": \"Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share). High lcSublane pushes vehicle into adjacent lanes.\"\n  }\n ],\n \"traci_rules\": [\n  {\n   \"rule_type\": \"early_start\",\n   \"applies_to\": [\n    \"car_compliant\",\n    \"car_early_starter\"\n   ],\n   \"params\": {\n    \"t_before_green\": 6,\n    \"p\": 0.15,\n    \"v_max\": 2.5\n   },\n   \"rationale\": \"Sets moderate early start creep window and probability for cars to match M2/early/car share (target ~0.011). The low p ensures the weighted sum matches the observation.\"\n  },\n  {\n   \"rule_type\": \"swarm_red_running\",\n   \"applies_to\": [\n    \"moto_compliant\",\n    \"moto_slow_center\"\n   ],\n   \"params\": {\n    \"p0\": 0.25,\n    \"k\": 0.18,\n    \"p_max\": 0.6,\n    \"dt\": 30\n   },\n   \"rationale\": \"Enables red-light running for standard motorcycles to match M3/share/moto (target ~0.098). Increased p0 from 0.15 to 0.25 boosts the base probability closer to observation, leveraging the swarm effect k.\"\n  },\n  {\n   \"rule_type\": \"illegal_left_box\",\n   \"applies_to\": [\n    \"moto_violator_left\"\n   ],\n   \"params\": {\n    \"release_lag_s\": 2.5\n   },\n   \"rationale\": \"Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and reduce excessive holding times seen in previous iterations.\"\n  }\n ],\n \"description\": \"Adjusted archetype shares: increased compliant car share (0.93) and slow-moto share (0.7) to lower early-start violations and queue lengths. Increased swarm red-running p0 for motorcycles to match the observed violation rate. Kept illegal-left hold times moderate.\"\n}",
+  "reasoning": null,
+  "raw": {
+   "id": "chatcmpl-879",
+   "choices": [
+    {
+     "finish_reason": "stop",
+     "index": 0,
+     "logprobs": null,
+     "message": {
+      "content": "{\n \"driver_archetypes\": [\n  {\n   \"id\": \"car_compliant\",\n   \"base_vclass\": \"passenger\",\n   \"distribution\": \"car\",\n   \"share\": 0.93,\n   \"params\": {\n    \"tau\": 1.4,\n    \"minGap\": 2.8,\n    \"accel\": 2.6,\n    \"decel\": 4.5,\n    \"sigma\": 0.5,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"right\",\n    \"lcAssertive\": 1.0,\n    \"lcImpatience\": 0.2\n   },\n   \"rationale\": \"Standard compliant car behavior. Increased share to 0.93 and reduced early-start probability (via low lcImpatience=0.2) to lower the M2/early/car simulation value towards the target (~0.011). Reduced tau slightly to improve discharge headway.\"\n  },\n  {\n   \"id\": \"car_early_starter\",\n   \"base_vclass\": \"passenger\",\n   \"distribution\": \"car\",\n   \"share\": 0.07,\n   \"params\": {\n    \"tau\": 1.4,\n    \"minGap\": 2.8,\n    \"accel\": 2.6,\n    \"decel\": 4.5,\n    \"sigma\": 0.5,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"right\",\n    \"lcAssertive\": 2.5,\n    \"lcImpatience\": 0.9\n   },\n   \"rationale\": \"Highly impatient car archetype to match M2/early/car observed share (~0.011). High lcImpatience (0.9) drives early creep probability up for this small sub-population.\"\n  },\n  {\n   \"id\": \"moto_compliant\",\n   \"base_vclass\": \"motorcycle\",\n   \"distribution\": \"moto\",\n   \"share\": 0.3,\n   \"params\": {\n    \"tau\": 1.0,\n    \"minGap\": 2.0,\n    \"accel\": 6.0,\n    \"decel\": 10.0,\n    \"sigma\": 0.2,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"right\",\n    \"lcSublane\": 1.0,\n    \"lcPushy\": 0.0,\n    \"lcAssertive\": 1.5\n   },\n   \"rationale\": \"Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed mean 0.2957s) and reducing overshoot depth by aligning to the right side of the lane.\"\n  },\n  {\n   \"id\": \"moto_slow_center\",\n   \"base_vclass\": \"motorcycle\",\n   \"distribution\": \"moto\",\n   \"share\": 0.7,\n   \"params\": {\n    \"tau\": 1.2,\n    \"minGap\": 1.8,\n    \"accel\": 4.5,\n    \"decel\": 9.0,\n    \"sigma\": 0.3,\n    \"speedFactor\": 0.7,\n    \"latAlignment\": \"center\",\n    \"lcSublane\": 1.0,\n    \"lcPushy\": 0.0\n   },\n   \"rationale\": \"Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration.\"\n  },\n  {\n   \"id\": \"moto_violator_left\",\n   \"base_vclass\": \"custom1\",\n   \"distribution\": \"moto_violator\",\n   \"share\": 1.0,\n   \"params\": {\n    \"tau\": 2.5,\n    \"minGap\": 2.5,\n    \"accel\": 6.0,\n    \"decel\": 8.0,\n    \"sigma\": 0.3,\n    \"speedFactor\": 1.0,\n    \"latAlignment\": \"arbitrary\",\n    \"lcSublane\": 4.5,\n    \"lcPushy\": 0.6,\n    \"jmTimegapMinor\": 2.0\n   },\n   \"rationale\": \"Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share). High lcSublane pushes vehicle into adjacent lanes.\"\n  }\n ],\n \"traci_rules\": [\n  {\n   \"rule_type\": \"early_start\",\n   \"applies_to\": [\n    \"car_compliant\",\n    \"car_early_starter\"\n   ],\n   \"params\": {\n    \"t_before_green\": 6,\n    \"p\": 0.15,\n    \"v_max\": 2.5\n   },\n   \"rationale\": \"Sets moderate early start creep window and probability for cars to match M2/early/car share (target ~0.011). The low p ensures the weighted sum matches the observation.\"\n  },\n  {\n   \"rule_type\": \"swarm_red_running\",\n   \"applies_to\": [\n    \"moto_compliant\",\n    \"moto_slow_center\"\n   ],\n   \"params\": {\n    \"p0\": 0.25,\n    \"k\": 0.18,\n    \"p_max\": 0.6,\n    \"dt\": 30\n   },\n   \"rationale\": \"Enables red-light running for standard motorcycles to match M3/share/moto (target ~0.098). Increased p0 from 0.15 to 0.25 boosts the base probability closer to observation, leveraging the swarm effect k.\"\n  },\n  {\n   \"rule_type\": \"illegal_left_box\",\n   \"applies_to\": [\n    \"moto_violator_left\"\n   ],\n   \"params\": {\n    \"release_lag_s\": 2.5\n   },\n   \"rationale\": \"Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and reduce excessive holding times seen in previous iterations.\"\n  }\n ],\n \"description\": \"Adjusted archetype shares: increased compliant car share (0.93) and slow-moto share (0.7) to lower early-start violations and queue lengths. Increased swarm red-running p0 for motorcycles to match the observed violation rate. Kept illegal-left hold times moderate.\"\n}",
+      "refusal": null,
+      "role": "assistant",
+      "annotations": null,
+      "audio": null,
+      "function_call": null,
+      "tool_calls": null
+     }
+    }
+   ],
+   "created": 1794110373,
+   "model": "qwen3.5:9b",
+   "object": "chat.completion",
+   "metadata": null,
+   "moderation": null,
+   "service_tier": null,
+   "system_fingerprint": "fp_ollama",
+   "usage": {
+    "completion_tokens": 1522,
+    "prompt_tokens": 17834,
+    "total_tokens": 19356,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+     "audio_tokens": null,
+     "cache_write_tokens": null,
+     "cached_tokens": 0,
+     "image_tokens": null,
+     "text_tokens": null
+    }
+   }
+  }
+ },
+ "spec": {
+  "spec_id": "P2_n1108_it05_s00",
+  "source": "llm",
+  "provenance": {
+   "model": "qwen3.5:9b",
+   "prompt_version": "v004",
+   "iteration": 5,
+   "sample_idx": 0,
+   "runtime": "ollama"
+  },
+  "driver_archetypes": [
+   {
+    "id": "car_compliant",
+    "base_vclass": "passenger",
+    "distribution": "car",
+    "share": 0.93,
+    "params": {
+     "tau": 1.4,
+     "minGap": 2.8,
+     "accel": 2.6,
+     "decel": 4.5,
+     "sigma": 0.5,
+     "speedFactor": 1.0,
+     "latAlignment": "right",
+     "lcAssertive": 1.0,
+     "lcImpatience": 0.2
+    },
+    "rationale": "Standard compliant car behavior. Increased share to 0.93 and reduced early-start probability (via low lcImpatience=0.2) to lower the M2/early/car simulation value towards the target (~0.011). Reduced tau slightly to improve discharge headway."
+   },
+   {
+    "id": "car_early_starter",
+    "base_vclass": "passenger",
+    "distribution": "car",
+    "share": 0.07,
+    "params": {
+     "tau": 1.4,
+     "minGap": 2.8,
+     "accel": 2.6,
+     "decel": 4.5,
+     "sigma": 0.5,
+     "speedFactor": 1.0,
+     "latAlignment": "right",
+     "lcAssertive": 2.5,
+     "lcImpatience": 0.9
+    },
+    "rationale": "Highly impatient car archetype to match M2/early/car observed share (~0.011). High lcImpatience (0.9) drives early creep probability up for this small sub-population."
+   },
+   {
+    "id": "moto_compliant",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.3,
+    "params": {
+     "tau": 1.0,
+     "minGap": 2.0,
+     "accel": 6.0,
+     "decel": 10.0,
+     "sigma": 0.2,
+     "speedFactor": 1.0,
+     "latAlignment": "right",
+     "lcSublane": 1.0,
+     "lcPushy": 0.0,
+     "lcAssertive": 1.5
+    },
+    "rationale": "Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed mean 0.2957s) and reducing overshoot depth by aligning to the right side of the lane."
+   },
+   {
+    "id": "moto_slow_center",
+    "base_vclass": "motorcycle",
+    "distribution": "moto",
+    "share": 0.7,
+    "params": {
+     "tau": 1.2,
+     "minGap": 1.8,
+     "accel": 4.5,
+     "decel": 9.0,
+     "sigma": 0.3,
+     "speedFactor": 0.7,
+     "latAlignment": "center",
+     "lcSublane": 1.0,
+     "lcPushy": 0.0
+    },
+    "rationale": "Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration."
+   },
+   {
+    "id": "moto_violator_left",
+    "base_vclass": "custom1",
+    "distribution": "moto_violator",
+    "share": 1.0,
+    "params": {
+     "tau": 2.5,
+     "minGap": 2.5,
+     "accel": 6.0,
+     "decel": 8.0,
+     "sigma": 0.3,
+     "speedFactor": 1.0,
+     "latAlignment": "arbitrary",
+     "lcSublane": 4.5,
+     "lcPushy": 0.6,
+     "jmTimegapMinor": 2.0
+    },
+    "rationale": "Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share). High lcSublane pushes vehicle into adjacent lanes."
+   }
+  ],
+  "traci_rules": [
+   {
+    "rule_type": "early_start",
+    "applies_to": [
+     "car_compliant",
+     "car_early_starter"
+    ],
+    "params": {
+     "t_before_green": 6,
+     "p": 0.15,
+     "v_max": 2.5
+    },
+    "rationale": "Sets moderate early start creep window and probability for cars to match M2/early/car share (target ~0.011). The low p ensures the weighted sum matches the observation."
+   },
+   {
+    "rule_type": "swarm_red_running",
+    "applies_to": [
+     "moto_compliant",
+     "moto_slow_center"
+    ],
+    "params": {
+     "p0": 0.25,
+     "k": 0.18,
+     "p_max": 0.6,
+     "dt": 30
+    },
+    "rationale": "Enables red-light running for standard motorcycles to match M3/share/moto (target ~0.098). Increased p0 from 0.15 to 0.25 boosts the base probability closer to observation, leveraging the swarm effect k."
+   },
+   {
+    "rule_type": "illegal_left_box",
+    "applies_to": [
+     "moto_violator_left"
+    ],
+    "params": {
+     "release_lag_s": 2.5
+    },
+    "rationale": "Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and reduce excessive holding times seen in previous iterations."
+   }
+  ],
+  "description": "Adjusted archetype shares: increased compliant car share (0.93) and slow-moto share (0.7) to lower early-start violations and queue lengths. Increased swarm red-running p0 for motorcycles to match the observed violation rate. Kept illegal-left hold times moderate."
+ },
+ "valid": true,
+ "issues": []
+}

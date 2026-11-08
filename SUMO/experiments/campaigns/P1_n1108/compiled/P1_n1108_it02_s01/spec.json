@@ -1,0 +1,152 @@
+{
+  "spec_id": "P1_n1108_it02_s01",
+  "source": "llm",
+  "provenance": {
+    "model": "qwen3.5:9b",
+    "prompt_version": "v004",
+    "iteration": 2,
+    "sample_idx": 1,
+    "runtime": "ollama"
+  },
+  "driver_archetypes": [
+    {
+      "id": "car_saval",
+      "base_vclass": "passenger",
+      "share": 0.9,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "Compliant car drivers (Saval et al. 2023) with low acceleration/deceleration and high time headway; no red-running rules applied."
+    },
+    {
+      "id": "car_seeker",
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "share": 0.1,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "Compliant car drivers drawn from the 'car' distribution; p=0 for all queue_space_seeking params means they behave like car_saval but are eligible for space-seeking if tuned."
+    },
+    {
+      "id": "moto_saval",
+      "base_vclass": "motorcycle",
+      "share": 0.9,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3
+      },
+      "rationale": "Compliant motorcycle drivers (Saval et al. 2023) with low lateral gap; eligible for red-running and early-start rules."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.1,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3
+      },
+      "rationale": "Compliant motorcycle drivers drawn from the 'moto' distribution; eligible for space-seeking and red-running rules."
+    },
+    {
+      "id": "moto_violator_saval",
+      "base_vclass": "custom1",
+      "share": 1.0,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 1.9,
+        "minGapLat": 0.3,
+        "jmTimegapMinor": 1.0
+      },
+      "rationale": "Illegal left-turning motorcycles (custom1 base) drawn from 'moto_violator' distribution; jmTimegapMinor=1.0 allows them to clear the box after opposing green ends."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.5,
+        "k": 0.0,
+        "p_max": 0.5,
+        "dt": 10.0
+      },
+      "rationale": "Motorcycles have a 50% probability of running the red light when at the stop line; no swarm effect (k=0)."
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 5.0,
+        "p": 0.1302,
+        "v_max": 2.0
+      },
+      "rationale": "Targets M2/early/moto (observed mean 0.1302 share): moto_saval is the main population; p=0.1302 sets ~13% early-start probability in the last 10s of red to match observations."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 30.0,
+        "t_g_s": 0.0,
+        "est_noise": 0.0,
+        "p_wrong_lane": 0.0,
+        "p_right_lane": 0.0,
+        "p_sidewalk": 0.0,
+        "v_creep": 3.0,
+        "merge_zone_m": 15.0
+      },
+      "rationale": "Structure locked for Phase 1; all p=0 because sidewalk (M10a) requires tuning later and wrong-lane/right-lane options are site-restricted."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p": 0.8,
+        "t_wait": 2.0
+      },
+      "rationale": "Field observation: most motorcycles squeeze past a standing U-turner (high p=0.8); t_wait=2s is a conservative hold time."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "car_saval",
+        "car_seeker"
+      ],
+      "params": {
+        "p": 0.1,
+        "t_wait": 2.0
+      },
+      "rationale": "Field observation: cars rarely squeeze past a standing U-turner (low p=0.1); t_wait=2s is a conservative hold time."
+    }
+  ]
+}

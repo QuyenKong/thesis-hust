@@ -1,0 +1,150 @@
+{
+ "spec_id": "P2_n1108_it01_s02",
+ "source": "llm",
+ "provenance": {
+  "model": "qwen3.5:9b",
+  "prompt_version": "v004",
+  "iteration": 1,
+  "sample_idx": 2,
+  "runtime": "ollama"
+ },
+ "driver_archetypes": [
+  {
+   "id": "car_compliant",
+   "base_vclass": "passenger",
+   "distribution": "car",
+   "share": 0.75,
+   "params": {
+    "tau": 1.5,
+    "minGap": 2.8,
+    "accel": 2.6,
+    "decel": 4.5,
+    "sigma": 0.5,
+    "speedFactor": 1.0,
+    "latAlignment": "right"
+   },
+   "rationale": "Standard compliant car behavior targeting M1/car discharge headway and low early-start share."
+  },
+  {
+   "id": "car_early_starter",
+   "base_vclass": "passenger",
+   "distribution": "car",
+   "share": 0.25,
+   "params": {
+    "tau": 1.5,
+    "minGap": 2.8,
+    "accel": 2.6,
+    "decel": 4.5,
+    "sigma": 0.5,
+    "speedFactor": 1.0,
+    "latAlignment": "right"
+   },
+   "rationale": "Impatient car archetype to match M2/early/car observed share of early starters."
+  },
+  {
+   "id": "moto_compliant",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.5,
+   "params": {
+    "tau": 1.0,
+    "minGap": 2.0,
+    "accel": 6.0,
+    "decel": 10.0,
+    "sigma": 0.2,
+    "speedFactor": 1.0,
+    "latAlignment": "center",
+    "lcSublane": 1.0,
+    "lcPushy": 0.0
+   },
+   "rationale": "Standard compliant motorcycle behavior targeting M1/moto discharge headway."
+  },
+  {
+   "id": "moto_slow_center",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.5,
+   "params": {
+    "tau": 1.0,
+    "minGap": 2.0,
+    "accel": 6.0,
+    "decel": 10.0,
+    "sigma": 0.2,
+    "speedFactor": 0.8,
+    "latAlignment": "center",
+    "lcSublane": 1.0,
+    "lcPushy": 0.0
+   },
+   "rationale": "Slow motorcycle archetype to replicate M4/lat_moto and M4/overshoot_share metrics (riding in lane center)."
+  },
+  {
+   "id": "moto_violator_left",
+   "base_vclass": "custom1",
+   "distribution": "moto_violator",
+   "share": 1.0,
+   "params": {
+    "tau": 1.5,
+    "minGap": 2.5,
+    "accel": 6.0,
+    "decel": 8.0,
+    "sigma": 0.3,
+    "speedFactor": 1.0,
+    "latAlignment": "arbitrary",
+    "lcSublane": 4.5,
+    "lcPushy": 0.6,
+    "jmTimegapMinor": 2.0
+   },
+   "rationale": "Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "car_compliant",
+    "car_early_starter"
+   ],
+   "params": {
+    "t_before_green": 5,
+    "p": 0.1,
+    "v_max": 2.0
+   },
+   "rationale": "Controls early start creep before green for cars to match M2/early/car share."
+  },
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_violator_left"
+   ],
+   "params": {
+    "p0": 0.5,
+    "k": 0.3,
+    "p_max": 0.9,
+    "dt": 15
+   },
+   "rationale": "Models swarm pressure for red-light running among motorcycles to match M3/share/moto."
+  },
+  {
+   "rule_type": "illegal_left_box",
+   "applies_to": [
+    "moto_violator_left"
+   ],
+   "params": {
+    "release_lag_s": 2.0
+   },
+   "rationale": "Adds extra hold time for illegal left-turning motorcycles to match M6/approach/l/moto entry timing and box clearance."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "car_compliant",
+    "moto_violator_left"
+   ],
+   "params": {
+    "p": 0.8,
+    "t_wait": 5
+   },
+   "rationale": "Allows motorcycles (most) to squeeze past standing U-turners while cars rarely do, matching M11 behavior."
+  }
+ ]
+}

@@ -1,0 +1,152 @@
+{
+  "spec_id": "P1_n1108_it04_s01",
+  "source": "llm",
+  "provenance": {
+    "model": "qwen3.5:9b",
+    "prompt_version": "v004",
+    "iteration": 4,
+    "sample_idx": 1,
+    "runtime": "ollama"
+  },
+  "driver_archetypes": [
+    {
+      "id": "car_saval",
+      "base_vclass": "passenger",
+      "share": 0.9,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "Compliant car drivers; high tau (2.5s) and low accel (1.2) ensure long discharge headways to match M1/car target (0.3467s)."
+    },
+    {
+      "id": "car_seeker",
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "share": 0.1,
+      "params": {
+        "accel": 1.2,
+        "decel": 4.8,
+        "tau": 2.5,
+        "minGap": 1.1
+      },
+      "rationale": "Passive car violators drawn from 'car' distribution; p=0 for queue_space_seeking ensures they do not block right-turn lanes, keeping M9a/per_cycle low."
+    },
+    {
+      "id": "moto_saval",
+      "base_vclass": "motorcycle",
+      "share": 0.85,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.75,
+        "minGap": 2.0,
+        "minGapLat": 0.3
+      },
+      "rationale": "Compliant motorcycle drivers with slightly tighter tau (0.75s) to lower discharge headway towards M1/moto target (0.2957s), but conservative minGap (2.0m) to reduce overshoot depth mismatch."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.15,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.75,
+        "minGap": 2.0,
+        "minGapLat": 0.3
+      },
+      "rationale": "Passive motorcycle violators drawn from 'moto' distribution; share=0.15 ensures sum with moto_saval (0.85) equals 1 for 'moto' distribution."
+    },
+    {
+      "id": "moto_violator_saval",
+      "base_vclass": "custom1",
+      "share": 1.0,
+      "params": {
+        "accel": 1.1,
+        "decel": 4.6,
+        "tau": 0.8,
+        "minGap": 2.0,
+        "minGapLat": 0.3,
+        "jmTimegapMinor": 1.0
+      },
+      "rationale": "Illegal left-turning motorcycles (distribution moto_violator); jmTimegapMinor=1.0 allows box clearing after opposing green ends, targeting M6/junction/illegal_l/moto timing."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.5,
+        "k": 0.0,
+        "p_max": 0.5,
+        "dt": 10.0
+      },
+      "rationale": "Maintains 50% red-light running probability for motorcycles at the stop line to match M3/share/moto (observed ~0.098) and M4/overshoot_share (observed 0.62), as reducing p0 further would cause severe under-prediction of violations."
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 5.0,
+        "p": 0.1302,
+        "v_max": 2.0
+      },
+      "rationale": "Sets early-start probability p=0.1302 to exactly match M2/early/moto observed share (0.1302), causing motorcycles to creep over the stop line in the last 5s of red."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 30.0,
+        "t_g_s": 0.0,
+        "est_noise": 0.0,
+        "p_wrong_lane": 0.15,
+        "p_right_lane": 0.0,
+        "p_sidewalk": 0.85,
+        "v_creep": 3.0,
+        "merge_zone_m": 15.0
+      },
+      "rationale": "Activates sidewalk riding (p_sidewalk=0.85) and wrong-lane usage (p_wrong_lane=0.15) to match M10a (0.56 veh/cycle) and M8/moto (wrong-lane share 0.249), reducing queue length impacts."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p": 0.8,
+        "t_wait": 2.0
+      },
+      "rationale": "High bypass probability (0.8) allows motorcycles to pass standing U-turners, reducing delay and matching field observations of aggressive maneuvering."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "car_saval",
+        "car_seeker"
+      ],
+      "params": {
+        "p": 0.1,
+        "t_wait": 2.0
+      },
+      "rationale": "Low bypass probability (0.1) for cars reflects their reluctance to change lanes past U-turners, maintaining realistic car behavior."
+    }
+  ]
+}

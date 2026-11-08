@@ -1,0 +1,95 @@
+{
+  "spec_id": "P2_n1108_it01_s02",
+  "archetypes": {
+    "car_compliant": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_compliant",
+      "share": 0.75
+    },
+    "car_early_starter": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_early_starter",
+      "share": 0.25
+    },
+    "moto_compliant": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_compliant",
+      "share": 0.5
+    },
+    "moto_slow_center": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_slow_center",
+      "share": 0.5
+    },
+    "moto_violator_left": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_violator_left",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "car_compliant",
+        "car_early_starter"
+      ],
+      "vtype_ids": [
+        "car_compliant",
+        "car_early_starter"
+      ],
+      "params": {
+        "t_before_green": 5.0,
+        "p": 0.1,
+        "v_max": 2.0
+      }
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_violator_left"
+      ],
+      "vtype_ids": [
+        "moto_violator_left"
+      ],
+      "params": {
+        "p0": 0.5,
+        "k": 0.3,
+        "p_max": 0.9,
+        "dt": 15.0
+      }
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_violator_left"
+      ],
+      "vtype_ids": [
+        "moto_violator_left"
+      ],
+      "params": {
+        "release_lag_s": 2.0
+      }
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "car_compliant",
+        "moto_violator_left"
+      ],
+      "vtype_ids": [
+        "car_compliant",
+        "moto_violator_left"
+      ],
+      "params": {
+        "p": 0.8,
+        "t_wait": 5.0
+      }
+    }
+  ]
+}

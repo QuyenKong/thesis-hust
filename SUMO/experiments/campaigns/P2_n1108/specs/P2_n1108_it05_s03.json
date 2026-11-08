@@ -1,0 +1,145 @@
+{
+ "spec_id": "P2_n1108_it05_s03",
+ "source": "llm",
+ "provenance": {
+  "model": "qwen3.5:9b",
+  "prompt_version": "v004",
+  "iteration": 5,
+  "sample_idx": 3,
+  "runtime": "ollama"
+ },
+ "driver_archetypes": [
+  {
+   "id": "car_compliant",
+   "base_vclass": "passenger",
+   "distribution": "car",
+   "share": 0.92,
+   "params": {
+    "tau": 1.4,
+    "minGap": 2.6,
+    "accel": 2.6,
+    "decel": 4.5,
+    "sigma": 0.5,
+    "speedFactor": 1.0,
+    "latAlignment": "right",
+    "lcAssertive": 1.0,
+    "lcImpatience": 0.15
+   },
+   "rationale": "Standard compliant car behavior targeting M1/car discharge headway (lower tau) and low early-start share. Increased minGap to reduce excessive braking delays while maintaining flow."
+  },
+  {
+   "id": "car_early_starter",
+   "base_vclass": "passenger",
+   "distribution": "car",
+   "share": 0.08,
+   "params": {
+    "tau": 1.4,
+    "minGap": 2.6,
+    "accel": 2.6,
+    "decel": 4.5,
+    "sigma": 0.5,
+    "speedFactor": 1.0,
+    "latAlignment": "right",
+    "lcAssertive": 2.5,
+    "lcImpatience": 0.9
+   },
+   "rationale": "Highly impatient car archetype to match M2/early/car observed share (~0.011) by increasing early start probability (p=0.15)."
+  },
+  {
+   "id": "moto_compliant",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.35,
+   "params": {
+    "tau": 1.0,
+    "minGap": 2.0,
+    "accel": 6.0,
+    "decel": 10.0,
+    "sigma": 0.2,
+    "speedFactor": 1.0,
+    "latAlignment": "right",
+    "lcSublane": 1.0,
+    "lcPushy": 0.0,
+    "lcAssertive": 1.5
+   },
+   "rationale": "Standard compliant motorcycle behavior targeting M1/moto discharge headway (observed mean 0.2957s) by reducing tau to 1.0 and aligning to the right side of the lane to reduce overshoot depth."
+  },
+  {
+   "id": "moto_slow_center",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.65,
+   "params": {
+    "tau": 1.2,
+    "minGap": 1.8,
+    "accel": 4.5,
+    "decel": 9.0,
+    "sigma": 0.3,
+    "speedFactor": 0.7,
+    "latAlignment": "center",
+    "lcSublane": 1.0,
+    "lcPushy": 0.0
+   },
+   "rationale": "Slow motorcycle archetype to replicate M4/lat_moto (lateral position ~7m from origin) and M4/overshoot_share metrics by riding in lane center with slower acceleration."
+  },
+  {
+   "id": "moto_violator_left",
+   "base_vclass": "custom1",
+   "distribution": "moto_violator",
+   "share": 1.0,
+   "params": {
+    "tau": 2.5,
+    "minGap": 2.5,
+    "accel": 6.0,
+    "decel": 8.0,
+    "sigma": 0.3,
+    "speedFactor": 1.0,
+    "latAlignment": "arbitrary",
+    "lcSublane": 4.5,
+    "lcPushy": 0.6,
+    "jmTimegapMinor": 2.0
+   },
+   "rationale": "Violating motorcycle archetype (custom1) that joins the 'moto_violator' distribution to model illegal left turns from HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share)."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "car_compliant",
+    "car_early_starter"
+   ],
+   "params": {
+    "t_before_green": 6,
+    "p": 0.12,
+    "v_max": 3.0
+   },
+   "rationale": "Reduces early start creep probability (p=0.12) and window to bring M2/early/car share (target ~0.011) closer to observed while maintaining realism."
+  },
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_compliant",
+    "moto_slow_center"
+   ],
+   "params": {
+    "p0": 0.2,
+    "k": 0.15,
+    "p_max": 0.6,
+    "dt": 30
+   },
+   "rationale": "Lowers base red-light running probability (p0=0.2) and swarm effect (k=0.15) for standard motorcycles to match M3/share/moto (target ~0.098) and reduce total violations per cycle."
+  },
+  {
+   "rule_type": "illegal_left_box",
+   "applies_to": [
+    "moto_violator_left"
+   ],
+   "params": {
+    "release_lag_s": 2.5
+   },
+   "rationale": "Adjusts box exit timing for illegal left-turning motorcycles to match M6/approach/l/moto entry timing (target ~53.58s) and reduce excessive holding times."
+  }
+ ],
+ "description": "Adjusted archetype shares and rule probabilities to reduce red-light running, early starting, and queue-seeking behaviors while maintaining realistic discharge headways and lateral positioning for motorcycles."
+}
