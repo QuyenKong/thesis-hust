@@ -343,7 +343,7 @@ Mỗi metric viết thành một hàm `compute(source) -> distribution | scalar`
   - M7a: số xe chờ giữa nút khi pha đi thẳng đối diện kết thúc, và phân phối thời điểm xả trong chu kỳ;
   - M7b: PET giữa xe rẽ trái trái phép đang xả và xe của hướng giao cắt / xe đi thẳng ngược chiều cuối pha;
   - M7c: tổn thất thời gian khởi động của hướng giao cắt, so giữa các chu kỳ có hàng chờ giữa nút lớn và nhỏ.
-- **M8:** tỷ lệ xe ở làn không khớp hướng đi ra (cần tracking).
+- **M8:** tỷ lệ xe rẽ (phải, trái, quay đầu) ở làn không khớp hướng đi ra (cần tracking). Làn được đọc ở lần quan sát cuối trước khi đầu xe tới đầu làn rẽ phải liên tục, tức `right_lane_length_m` (30 m) trước vạch dừng, không đọc ở vạch dừng (quyết định 2C của chủ đề tài, 08/11/2026). Xe đi làn sai theo kiểu cắt về (mục 4.5) nhập lại làn 2 trong đoạn 30 m cuối, nên nếu đọc ở vạch dừng thì M8 không ghi nhận được nó. Khi đo video, làn cũng phải đọc ở đúng điểm này. Cột `traversals.lat_m_at_right_lane_start`.
 - **M9 (chặn làn rẽ phải liên tục):** số xe đi thẳng đứng trên làn rẽ phải lúc chuyển xanh, theo độ dài hàng đi thẳng; phân phối thời gian trễ của xe rẽ phải.
 - **M10 (vỉa hè):** số xe máy trên vỉa hè mỗi chu kỳ, theo độ dài hàng chờ.
 - **M11 (ngược chiều, giai đoạn sau):** số xe đi ngược chiều mỗi chu kỳ, theo độ dài hàng chờ.
@@ -379,7 +379,7 @@ Mỗi metric viết thành một hàm `compute(source) -> distribution | scalar`
 ## Phase 7 — Baseline Optuna và benchmark
 
 1. `baselines/optuna_search.py`: nhận một spec làm **cấu trúc** (archetypes + rule_type đang bật), chỉ tối ưu **tham số** trong cấu trúc đó (bounds từ `param_bounds.yaml` + params của các rule TraCI), cùng hàm mục tiêu, **cùng ngân sách số lần chạy SUMO** với vòng LLM. Dùng cho B2 (cấu trúc của B1) và H (cấu trúc do LLM sinh).
-2. `llm/loop.py` có hai chế độ: `params_only` (P1: cấu trúc khóa, LLM chỉ được sửa giá trị; validator từ chối mọi thay đổi cấu trúc) và `full` (P2: LLM sửa cả cấu trúc lẫn tham số).
+2. `llm/loop.py` có hai chế độ: `params_only` (P1: cấu trúc khóa, LLM chỉ được sửa giá trị; validator từ chối mọi thay đổi cấu trúc) và `full` (P2: LLM sửa cả cấu trúc lẫn tham số). Từ prompt `v005`, ở chế độ `full` spec phải dùng đủ 6 luật TraCI, và mỗi luật phải được bật ở ít nhất một chỗ (`early_start` p > 0, `swarm_red_running` p0 > 0, `queue_space_seeking` có một `p_*` > 0, `uturn_bypass` p > 0; `illegal_left_box` và `slow_lane_center` chỉ cần có mặt). Spec thiếu luật bị từ chối với mã `coverage` (`validator.coverage_issues`; quyết định 3B của chủ đề tài, 08/11/2026). Lý do: campaign `P2_n1108` đạt S thấp nhất bằng cách bỏ `queue_space_seeking`, `uturn_bypass` và `slow_lane_center`.
 3. `rules/specs/B1_saval.json`: chuyển các luật của Saval et al. (2023) sang schema (ví dụ xe máy hàng đầu dừng đèn đỏ với xác suất 0,5). Ghi nguồn cho từng luật; mục nào không chuyển được sang SUMO thì ghi rõ lý do.
 4. `benchmark.py`: chạy B0, B1, B2, P1, P2, H trên validation days với ≥ 20 seed. Báo cáo theo hai thí nghiệm: **E1** = P1 vs B2; **E2** = B2 vs H vs P2. Ghi `results/metrics.csv`; vẽ phân phối sim vs obs cho từng metric; chạy kiểm định Wilcoxon / Mann-Whitney và tính effect size.
 5. Ablation: tắt lần lượt từng rule TraCI / từng nhóm tham số.

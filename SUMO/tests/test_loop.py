@@ -76,6 +76,23 @@ def _good(it: int, j: int) -> dict:
     return a
 
 
+def _full(it: int, j: int) -> dict:
+    """A mode-full answer that keeps every TraCI rule switched on (prompt v005 coverage): B1 with early_start and
+    queue_space_seeking switched on, plus illegal_left_box and slow_lane_center."""
+    a = _good(it, j)
+    for r in a["traci_rules"]:
+        if r["rule_type"] == "early_start":
+            r["params"]["p"] = 0.1
+        if r["rule_type"] == "queue_space_seeking":
+            r["params"]["p_wrong_lane"] = 0.2
+    a["traci_rules"] += [
+        {"rule_type": "illegal_left_box", "applies_to": ["moto_violator_saval"], "params": {"release_lag_s": 1.0},
+         "rationale": "test"},
+        {"rule_type": "slow_lane_center", "applies_to": ["moto_saval"], "params": {"lat_offset": 0.0},
+         "rationale": "test"}]
+    return a
+
+
 def _answer_all(env, campaign, fn=_good) -> int:
     """Write a response for every pending request; fn(iteration, sample) -> answer object (None = leave pending)."""
     n = 0
@@ -172,7 +189,7 @@ def test_new_campaign_id_has_own_budget_and_state(env):
 def test_prompt_version_default_override_and_lock(env):
     res = _drive(env, "P1_n28", n_iter=1, budget_runs=12)
     lock = json.loads((evaluate.CAMPAIGNS_DIR / "P1_n28" / "loop" / "loop.json").read_text(encoding="utf-8"))
-    assert lock["llm"]["prompt_version"] == "v004" and res.best_spec["provenance"]["prompt_version"] == "v004"
+    assert lock["llm"]["prompt_version"] == "v005" and res.best_spec["provenance"]["prompt_version"] == "v005"
     with pytest.raises(ValueError, match="other settings"):   # a campaign keeps its prompt version
         _run("P1_n28", n_iter=1, budget_runs=12, prompt_version="v001")
     with pytest.raises(ValueError, match="prompt"):
@@ -335,7 +352,7 @@ def test_crash_resume_keeps_results(env):
 
 
 def test_full_mode_p2_iteration(env):
-    res = _drive(env, "P2", mode="full", base=None, n_iter=1, budget_runs=12)
+    res = _drive(env, "P2", _full, mode="full", base=None, n_iter=1, budget_runs=12)
     assert res.runs_used == 12 and [s["status"] for s in res.iterations[0]["samples"]] == ["evaluated"] * 4
     req = json.loads((env["logs"] / "P2" / "requests" / "P2__it01_s00_a1.json").read_text(encoding="utf-8"))
     assert req["mode"] == "full" and req["schema"] == loop.llm_schema("full")
@@ -343,6 +360,26 @@ def test_full_mode_p2_iteration(env):
     assert "You may change the structure" in ctx and "Base spec" not in ctx
     lock = json.loads((evaluate.CAMPAIGNS_DIR / "P2" / "loop" / "loop.json").read_text(encoding="utf-8"))
     assert lock["mode"] == "full" and lock["base_spec"] is None
+    assert "Every one of the 6 TraCI rules must be used" in ctx
+
+
+def test_full_mode_coverage_v005(env):
+    """Prompt v005 (owner decision 3B): in mode full a spec without slow_lane_center, or with every early_start
+    switched off, is rejected with code coverage; v004 accepts the same answer."""
+    def missing(it, j):
+        a = _full(it, j)
+        a["traci_rules"] = [r for r in a["traci_rules"] if r["rule_type"] != "slow_lane_center"]
+        if j % 2:
+            next(r for r in a["traci_rules"] if r["rule_type"] == "early_start")["params"]["p"] = 0.0
+        return a
+    res = _drive(env, "P2", missing, mode="full", base=None, n_iter=1, budget_runs=12)
+    assert res.runs_used == 0
+    logs = [json.loads(f.read_text(encoding="utf-8")) for f in (env["logs"] / "P2").glob("P2__*.json")]
+    issues = [i for log in logs for i in log["issues"]]
+    assert issues and {i["code"] for i in issues} == {"coverage"}
+    assert any("early_start is switched off" in i["message"] for i in issues)
+    old = _drive(env, "P2_v4", missing, mode="full", base=None, n_iter=1, budget_runs=12, prompt_version="v004")
+    assert old.runs_used == 12
 
 
 def test_lock_refuses_other_site_and_b0(env, tmp_path):

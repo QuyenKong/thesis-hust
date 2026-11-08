@@ -62,12 +62,15 @@ Definitions (R = `observation.queue_range_m` from experiment.yaml, a modelling c
   = [0, width of the stop-line edge's lane 0); a vehicle's movement = its route (as turn_counts; the sidewalk is a
   TraCI reroute and the route file keeps the road route). `wrong_lane` lane markings = the movements of the stop-line
   lane's connections open to `passenger` or `motorcycle` (`Geometry.lane_marks`; the proxy net is built so that they
-  equal the site's `lane_movements`, which M8 reads), the lane from `lane_or_lat_m` as in M8.
+  equal the site's `lane_movements`, which M8 reads), the lane from `lat_m_at_right_lane_start` as in M8.
 - **traversals** (one row per stop-line crossing, same `track_id`): `movement` as in turn_counts;
   `exit_approach` = approach id of the arm the vehicle leaves by (outbound edge -> arm with the nearest
   bearing from the junction centre); `t_range_entry` = time the front crosses R upstream of the stop line,
   interpolated between the two fcd rows around it (NaN if first seen inside R); `t_stopline` = the
-  crossing `t`; `t_exit` = first `enter` on an `out__` loop (NaN if not exited before the record ends).
+  crossing `t`; `t_exit` = first `enter` on an `out__` loop (NaN if not exited before the record ends);
+  `lat_m_at_right_lane_start` = lateral position (as above) of the vehicle's last fcd row with its front upstream of
+  the start of the stop-line edge (`Geometry.m8_line_m`: the continuous right-turn lane stretch of a split approach,
+  site `right_lane_length_m`), NaN if its first row is already inside; `lat_m_at_stopline` on an unsplit approach.
 """
 
 from __future__ import annotations
@@ -144,6 +147,8 @@ class Geometry:
     link_index: dict[tuple[str, str], int] = field(default_factory=dict)  # (stop-line lane, outbound edge) -> TLS link
     right_lane_m: dict[str, float] = field(default_factory=dict)  # approach -> length of the stop-line edge (the
     # continuous right-turn lane stretch of a split approach, site right_lane_length_m)
+    m8_line_m: dict[str, float] = field(default_factory=dict)  # approach -> where M8 reads the lane: right_lane_m on a
+    # split approach, 0 (the stop line) on an unsplit one
 
     def opposing_of(self, approach: str) -> str:
         try:
@@ -257,7 +262,9 @@ def junction_geometry(net_path: Path) -> Geometry:
                     box_lanes, opposing, movements, _exit_arms(net, node, inbound), stop_dist,
                     frozenset(ln.getID() for sw in sidewalks for ln in net.getEdge(sw).getLanes()),
                     lane_bounds, lane_marks, link_index,
-                    {app: net.getEdge(e).getLength() for app, e in inbound.items()})
+                    {app: net.getEdge(e).getLength() for app, e in inbound.items()},
+                    {app: net.getEdge(e).getLength() if len(approach_segments(net, e)) > 1 else 0.0
+                     for app, e in inbound.items()})
 
 
 # ---------------------------------------------------------------- readers
@@ -311,6 +318,7 @@ class FcdScan:
     frames: pd.DataFrame       # rows at the requested times on inbound/internal lanes of the junction
     last_inbound: dict         # vehicle -> (lane, posLat) of its last row on an inbound lane
     range_entry: dict          # vehicle -> time its front crossed R upstream of the stop line (NaN: first seen inside)
+    line_lat: dict             # vehicle -> lat of its last row before its front crossed Geometry.m8_line_m (NaN: inside)
     box_rows: pd.DataFrame     # t, track_id, speed, approach for rows on box lanes
     box_exits: pd.DataFrame    # track_id, t, kind: "exit" (first row off the box lanes) | "removed" (vanished)
 
@@ -318,7 +326,7 @@ class FcdScan:
 def scan_fcd(path: Path, geo: Geometry, frame_times: set[float], range_m: float) -> FcdScan:
     """One streaming pass over the fcd output keeping only what the tables need."""
     frames, box_rows, exits = [], [], []
-    last_inbound, range_entry, prev_dist, in_box = {}, {}, {}, {}
+    last_inbound, range_entry, line_lat, prev_dist, in_box = {}, {}, {}, {}, {}
     present: set[str] = set()
     with _open(path) as f:
         t = None
@@ -338,11 +346,15 @@ def scan_fcd(path: Path, geo: Geometry, frame_times: set[float], range_m: float)
             present.add(vid)
             if lane in geo.lane_info:
                 last_inbound[vid] = (lane, float(el.get("posLat")))
-                d = geo.lane_info[lane][1] - float(el.get("pos"))
+                app, start_d, centre = geo.lane_info[lane]
+                d = start_d - float(el.get("pos"))
+                p = prev_dist.get(vid)
                 if vid not in range_entry and d <= range_m:
-                    p = prev_dist.get(vid)
                     range_entry[vid] = np.nan if p is None else p[0] + (p[1] - range_m) / (p[1] - d) * (t - p[0])
-                prev_dist[vid] = (t, d)
+                line = geo.m8_line_m.get(app, 0.0)
+                if line > 0 and vid not in line_lat and d <= line:
+                    line_lat[vid] = np.nan if p is None or p[1] <= line else p[2]
+                prev_dist[vid] = (t, d, centre + float(el.get("posLat")))
             if t in frame_times and (lane in geo.lane_info or lane in geo.internal):
                 frames.append((t, vid, el.get("type"), lane, float(el.get("pos")), float(el.get("posLat")),
                                float(el.get("speed"))))
@@ -354,7 +366,7 @@ def scan_fcd(path: Path, geo: Geometry, frame_times: set[float], range_m: float)
                 in_box[vid] = False
     # vehicles still on the box lanes at the last step have neither an exit nor a removal
     return FcdScan(pd.DataFrame(frames, columns=["t", "track_id", "type", "lane", "pos", "posLat", "speed"]),
-                   last_inbound, range_entry,
+                   last_inbound, range_entry, line_lat,
                    pd.DataFrame(box_rows, columns=["t", "track_id", "speed", "approach"]),
                    pd.DataFrame(exits, columns=["track_id", "t", "kind"]))
 
@@ -569,6 +581,9 @@ def _crossings(cr: pd.DataFrame, geo: Geometry, scan: FcdScan, vinfo: dict) -> p
         return geo.lane_info[lane][2] + pos_lat
 
     cr["lane_or_lat_m"] = cr["track_id"].map(lat).astype(float)
+    split = cr["approach"].map(lambda a: geo.m8_line_m.get(a, 0.0) > 0)
+    cr["lat_m_at_right_lane_start"] = np.where(split, cr["track_id"].map(lambda v: scan.line_lat.get(v, np.nan)).astype(float),
+                                  cr["lane_or_lat_m"])
     cr["vclass"] = _schema_vclass(cr["type"], vinfo)
     return cr.sort_values(["t", "track_id"], kind="stable").reset_index(drop=True)
 
@@ -604,7 +619,7 @@ def _traversals(cr: pd.DataFrame, exits: pd.DataFrame, scan: FcdScan, geo: Geome
     return pd.DataFrame({
         "track_id": cr["track_id"], "vclass": cr["vclass"], "approach": cr["approach"],
         "movement": cr["movement"], "exit_approach": cr["exit_edge"].map(geo.exit_approach),
-        "lat_m_at_stopline": cr["lane_or_lat_m"],
+        "lat_m_at_stopline": cr["lane_or_lat_m"], "lat_m_at_right_lane_start": cr["lat_m_at_right_lane_start"],
         "t_range_entry": cr["track_id"].map(lambda v: scan.range_entry.get(v, np.nan)).astype(float),
         "t_stopline": cr["t"], "t_exit": cr["track_id"].map(t_exit).astype(float),
     }, columns=TABLES["traversals"])
@@ -688,10 +703,10 @@ def _f2_tables(geo: Geometry, fr: pd.DataFrame, grid: list[float], cr: pd.DataFr
     for space, sub in (("right_lane", stand0), ("sidewalk", g[on_sw])):
         first = sub.sort_values("t", kind="stable").drop_duplicates("track_id")
         ev += [(r.t, r.approach, r.track_id, r.vclass, space) for r in first.itertuples()]
-    turning = cr[cr["movement"].isin(("r", "l", "u")) & ~cr["lane"].isin(geo.sidewalk_lanes) & cr["lane_or_lat_m"].notna()]
+    turning = cr[cr["movement"].isin(("r", "l", "u")) & ~cr["lane"].isin(geo.sidewalk_lanes) & cr["lat_m_at_right_lane_start"].notna()]
     for r in turning.itertuples():
         bounds = geo.lane_bounds[r.approach]
-        lane = min(int(np.searchsorted(bounds, r.lane_or_lat_m, side="right")), len(bounds) - 1)
+        lane = min(int(np.searchsorted(bounds, r.lat_m_at_right_lane_start, side="right")), len(bounds) - 1)
         if r.movement not in geo.lane_marks[r.approach][lane]:
             t0 = range_entry.get(r.track_id, np.nan)
             ev.append((r.t if np.isnan(t0) else _rt(t0), r.approach, r.track_id, r.vclass, "wrong_lane"))

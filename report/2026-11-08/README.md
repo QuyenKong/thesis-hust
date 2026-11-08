@@ -168,9 +168,54 @@ Từ vòng 3, 11/12 mẫu hợp lệ ngay lần thử đầu. Từ vòng 2, lị
 
 ## 7. Việc còn lại
 
-- PROXY_D1 còn xe chờ chèn ở mọi spec của cả ba campaign, và ở B1 (mục 2). Khi lỗi này còn, không spec nào eligible được. Trước khi chạy campaign tiếp cần kiểm tra demand của PROXY_D1 so với năng lực thông qua của mạng 04/11. Demand này là số liệu proxy, nên cách xử lý cần chủ đề tài quyết.
+- PROXY_D1 còn xe chờ chèn ở mọi spec của cả ba campaign, và ở B1 (mục 2). Khi lỗi này còn, không spec nào eligible được. B0 với cùng demand không có xe chờ chèn, nên nguyên nhân không nằm ở demand (mục 8.1).
 - M8 và luật cắt về (mục 3): chọn giữa connection cho xe vi phạm và luật cắt về, cần chủ đề tài quyết.
 - Vòng LLM: spec trùng với một spec đã chạy (cùng hash) đang bị tính run lại. Có thể lấy lại kết quả cũ thay vì chạy lại.
 - Ở chế độ `params_only`, schema có thể ép share bằng 1 cho phân phối chỉ có một archetype. Ở P1, 12/15 lần thử hỏng chỉ có lỗi ở phân phối đó.
 - P2 bỏ `queue_space_seeking`, `uturn_bypass` và `slow_lane_center`. Muốn spec có đủ các hành vi của PLAN §0 thì phải đưa yêu cầu này vào validator hoặc vào điểm số. Việc này cần chủ đề tài quyết.
 - Kết quả campaign chỉ có seed 1. Spec R42 chọn của B2 và P2 cần chạy lại với 5 seed, như `REF_n1104s5`, trước khi so với B0 và B1.
+
+## 8. Quyết định của chủ đề tài ngày 08/11 (1A, 2C, 3B)
+
+### 8.1 Xe chờ chèn ở PROXY_D1 (1A: tìm nguyên nhân trước)
+
+B1 trên PROXY_D1 × seed 1–3, bỏ lần lượt các luật TraCI, rồi bỏ hết luật nhưng đổi từng nhóm tham số vType về giá trị của B0 (mặc định SUMO). Script: `experiments/operator/ref/eval_d1_ablation.py` (campaign `AB_d1`) và `experiments/operator/ref/eval_d1_vtype.py` (`AB_d1v`). Trong B1, `early_start` và `queue_space_seeking` có mọi `p` = 0 nên không can thiệp lần nào; vì vậy ở các biến thể bỏ một luật, chỉ có `swarm_red_running` và `uturn_bypass` được tắt.
+
+| Biến thể | Xe chờ chèn lúc kết thúc (seed 1, 2, 3) | Va chạm/h | S |
+|---|---|---|---|
+| B1 đủ luật | 339, 457, 377 | 24–26 | 1,2712 |
+| bỏ `swarm_red_running` | 332, 337, 221 | 14–18 | 1,2638 |
+| bỏ `uturn_bypass` | 295, 273, 291 | 20–32 | 1,2783 |
+| bỏ mọi luật | 387, 203, 227 | 12–20 | 1,2974 |
+| bỏ mọi luật, ô tô dùng tham số B0 | 295, 206, 263 | 24–32 | 1,2632 |
+| bỏ mọi luật, xe máy bỏ `accel` (mặc định 6 m/s²) | 10, 126, 52 | 48–58 | 1,2483 |
+
+Bỏ hết luật TraCI vẫn còn 203–387 xe chờ chèn. Như vậy nguyên nhân chính là tham số vType của B1, và rõ nhất là `accel` 1,1 m/s² của xe máy. Giá trị này chuyển từ tham số IDM `a` trong bảng 11 của Saval et al. (2023) sang `accel` của Krauss, trong khi mặc định SUMO cho xe máy là 6 m/s². Khi trả `accel` xe máy về mặc định, số xe chờ chèn giảm từ 203–387 xuống 10–126 nhưng chưa về 0, còn va chạm tăng từ 12–20/h lên 48–58/h. Các tham số ô tô (`tau` 2,5 s, `accel` 1,2 m/s²) chỉ làm thay đổi ít.
+
+B2 có tìm `accel` của xe máy trong khoảng [0,8; 6], nhưng 12 trial của B2 vẫn có 20–338 xe chờ chèn ở PROXY_D1. Trial `t000` với `accel` 5,8 vẫn còn 256 xe, và trial này có `tau` xe máy 2,5 s. Chưa có biến thể nào thử riêng `tau` của xe máy.
+
+Cần chủ đề tài quyết: giữ `accel` xe máy của Saval trong B1 (giá trị văn liệu, nhưng làm nút không thông được demand PROXY_D1), hay sửa B1. Việc sửa có thể là dùng mặc định SUMO cho `accel` xe máy và ghi rõ là không chuyển giá trị này, hoặc hạ cận dưới của `accel` xe máy trong `param_bounds.yaml`.
+
+### 8.2 M8 đọc làn ở đầu làn rẽ phải (2C)
+
+M8 (đi sai làn: tỷ lệ xe rẽ đứng ở làn không khớp hướng đi ra) giờ đọc làn của xe ở lần quan sát cuối trước khi đầu xe tới đầu làn rẽ phải liên tục, tức `right_lane_length_m` (30 m, số đo của chủ đề tài ngày 29/10) trước vạch dừng. Trước đây M8 đọc làn tại vạch dừng. Điểm này trùng với chỗ luật cắt về bắt đầu, nên xe đi làn sai vẫn đang ở làn sai khi bị đọc. Khi đo bằng video, làn cũng phải đọc ở đúng điểm đó.
+
+Thay đổi:
+- Bảng `traversals` có thêm cột `lat_m_at_right_lane_start` (`schema_observed.py`). `sim/outputs.py` lấy cột này từ fcd: vị trí ngang ở dòng fcd cuối cùng trước khi đầu xe vào cạnh vạch dừng. Nếu xe xuất hiện lần đầu đã ở trong đoạn 30 m thì giá trị là NaN và M8 bỏ xe đó. Trên nhánh không được cắt đoạn thì cột này bằng vị trí ngang tại vạch dừng.
+- Sự kiện `wrong_lane` của F2 (bảng `space_seeking_events`) dùng cùng cột này, để giống hệt định nghĩa của M8.
+- `proxy/generate.py` chỉ có một vị trí ngang cho mỗi xe, nên cột mới bằng `lat_m_at_stopline`. Năm ngày proxy được sinh lại (`python -m thesis_sumo.proxy.generate --no-routes`). Mọi bảng giữ nguyên giá trị, chỉ `traversals.csv` có thêm cột mới và `manifest.json` đổi hash của file site. Chỉ tiêu M8 proxy không đổi.
+- Bảng của các run cũ không có cột mới. M8 báo lỗi và yêu cầu sinh lại bảng, thay vì tự đọc ở vạch dừng.
+
+### 8.3 Bắt spec P2 có đủ luật TraCI (3B)
+
+Từ prompt `v005` (`config/llm.yaml`), ở chế độ `full`, spec phải dùng đủ 6 luật TraCI, và mỗi luật phải được bật ở ít nhất một chỗ:
+- `early_start` p > 0;
+- `swarm_red_running` p0 > 0;
+- `queue_space_seeking` có một `p_*` > 0;
+- `uturn_bypass` p > 0;
+- `illegal_left_box` và `slow_lane_center` không có xác suất, nên chỉ cần có mặt.
+
+Spec thiếu luật bị từ chối với mã `coverage` (`validator.coverage_issues`), và LLM được thử lại như với các lỗi khác. Prompt `v005` giống `v004`, chỉ thêm yêu cầu này vào system prompt và phần mô tả chế độ. Campaign với `v004` trở về trước không bị kiểm tra này, nên log cũ vẫn chạy lại được như trước. B1 không có `illegal_left_box` và `slow_lane_center`, và `early_start`, `queue_space_seeking` của nó đều tắt. Kiểm tra `coverage` chỉ áp dụng cho P2, không áp dụng cho B1 và P1.
+
+Test mới: `test_coverage_issues_b1`, `test_full_mode_coverage_v005`, `test_m8_reads_lane_at_right_lane_start`. Các test của `sim/outputs` được sửa theo định nghĩa mới của M8. Bộ test: 401 passed, 2 xfailed.
+

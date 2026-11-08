@@ -617,3 +617,16 @@ def test_validity_log(tmp_path, spec, site):
     assert rows[1]["source"] == "llm" and rows[0]["timestamp"]
     assert log.valid_rate() == 0.5
     assert log.valid_rate(source="manual") == 1.0
+
+
+def test_coverage_issues_b1():
+    """Owner decision 3B (2026-11-08): B1_manual misses illegal_left_box and slow_lane_center, and its early_start and
+    queue_space_seeking have every p = 0, so all four are coverage issues; swarm_red_running and uturn_bypass pass."""
+    from thesis_sumo.rules.validator import coverage_issues
+    b1 = json.loads((REPO_ROOT / "rules" / "specs" / "B1_manual.json").read_text(encoding="utf-8"))
+    msgs = [i["message"] for i in coverage_issues(b1)]
+    assert {i["code"] for i in coverage_issues(b1)} == {"coverage"} and len(msgs) == 4
+    for rtype in ("illegal_left_box", "slow_lane_center"):
+        assert any(m.startswith(f"rule_type {rtype} is missing") for m in msgs)
+    for rtype in ("early_start", "queue_space_seeking"):
+        assert any(m.startswith(f"rule_type {rtype} is switched off") for m in msgs)

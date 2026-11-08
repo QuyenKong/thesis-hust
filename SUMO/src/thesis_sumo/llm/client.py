@@ -13,8 +13,8 @@ Backends (`cfg["runtime"]`, config/llm.yaml; `llm_config()` returns the active b
   `PendingResponse`: the loop stops, the controller answers, and the same call is repeated later.
 
 Each attempt: parse JSON -> the harness inserts `spec_id`, `source: llm` and `provenance` (model, prompt_version,
-iteration, sample_idx, runtime) -> `validator.validate` (+ `validator.structure_issues` in mode params_only) -> on
-issues the reply and a retry message with the structured issues are appended and the next attempt starts.
+iteration, sample_idx, runtime) -> `validator.validate` (+ `validator.structure_issues` in mode params_only,
++ `validator.coverage_issues` in mode full from prompt v005) -> on issues the reply and a retry message with the structured issues are appended and the next attempt starts.
 Every attempt is logged in full to `<log_dir>/<request_id>.json` (messages, schema, raw response, reasoning, spec,
 issues) and its validity is appended to the ValidityLog `<log_dir>/validity_log.csv` (a thesis metric). Request ids
 are deterministic (campaign, iteration, sample, attempt); an attempt whose log exists is replayed from the log
@@ -44,9 +44,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from thesis_sumo.config import REPO_ROOT, Site, load_llm
-from thesis_sumo.llm.feedback import PROMPTS_DIR, build_retry
+from thesis_sumo.llm.feedback import PROMPTS_DIR, build_retry, requires_coverage
 from thesis_sumo.rules.schema import DISTRIBUTIONS, DISTRIBUTIONS_OF_VCLASS, TRACI_RULE_PARAMS, VCLASSES, Bound, load_bounds
-from thesis_sumo.rules.validator import ValidityLog, structure_issues, validate
+from thesis_sumo.rules.validator import ValidityLog, coverage_issues, structure_issues, validate
 
 LOGS_DIR = REPO_ROOT / "experiments" / "llm_logs"
 MODES = ("params_only", "full")
@@ -325,6 +325,9 @@ class LLMClient:
                 issues = validate(spec, self.site, self.bounds)
                 if mode == "params_only" and not any(i["code"] == "schema" for i in issues):
                     issues += structure_issues(spec, base_spec)
+                if (mode == "full" and requires_coverage(self.cfg["prompt_version"])
+                        and not any(i["code"] in ("schema", "rule_params") for i in issues)):
+                    issues += coverage_issues(spec)
             if not cached:
                 _write_json(log_path, {
                     "request_id": rid, "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),

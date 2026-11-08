@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-11-08T15:51:51.395229+07:00 by Eclipse SUMO libsumo 1.27.0
+<libsumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/libsumoConfiguration.xsd">
+
+    <input>
+        <net-file value="D:\hust-master\Thesis\SUMO\scenario\net\site.proxy.net.xml"/>
+        <route-files value="D:\hust-master\Thesis\SUMO\scenario\demand\routes_PROXY_D1.rou.xml"/>
+        <additional-files value="D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\compiled\B1_d1v_moto_accel_b0\vtypes.add.xml,D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\runs\B1_d1v_moto_accel_b0__PROXY_D1\seed_01\outputs.add.xml"/>
+    </input>
+
+    <output>
+        <fcd-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\runs\B1_d1v_moto_accel_b0__PROXY_D1\seed_01\fcd.xml.gz"/>
+        <fcd-output.attributes value="x,y,angle,type,speed,pos,lane,posLat,speedLat,acceleration"/>
+        <fcd-output.filter-shapes value="fcd_zone"/>
+        <tripinfo-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\runs\B1_d1v_moto_accel_b0__PROXY_D1\seed_01\tripinfo.xml"/>
+        <lanechange-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\runs\B1_d1v_moto_accel_b0__PROXY_D1\seed_01\lanechange.xml"/>
+        <collision-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\runs\B1_d1v_moto_accel_b0__PROXY_D1\seed_01\collisions.xml"/>
+        <statistic-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\runs\B1_d1v_moto_accel_b0__PROXY_D1\seed_01\statistics.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="1800"/>
+        <step-length value="0.1"/>
+    </time>
+
+    <processing>
+        <lateral-resolution value="0.4"/>
+        <collision.check-junctions value="true"/>
+    </processing>
+
+    <routing>
+        <device.rerouting.probability value="0"/>
+    </routing>
+
+    <report>
+        <aggregate-warnings value="20"/>
+        <log value="D:\hust-master\Thesis\SUMO\experiments\campaigns\AB_d1v\runs\B1_d1v_moto_accel_b0__PROXY_D1\seed_01\sumo.log"/>
+        <no-step-log value="true"/>
+    </report>
+
+    <random_number>
+        <seed value="1"/>
+    </random_number>
+
+</libsumoConfiguration>
+-->
+
+<collisions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/collision_file.xsd">
+    <collision time="231.30" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="14.68" collider="moto_0_290" victim="moto_violator_0_6" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="1.36" victimSpeed="8.13" colliderFront="332.42,284.09" colliderBack="330.87,285.63" victimFront="331.13,285.16" victimBack="329.46,286.59"/>
+    <collision time="310.60" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_27_0" pos="0.39" collider="moto_0_407" victim="moto_0_442" colliderType="moto_saval" victimType="moto_saval" colliderSpeed="2.24" victimSpeed="3.68" colliderFront="322.30,293.34" colliderBack="320.10,295.08" victimFront="322.61,294.21" victimBack="321.09,295.79"/>
+    <collision time="322.30" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_9_2" pos="11.87" collider="car_0_64" victim="moto_violator_0_17" colliderType="car_saval" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="351.58,276.10" colliderBack="355.20,272.63" victimFront="350.59,275.29" victimBack="352.26,273.87"/>
+    <collision time="431.90" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_9_2" pos="0.57" collider="moto_0_663" victim="moto_0_562" colliderType="moto_saval" victimType="moto_saval" colliderSpeed="0.62" victimSpeed="3.86" colliderFront="358.48,266.93" colliderBack="359.99,265.37" victimFront="358.34,267.85" victimBack="360.36,267.02"/>
+    <collision time="449.30" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="11.70" collider="moto_0_762" victim="moto_violator_0_29" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="1.45" colliderFront="330.18,286.05" colliderBack="328.63,287.59" victimFront="329.15,288.12" victimBack="327.49,289.56"/>
+    <collision time="451.10" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="11.22" collider="moto_0_794" victim="moto_violator_0_29" colliderType="moto_seeker" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="0.51" colliderFront="329.72,286.28" colliderBack="328.17,287.82" victimFront="330.45,287.05" victimBack="328.78,288.48"/>
+    <collision time="453.30" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="10.67" collider="moto_0_801" victim="moto_violator_0_29" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="0.06" colliderFront="329.62,286.93" colliderBack="328.06,288.48" victimFront="330.99,286.99" victimBack="329.32,288.42"/>
+    <collision time="455.20" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="15.81" collider="moto_0_755" victim="moto_violator_0_26" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="333.25,283.33" colliderBack="331.70,284.88" victimFront="334.43,284.72" victimBack="332.40,285.64"/>
+    <collision time="553.10" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_27_0" pos="1.08" collider="moto_0_775" victim="moto_violator_0_40" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="0.34" victimSpeed="4.61" colliderFront="323.22,294.22" colliderBack="321.35,295.30" victimFront="324.96,293.89" victimBack="323.29,295.33"/>
+    <collision time="554.80" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_12_0" pos="15.00" collider="moto_violator_0_39" victim="moto_0_728" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="1.42" victimSpeed="9.45" colliderFront="348.08,276.77" colliderBack="350.10,275.84" victimFront="349.20,275.83" victimBack="350.80,274.30"/>
+    <collision time="580.80" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_9_2" pos="6.93" collider="moto_0_1202" victim="moto_violator_0_62" colliderType="moto_seeker" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="355.06,272.59" colliderBack="356.65,271.06" victimFront="353.71,272.64" victimBack="355.39,271.21"/>
+    <collision time="712.00" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_26_0" pos="7.56" collider="moto_violator_0_70" victim="moto_0_1203" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="328.21,289.97" colliderBack="326.54,291.41" victimFront="327.56,289.21" victimBack="326.01,290.76"/>
+    <collision time="791.70" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_13_0" pos="0.84" collider="moto_0_1344" victim="moto_0_1429" colliderType="moto_seeker" victimType="moto_saval" colliderSpeed="4.02" victimSpeed="4.84" colliderFront="358.96,267.58" colliderBack="360.71,266.43" victimFront="358.26,267.14" victimBack="359.77,265.60"/>
+    <collision time="795.10" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_12_0" pos="15.19" collider="moto_violator_0_71" victim="moto_0_1429" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="0.00" victimSpeed="10.33" colliderFront="348.35,277.89" colliderBack="350.69,276.82" victimFront="347.62,277.41" victimBack="349.21,275.88"/>
+    <collision time="795.40" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_9_2" pos="19.02" collider="moto_0_1429" victim="moto_violator_0_69" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="11.85" victimSpeed="0.00" colliderFront="345.16,279.77" colliderBack="346.75,278.24" victimFront="343.68,279.91" victimBack="345.70,279.05"/>
+    <collision time="888.70" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_21_0" pos="0.57" collider="moto_0_896" victim="moto_0_946" colliderType="moto_saval" victimType="moto_saval" colliderSpeed="1.38" victimSpeed="4.53" colliderFront="332.03,264.39" colliderBack="330.09,262.30" victimFront="331.46,265.06" victimBack="329.82,263.62"/>
+    <collision time="893.70" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_7_0" pos="1.32" collider="moto_0_894" victim="moto_0_842" colliderType="moto_saval" victimType="moto_saval" colliderSpeed="1.64" victimSpeed="7.63" colliderFront="350.82,296.68" colliderBack="352.27,298.89" victimFront="350.54,295.16" victimBack="352.07,296.74"/>
+    <collision time="901.60" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_7_0" pos="1.21" collider="moto_0_959" victim="moto_0_973" colliderType="moto_saval" victimType="moto_seeker" colliderSpeed="0.87" victimSpeed="5.47" colliderFront="351.62,296.52" colliderBack="352.83,298.31" victimFront="351.52,295.17" victimBack="352.89,296.61"/>
+    <collision time="1033.00" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_9_2" pos="0.53" collider="moto_0_1876" victim="moto_0_1849" colliderType="moto_saval" victimType="moto_saval" colliderSpeed="1.94" victimSpeed="4.55" colliderFront="358.51,266.90" colliderBack="360.02,265.34" victimFront="358.86,267.61" victimBack="360.64,266.51"/>
+    <collision time="1071.70" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_26_0" pos="15.76" collider="moto_violator_900_2" victim="moto_900_11" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="334.58,285.07" colliderBack="332.65,285.93" victimFront="333.67,283.75" victimBack="332.12,285.30"/>
+    <collision time="1158.30" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_26_0" pos="15.49" collider="moto_violator_900_17" victim="moto_900_346" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="0.00" victimSpeed="0.10" colliderFront="334.33,285.16" colliderBack="332.43,286.09" victimFront="333.64,283.82" victimBack="332.09,285.36"/>
+    <collision time="1500.50" type="side" lane="37876499#0_2" pos="2.99" collider="moto_900_178" victim="moto_0_1982" colliderType="moto_seeker" victimType="moto_saval" colliderSpeed="5.83" victimSpeed="1.11" colliderFront="373.12,314.56" colliderBack="374.88,315.87" victimFront="373.23,313.52" victimBack="374.99,314.83"/>
+    <collision time="1510.70" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_26_0" pos="0.48" collider="moto_violator_900_53" victim="moto_900_1049" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="1.18" victimSpeed="4.37" colliderFront="323.40,295.23" colliderBack="321.96,296.70" victimFront="323.18,294.38" victimBack="321.41,295.46"/>
+    <collision time="1528.30" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_12_0" pos="6.03" collider="moto_violator_900_49" victim="moto_900_950" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="2.09" victimSpeed="0.11" colliderFront="354.35,270.38" colliderBack="356.03,268.96" victimFront="353.89,272.66" victimBack="355.48,271.13"/>
+    <collision time="1648.80" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="0.22" collider="moto_900_1397" victim="moto_900_1368" colliderType="moto_saval" victimType="moto_saval" colliderSpeed="2.34" victimSpeed="2.28" colliderFront="322.71,294.77" colliderBack="321.20,296.35" victimFront="322.42,293.46" victimBack="320.26,295.11"/>
+    <collision time="1677.90" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="9.06" collider="moto_900_1502" victim="moto_violator_900_83" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="2.13" victimSpeed="4.69" colliderFront="329.49,289.09" colliderBack="327.94,290.64" victimFront="327.52,289.84" victimBack="325.85,291.27"/>
+    <collision time="1755.60" type="junction" lane=":cluster_2291072469_2291073251_317366886_444501629_26_0" pos="15.29" collider="moto_violator_900_94" victim="moto_900_1658" colliderType="moto_violator_saval" victimType="moto_saval" colliderSpeed="0.61" victimSpeed="2.78" colliderFront="334.01,284.94" colliderBack="332.07,285.97" victimFront="332.37,286.25" victimBack="330.82,287.80"/>
+    <collision time="1774.30" type="side" lane=":cluster_2291072469_2291073251_317366886_444501629_23_2" pos="7.60" collider="moto_900_1740" victim="moto_violator_900_99" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="327.49,289.14" colliderBack="325.94,290.69" victimFront="328.17,289.93" victimBack="326.50,291.36"/>
+</collisions>

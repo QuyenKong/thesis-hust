@@ -36,10 +36,14 @@ with an illegal left (`illegal_l`), whose through green must overlap the opposin
 
 traversals (tier-1 extension of PLAN 5.1, one row per stop-line crossing, `track_id` as in
 stopline_crossings): `movement` in `MOVEMENTS`; `exit_approach` = approach id of the arm the vehicle leaves
-by; `lat_m_at_stopline` = `lane_or_lat_m` of its crossing; `t_range_entry` = time its front crosses
+by; `lat_m_at_stopline` = `lane_or_lat_m` of its crossing; `lat_m_at_right_lane_start` = its lateral position at
+the last observation before its front crosses the start of the continuous right-turn lane (`right_lane_length_m`
+upstream of the stop line, where the cut-back of behaviour 5 starts; owner decision 2C of 2026-11-08), NaN if first
+seen inside that stretch; on an approach without that stretch (one road segment) it equals `lat_m_at_stopline`;
+`t_range_entry` = time its front crosses
 `observation.queue_range_m` upstream of the stop line (NaN if first seen inside that range);
 `t_stopline` = crossing time; `t_exit` = time its front enters the outbound lane (NaN if not before the
-record ends). Supports M6 (traversal time) and M8 (lane vs movement).
+record ends). Supports M6 (traversal time) and M8 (lane at the start of the right-turn stretch vs movement).
 
 F2 tables (PLAN 5.1, Task F2-metrics; M9, M10 and the space-choice probability). R = `observation.queue_range_m`
 (the observed upstream range). Every definition uses positions only (no TraCI decision), so video can produce it:
@@ -56,9 +60,10 @@ F2 tables (PLAN 5.1, Task F2-metrics; M9, M10 and the space-choice probability).
     6). Driving straight through lane 0 is no event: legal on green since 2026-10-28 (no bollards, site
     `right_lane_separator: open`). No queue condition (the metrics condition on the queue);
   - `sidewalk`: any vehicle on the sidewalk (lat_m < 0 on the simulation side: the sidewalk lane);
-  - `wrong_lane`: a turning vehicle (r, l, u) that crosses the stop line in a lane whose markings do not permit its
-    movement (exactly the M8 rule); it is observed at the stop line, so `t` = its `t_range_entry` (the queue it met
-    on entering the observed range), or the crossing time when it was first seen inside R;
+  - `wrong_lane`: a turning vehicle (r, l, u) that reaches the start of the continuous right-turn lane in a lane
+    whose markings do not permit its movement (exactly the M8 rule, traversals `lat_m_at_right_lane_start`); `t` = its
+    `t_range_entry` (the queue it met on entering the observed range), or its stop-line crossing time when it was first
+    seen inside R;
   - `opposite` (wrong-way riding) is a legal value but is never produced: deferred (ruling R38).
 - right_turn_delay: one row per right-turn (`r`) stop-line crossing from the road (not from the sidewalk);
   `t_enter` = its traversals `t_range_entry` (front crosses R upstream; NaN if first seen inside R), `t_exit` = its
@@ -80,7 +85,7 @@ QUEUE_SNAPSHOT_COLUMNS = ["cycle_id", "t_green_onset", "approach", "queue_length
 LATERAL_SNAPSHOT_COLUMNS = ["cycle_id", "approach", "track_id", "vclass", "lat_m", "long_m_from_stopline"]
 BOX_QUEUE_COLUMNS = ["cycle_id", "t", "approach", "n_waiting_in_box", "t_clear_start", "t_clear_end"]
 TRAVERSAL_COLUMNS = ["track_id", "vclass", "approach", "movement", "exit_approach", "lat_m_at_stopline",
-                     "t_range_entry", "t_stopline", "t_exit"]
+                     "lat_m_at_right_lane_start", "t_range_entry", "t_stopline", "t_exit"]
 QUEUE_TIMESERIES_COLUMNS = ["t", "approach", "queue_length_m", "n_car", "n_moto"]
 SPACE_SEEKING_COLUMNS = ["t", "cycle_id", "approach", "track_id", "vclass", "space", "queue_length_m_at_t"]
 RIGHT_TURN_DELAY_COLUMNS = ["track_id", "approach", "vclass", "t_enter", "t_exit", "blocked"]

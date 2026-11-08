@@ -699,6 +699,7 @@ def _tables(aps: dict[str, Approach], vehicles: list[Veh], snaps: dict[str, list
         "movement": [v.movement for v in seen],
         "exit_approach": [aps[v.approach].exit_arm[v.movement] for v in seen],
         "lat_m_at_stopline": [round(v.lat, LAT_DECIMALS) for v in seen],
+        "lat_m_at_right_lane_start": [round(v.lat, LAT_DECIMALS) for v in seen],  # one lane per vehicle
         "t_range_entry": [_rt(v.t_range) if v.t_range >= 0 else np.nan for v in seen],
         "t_stopline": [_rt(v.t_cross) for v in seen],
         "t_exit": [_rt(v.t_exit) if v.t_exit < window else np.nan for v in seen],

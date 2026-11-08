@@ -24,7 +24,7 @@ import numpy as np
 from thesis_sumo.config import Site, load_experiment
 from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, DISTRIBUTIONS, DISTRIBUTIONS_OF_VCLASS,
                                       OPTIONAL_DISTRIBUTIONS, RULE_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound)
-from thesis_sumo.rules.validator import distribution_of
+from thesis_sumo.rules.validator import RULE_ACTIVE, distribution_of
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 DAY_NAME_RE = re.compile(r"PROXY_D\d+")
@@ -39,11 +39,24 @@ MODE_RULES = {
 }
 
 
+def requires_coverage(prompt_version: str) -> bool:
+    """v005 on (owner decision 3B, 2026-11-08): in mode full every TraCI rule type must be used and switched on
+    (`validator.coverage_issues`, code coverage); the context says so."""
+    return prompt_version >= "v005"
+
+
+def coverage_text() -> str:
+    conds = "; ".join(f"`{r}` {cond}" for r, (cond, _) in RULE_ACTIVE.items())
+    return (f"Every one of the {len(RULE_ACTIVE)} TraCI rules must be used at least once and switched on (one rule of "
+            f"each type is enough): {conds}. A small probability is fine; leaving a rule out or switching it off in "
+            f"all its rules is rejected with code coverage.")
+
+
 class DayDataLeak(ValueError):
     """A prompt text names an observed day (PLAN 5.4: the LLM never sees validation-day data)."""
 
 
-def load_prompt(name: str, version: str = "v004") -> Template:
+def load_prompt(name: str, version: str = "v005") -> Template:
     return Template((PROMPTS_DIR / version / f"{name}.md").read_text(encoding="utf-8"))
 
 
@@ -66,7 +79,7 @@ def rule_vclass_text() -> str:
     return "\n".join(f"  - `{r}`: base_vclass {', '.join(vcs)}" for r, vcs in RULE_VCLASSES.items())
 
 
-def system_prompt(version: str = "v004") -> str:
+def system_prompt(version: str = "v005") -> str:
     return load_prompt("system", version).substitute(distributions=distribution_text(),
                                                      rule_vclasses=rule_vclass_text()).strip()
 
@@ -190,12 +203,14 @@ def _targets_text(targets_calib: dict, scored_only: bool = False) -> str:
 
 
 def build_context(mode: str, base_spec: dict | None, site: Site, bounds: dict[str, Bound], targets_calib: dict,
-                  *, schema: dict, prompt_version: str = "v004", exp: dict | None = None) -> str:
+                  *, schema: dict, prompt_version: str = "v005", exp: dict | None = None) -> str:
     """The context message. `targets_calib` = `calibration_targets(...)` (key -> label, unit, obs_mean, evidence,
     scored); `schema` = `client.llm_schema(mode, base_spec)`."""
     if mode not in MODE_RULES:
         raise ValueError(f"mode must be one of {tuple(MODE_RULES)}, got {mode!r}")
     rules = MODE_RULES[mode]
+    if mode == "full" and requires_coverage(prompt_version):
+        rules += " " + coverage_text()
     if mode == "params_only":
         if base_spec is None:
             raise ValueError("params_only needs the base spec whose structure is locked")
@@ -300,7 +315,7 @@ def _results_compact(results: list, interventions: dict) -> str:
 
 
 def build_feedback(prev_results: list, issues: dict[str, list[dict]] | None = None,
-                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v004",
+                   interventions: dict[str, dict] | None = None, *, prompt_version: str = "v005",
                    exp: dict | None = None) -> str:
     """Feedback message on the previous iteration. `prev_results`: `evaluate.EvalResult`s (calibration days only);
     `issues`: spec_id -> validator issues of specs that never reached evaluation (the client gave up), merged with
@@ -366,7 +381,7 @@ def _state_text(issues: list[dict], spec: dict | None) -> str:
     return "\n" + "\n".join(lines) + "\n"
 
 
-def build_retry(issues: list[dict], spec: dict | None = None, *, prompt_version: str = "v004") -> str:
+def build_retry(issues: list[dict], spec: dict | None = None, *, prompt_version: str = "v005") -> str:
     """Retry message; templates with a `$state` field also get `_state_text` (older versions ignore it)."""
     return load_prompt("retry", prompt_version).substitute(issues=_issues_text(issues),
                                                           state=_state_text(issues, spec))

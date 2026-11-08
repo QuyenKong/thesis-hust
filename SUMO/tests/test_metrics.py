@@ -68,11 +68,13 @@ def _state(ev: pd.DataFrame, app: str, t: float) -> str:
 
 def _tables(vehicles=(), lateral=(), queue=(), box=(), counts=(), n_cycles: int = 10, qts=(), events=(),
             rtd=(), three_phase: bool = False) -> dict[str, pd.DataFrame]:
-    """vehicles: (track_id, approach, vclass, movement, t_stopline, lat, t_exit, t_range_entry);
+    """vehicles: (track_id, approach, vclass, movement, t_stopline, lat, t_exit, t_range_entry[, lat at the start of
+    the right-turn stretch, default lat]);
     lateral: (cycle_id, approach, track_id, vclass, lat_m, long_m); queue / box / counts / qts (queue_timeseries) /
     events (space_seeking_events) / rtd (right_turn_delay): schema rows."""
     ev = _signal3(n_cycles) if three_phase else _signal(n_cycles)
-    tr = pd.DataFrame([(i, vc, a, mv, "X", lat, t_rng, t, t_ex) for i, a, vc, mv, t, lat, t_ex, t_rng in vehicles],
+    tr = pd.DataFrame([(v[0], v[2], v[1], v[3], "X", v[5], v[8] if len(v) > 8 else v[5], v[7], v[4], v[6])
+                       for v in vehicles],
                       columns=TABLES["traversals"])
     tr = tr.sort_values(["t_stopline", "track_id"], kind="stable").reset_index(drop=True)
     cr = pd.DataFrame({"t": tr["t_stopline"], "approach": tr["approach"], "lane_or_lat_m": tr["lat_m_at_stopline"],
@@ -280,6 +282,20 @@ def test_m8_wrong_lane_share():
     out = m8_wrong_lane.compute(_tables(veh), _ctx())
     assert out["M8/moto"].values == pytest.approx(2 / 4)  # b (r in lane 1), c (l in lane 0)
     assert out["M8/car"].values == 0.0
+
+
+def test_m8_reads_lane_at_right_lane_start():
+    """Owner decision 2C (2026-11-08): a left-turner in lane 0 at the start of the right-turn stretch that cuts back
+    into lane 2 before the stop line is wrong-lane; one in lane 2 at the stretch start but drifting right at the stop
+    line is not; a NaN lane there (first seen inside the stretch) is dropped."""
+    veh = [V("a", "HDT_N", "moto", "l", 100.0, lat=9.0) + (1.0,), V("b", "HDT_N", "moto", "l", 101.0, lat=2.0) + (9.0,),
+           V("c", "HDT_N", "moto", "l", 102.0, lat=9.0) + (np.nan,)]
+    out = m8_wrong_lane.compute(_tables(veh), _ctx())
+    assert out["M8/moto"].values == pytest.approx(1 / 2)
+    t = _tables(veh)
+    t["traversals"] = t["traversals"].drop(columns="lat_m_at_right_lane_start")
+    with pytest.raises(ValueError, match="regenerate"):
+        m8_wrong_lane.compute(t, _ctx())
 
 
 def test_m8_needs_site_lanes(tmp_path):

@@ -237,10 +237,13 @@ def test_box_queue_truth(case):
 def test_traversals_truth(case):
     tr = case["tables"]["traversals"]
     assert _records(tr) == [
-        ["m1", "moto", "LVL_W", "s", "LVL_E", pytest.approx(4.9), pytest.approx(3.0 + 4 / 8 * 0.5), 5.03, 7.0],
-        ["c1", "car", "LVL_W", "s", "LVL_E", pytest.approx(1.3), None, 13.5, None],  # first seen inside range
-        ["c2", "car", "HDT_N", "s", "HDT_S", pytest.approx(1.5), pytest.approx(13.0 + 1 / 2 * 0.5), 14.0, 16.0],
-        ["v1", "moto", "LVL_W", "illegal_l", "HDT_N", pytest.approx(4.5), pytest.approx(19.0 + 10 / 30), 21.0, 33.05],
+        ["m1", "moto", "LVL_W", "s", "LVL_E", pytest.approx(4.9), pytest.approx(4.9),  # unsplit: stop-line lat
+         pytest.approx(3.0 + 4 / 8 * 0.5), 5.03, 7.0],
+        ["c1", "car", "LVL_W", "s", "LVL_E", pytest.approx(1.3), pytest.approx(1.3), None, 13.5, None],  # inside range
+        ["c2", "car", "HDT_N", "s", "HDT_S", pytest.approx(1.5), pytest.approx(1.5), pytest.approx(13.0 + 1 / 2 * 0.5),
+         14.0, 16.0],
+        ["v1", "moto", "LVL_W", "illegal_l", "HDT_N", pytest.approx(4.5), pytest.approx(4.5),
+         pytest.approx(19.0 + 10 / 30), 21.0, 33.05],
     ]
 
 
@@ -349,6 +352,7 @@ def _split_run(d: Path, f2: bool) -> dict:
     if f2:  # (t, vehicle, road lane k, distance upstream of the stop line, speed); only st halts at 22/24
         for t, vid, k, dist, sp in [(22.0, "st", 0, 9.0, 0.0), (24.0, "st", 0, 8.0, 0.0), (21.0, "rt", 0, 55.0, 5.0),
                                     (22.0, "rt", 0, 20.0, 5.0), (24.0, "rt2", 0, 5.0, 5.0), (23.0, "wl", 1, 30.0, 5.0),
+                                    (24.0, "wl", 1, lc - 2.0, 5.0),
                                     (22.0, "sm", 0, 40.0, 5.0), (24.0, "sm", 0, 30.0, 5.0), (34.0, "st", 0, 9.0, 0.0),
                                     (36.0, "st", 0, 9.0, 0.0), (34.0, "rb", 0, 20.0, 2.0), (36.0, "rb", 0, 16.0, 2.0),
                                     (34.0, "far", 0, lc + 5.0, 0.0), (36.0, "far", 0, lc + 5.0, 0.0)]:
@@ -418,8 +422,8 @@ def test_f2_space_seeking_events(f2_case):
     """sidewalk: s1, s2 at the grid time 20 (within 50 m); right_lane: the straight st standing in lane 0 on red, first
     seen at 34 (standing there on green at 22/24 is no event; far stands on red upstream of the stop-line edge: no event;
     a2/a4 in lane 0 have no route: no movement, no event; sm drives straight through lane 0: no event); wrong_lane: wl
-    crosses from lane 1 (markings: s) as a right turn, first seen inside the range -> t = its crossing 25.5; rt/rt2/rb
-    turn right from lane 0 (allowed)."""
+    is in lane 1 (markings: s) at its last row upstream of the stop-line edge (M8 line, 2026-11-08) and turns right, first seen inside
+    the range -> t = its crossing 25.5; rt/rt2/rb turn right from lane 0 (allowed)."""
     tail = f2_case["dists"]["a5"][1] + 2.2
     assert _records(f2_case["tables"]["space_seeking_events"]) == [
         [20.0, 0, "LVL_W", "s1", "moto", "sidewalk", pytest.approx(tail)],
@@ -467,4 +471,6 @@ def test_split_lateral_and_sidewalk_rows(split_case):
     cr = split_case["tables"]["stopline_crossings"]
     assert _records(cr) == [[21.0, "LVL_W", pytest.approx(-SW_WIDTH_M / 2 - 0.3), "moto", "s2", "G"]]
     tr = split_case["tables"]["traversals"]
-    assert _records(tr) == [["s2", "moto", "LVL_W", "s", "LVL_E", pytest.approx(-1.3), pytest.approx(19.1), 21.0, 23.0]]
+    # lat at the start of the stop-line edge (lc upstream): s2's last row before it is on road lane 0 at t=19 (55 m)
+    assert _records(tr) == [["s2", "moto", "LVL_W", "s", "LVL_E", pytest.approx(-1.3), pytest.approx(WIDTH_M / 2),
+                             pytest.approx(19.1), 21.0, 23.0]]

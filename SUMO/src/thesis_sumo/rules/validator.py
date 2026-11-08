@@ -34,6 +34,10 @@ Codes:
                   of the locked base spec: archetype ids, base_vclass, distribution, the param names of an archetype
                   or a rule, a non-numeric param value, or the rule types and their applies_to
 
+- `coverage`     (`coverage_issues`, LLM loop mode full = P2 from prompt v005, owner decision 3B of 2026-11-08) a
+                  TraCI rule type is missing or switched off in every rule of its type (`RULE_ACTIVE`): a spec must
+                  keep every behaviour of PLAN 0 that has a rule; the LLM may still give it a small probability
+
 `minGapLat` is compared with the site file's lane widths via `Site.require`, so the measured site file with
 `lane_widths_m: null # TODO_MEASURE` raises MissingFieldDataError instead of validating against a default.
 """
@@ -61,7 +65,8 @@ from thesis_sumo.rules.schema import (DISTRIBUTION_OF_VCLASS, DISTRIBUTIONS, DIS
                                       OPTIONAL_DISTRIBUTIONS, RULE_VCLASSES, TRACI_RULE_PARAMS, VCLASSES, Bound,
                                       load_bounds, load_excluded, load_json_schema)
 
-ISSUE_CODES = ("schema", "unknown_attr", "out_of_bounds", "share_sum", "rule_params", "logic", "structure_locked")
+ISSUE_CODES = ("schema", "unknown_attr", "out_of_bounds", "share_sum", "rule_params", "logic", "structure_locked",
+               "coverage")
 SHARE_TOL = 1e-6
 VALIDITY_LOG_PATH = REPO_ROOT / "experiments" / "validity_log.csv"
 NET_DIR = REPO_ROOT / "scenario" / "net"
@@ -362,6 +367,40 @@ def validate(spec, site: Site, bounds: dict[str, Bound] | None = None, *, net: P
     bounds = bounds if bounds is not None else load_bounds()
     return (_archetype_issues(spec, bounds, load_excluded()) + _distribution_issues(spec)
             + _lane_width_issues(spec, site) + _rule_issues(spec) + _site_rule_issues(spec, site, net))
+
+
+# When a rule of each type changes behaviour at all (coverage, owner decision 3B of 2026-11-08). swarm_red_running: p0 > 0
+# (p0 + k*n with n = 0 red runners so far stays 0 when p0 = 0, and p_max >= p0 is checked above); queue_space_seeking:
+# some option with p > 0 (that one of them exists for the archetype is ruling R27, `_site_rule_issues`);
+# illegal_left_box and slow_lane_center have no probability and always act on their archetypes.
+RULE_ACTIVE: dict[str, tuple[str, callable]] = {
+    "early_start": ("p > 0", lambda p: p["p"] > 0),
+    "swarm_red_running": ("p0 > 0", lambda p: p["p0"] > 0),
+    "queue_space_seeking": ("p_wrong_lane, p_right_lane or p_sidewalk > 0",
+                            lambda p: any(p[f"p_{o}"] > 0 for o in SEEK_OPTIONS)),
+    "illegal_left_box": ("always on", lambda p: True),
+    "slow_lane_center": ("always on", lambda p: True),
+    "uturn_bypass": ("p > 0", lambda p: p["p"] > 0),
+}
+assert set(RULE_ACTIVE) == set(TRACI_RULE_PARAMS)
+
+
+def coverage_issues(spec: dict) -> list[ValidationIssue]:
+    """Full-structure mode (P2, prompt v005 on): every TraCI rule type is used by at least one rule that is switched on
+    (`RULE_ACTIVE`). Run after `validate` (expects a spec without schema or rule_params issues)."""
+    issues = []
+    for rtype, (cond, active) in RULE_ACTIVE.items():
+        rules = [r for r in spec["traci_rules"] if r["rule_type"] == rtype]
+        if not rules:
+            issues.append(_issue("traci_rules", "coverage",
+                                 f"rule_type {rtype} is missing: every TraCI rule must be used at least once (apply it "
+                                 f"to the archetypes of base_vclass {', '.join(RULE_VCLASSES[rtype])} it suits; a "
+                                 f"small probability is fine)."))
+        elif not any(active(r["params"]) for r in rules):
+            issues.append(_issue("traci_rules", "coverage",
+                                 f"rule_type {rtype} is switched off in every rule of that type: at least one needs "
+                                 f"{cond} (a small value is fine)."))
+    return issues
 
 
 def structure_issues(spec: dict, base: dict) -> list[ValidationIssue]:
