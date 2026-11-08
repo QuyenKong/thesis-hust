@@ -1,0 +1,190 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+
+Chương~\ref{chapter:Introduction} đã nêu vấn đề nghiên cứu: chưa có cách có hệ thống để xây dựng và tinh chỉnh luật hành vi tài xế cho mô phỏng giao thông hỗn hợp không tuân thủ. Chương này khảo sát kỹ hơn các công trình liên quan để làm rõ khoảng trống đó, rồi đặt ra yêu cầu cho hệ thống của luận văn. Mục~\ref{section:2.1} lần lượt xét SUMO và mô hình làn con, mô hình hóa giao thông hỗn hợp không tuân thủ, số liệu thực nghiệm về hành vi xe máy, và hiệu chỉnh tự động có hoặc không dùng LLM. Mục~\ref{section:2.2} nêu chức năng, quy trình một vòng hiệu chỉnh và yêu cầu phi chức năng.
+
+\section{Khảo sát hiện trạng}
+\label{section:2.1}
+
+\subsection{SUMO và mô hình làn con}
+\label{subsection:2.1.1}
+
+SUMO (Simulation of Urban MObility) là bộ công cụ mô phỏng giao thông vi mô mã nguồn mở. Mỗi phương tiện được mô phỏng riêng lẻ trên mạng đường chi tiết đến từng làn và từng kết nối trong nút~\cite{lopez2018sumo}. Luận văn dùng ba phần của bộ công cụ: (i) trình mô phỏng \texttt{sumo}; (ii) công cụ \texttt{netconvert}, chuyển mạng từ nguồn như OpenStreetMap sang định dạng của SUMO; và (iii) giao diện TraCI, cho phép chương trình bên ngoài đọc trạng thái và can thiệp vào xe hoặc đèn khi mô phỏng đang chạy~\cite{lopez2018sumo}. Thư viện \texttt{libsumo} có cùng giao diện lập trình với TraCI nhưng chạy trong cùng tiến trình, nên phù hợp với các thí nghiệm cần nhiều lần chạy.
+
+Hành vi của xe được xác định bởi thuộc tính của kiểu phương tiện (vType): tham số bám xe (mặc định là mô hình Krauss), tham số chuyển làn và tham số ứng xử tại nút. Theo mặc định xe đi theo làn, dừng trước vạch khi đèn đỏ và nhường đường theo quyền ưu tiên của kết nối. Mô hình làn con (sublane) chia mỗi làn thành các dải hẹp, nên nhiều xe máy có thể cùng chiếm một làn và mỗi xe có vị trí ngang liên tục. Tài liệu SUMO dẫn Semrau và Erdmann~\cite{semrau2016chinese} làm nguồn của mô hình làn con; công trình này phát triển mô hình để mô phỏng giao thông ở Trung Quốc. Khi bật mô hình làn con, SUMO dùng mô hình chuyển làn SL2015, cho chỉnh khoảng cách ngang tối thiểu, tốc độ di chuyển ngang và mức chen lấn.
+
+Mô hình làn con giải quyết phần không gian của dòng hỗn hợp: xe máy len lên đầu hàng chờ được. Nó không tự tạo ra vượt đèn đỏ có xác suất hay xuất phát sớm. Thuộc tính liên quan đến đèn đỏ (ví dụ thời gian chấp nhận đi tiếp sau khi đèn đỏ) mặc định là không bao giờ vượt, và áp dụng như nhau cho mọi xe cùng kiểu. Vì vậy chúng không biểu diễn được hành vi phụ thuộc ngữ cảnh, như vượt đèn theo đoàn.
+
+\subsection{Mô hình hóa giao thông hỗn hợp không tuân thủ}
+\label{subsection:2.1.2}
+
+Saval và cộng sự~\cite{saval2023mixed} xây dựng mô hình dựa trên tác tử trên nền GAMA cho giao thông ô tô và xe máy không tuân thủ ở Hà Nội. Mô hình dùng bám xe IDM và chuyển làn MOBIL. Tham số tài xế của ô tô và xe máy được hiệu chỉnh bằng giải thuật di truyền trên video phố Tây Sơn (Bảng 11 của bài báo). Hai quy ước đáng chú ý: ô tô luôn dừng khi đèn đỏ, còn xe máy ở hàng đầu chỉ dừng với xác suất 0,5; mỗi ``làn'' xe máy rộng 0,8~m, gồm 0,7~m bề rộng xe và 0,1~m khoảng cách an toàn. Công trình cho thấy luật xác suất đơn giản đủ đưa hành vi không tuân thủ vào mô phỏng.
+
+Công trình này có ba giới hạn. Cấu trúc luật do người lập mô hình chọn. Tham số được hiệu chỉnh cho một đoạn phố, không phải cho một nút. Mô hình không có xuất phát sớm, hiệu ứng bầy đàn và rẽ trái dừng chờ giữa nút, và chạy trên GAMA thay vì SUMO. Luận văn lấy tham số của Saval và cộng sự làm cơ sở cho phương án thủ công B1 (Mục~\ref{section:3.8}).
+
+\subsection{Số liệu thực nghiệm về hành vi xe máy}
+\label{subsection:2.1.3}
+
+Bảng~\ref{table:2.1} liệt kê các số liệu đo được dùng để dựng dữ liệu mục tiêu đại diện (Mục~\ref{section:3.6}). Không nghiên cứu nào đo tại nút Lê Văn Lương -- Hoàng Đạo Thúy.
+
+\begingroup\small
+\begin{longtable}{|p{3.1cm}|p{3.4cm}|p{7.5cm}|}
+\caption{Số liệu thực nghiệm về hành vi xe máy được luận văn sử dụng.}\label{table:2.1}\\
+\hline
+\textbf{Nguồn} & \textbf{Địa điểm} & \textbf{Số liệu} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Nguồn} & \textbf{Địa điểm} & \textbf{Số liệu} \\
+\hline
+\endhead
+Mai và cs.~\cite{mai2019signal} & Hai nút có đèn ở Hà Nội (Láng Hạ -- Láng; Vũ Phạm Hàm -- Nguyễn Khang), video 24/10/2018, 7--8~h và 17--18~h & Xe máy chiếm 86,5\% và 79,7\%. Xe máy vượt đỏ 11,06\% và 9,64\%; xuất phát sớm (từ khoảng 5~s trở lên trước đèn xanh) 15,82\% và 13,55\%. Ô tô vượt đỏ 0,50\% và 0,96\%; xuất phát sớm 0,68\% và 1,61\%. Luồng phụ Láng Hạ -- Láng: xe máy vượt đỏ 36,25\%. Xe máy luồng phụ đi vào giữa nút và chờ khi đèn đổi (mô tả định tính, không có số đếm) \\
+\hline
+Vu và Nguyen~\cite{vu2015saturation} & Nút có đèn ở TP. Hồ Chí Minh & Mỗi 1\% ô tô trong dòng giảm lưu lượng bão hòa khoảng 0,4\%; lưu lượng đạt đỉnh trong 6--12~s đầu pha xanh \\
+\hline
+Chu Cong Minh và cs.~\cite{chu2005speed} & Bốn vị trí ở Hà Nội & Xe máy 1,87~m~$\times$~0,64~m; tốc độ $27{,}3 \pm 5{,}2$~km/h giữa tuyến, $21{,}3 \pm 5{,}1$~km/h trong dòng hỗn hợp; headway $1{,}16 \pm 0{,}65$~s; khoảng cách ngang giữa hai xe máy song song 1,10~m \\
+\hline
+Torquato và cs.~\cite{torquato2020motorcycles} (tổng quan) & Các phép đo ở Hà Nội & Hệ số quy đổi xe máy khoảng 0,24; headway bão hòa 2,11~s, cộng 0,51~s cho mỗi xe máy xen giữa hai ô tô; thời gian tổn thất khởi động từ 3,3~s (không có xe máy phía trước) lên 5,7~s (hai hàng xe máy phía trước) \\
+\hline
+Nguyen và cs.~\cite{nguyen2022motorcycles} & Đô thị Hà Nội & Tốc độ trung bình của xe máy 20,49~km/h \\
+\hline
+Phuengprachuab và cs.~\cite{phuengprachuab2023opportunistic} & Tám nút có đèn ở Nakhon Ratchasima, Thái Lan; 2681 người đi xe máy & 61\% số người vượt đỏ là vi phạm ``cơ hội'': xuất phát sớm khi thấy ô tô vượt đèn đỏ. Dừng quá vạch dừng làm tăng hành vi này \\
+\hline
+Hsu và cs.~\cite{hsu2024v2x} & Các nút ở Đài Loan & PET trung bình 2,15~s với xung đột rẽ trái cắt ngang, trước khi lắp hệ thống cảnh báo \\
+\hline
+Mohd Zulkiffli và cs.~\cite{zulkiffli2023stopping} & Bốn nút bốn nhánh có đèn ở bán đảo Malaysia, giờ cao điểm và thấp điểm & Hơn 63\% trong 4133 xe máy dừng quá vạch dừng \\
+\hline
+Gao và cs.~\cite{gao2020redlight} & 2173 người đi xe đạp điện ở Thượng Hải, khoảng một nửa là người giao hàng & Nguy cơ vượt đèn đỏ tăng 33\% khi thấy người khác vi phạm. Đối tượng là xe đạp điện, nên chỉ là bằng chứng gián tiếp cho hiệu ứng bầy đàn \\
+\hline
+Nguyen-Phuoc và cs.~\cite{nguyenphuoc2019turnsignal} & 24 vị trí ở Đà Nẵng; 17142 xe & Bật xi-nhan khi rẽ: 40,13\% xe máy, 68,27\% ô tô \\
+\hline
+\end{longtable}
+\endgroup
+
+Các số liệu này đo ở địa điểm, thời điểm và định nghĩa khác nhau. Nhiều đại lượng cần cho hiệu chỉnh chưa có số liệu công bố: số xe chờ giữa nút, tỷ lệ đi sai làn, mật độ hàng chờ xe máy, PET tại nút giao ở Việt Nam. Khi dựng dữ liệu đại diện, đa số giá trị mục tiêu vì thế được gắn nhãn là chuyển giao từ bối cảnh khác hoặc giả định.
+
+\subsection{Hiệu chỉnh tự động và LLM}
+\label{subsection:2.1.4}
+
+Hiệu chỉnh mô phỏng vi mô thường được phát biểu là bài toán tối ưu: tìm bộ tham số sao cho chỉ số tính từ đầu ra mô phỏng gần nhất với chỉ số quan sát. Mỗi lần đánh giá cần chạy mô phỏng với nhiều seed và hàm mục tiêu không có đạo hàm, nên tối ưu hộp đen được dùng phổ biến. Saval và cộng sự dùng giải thuật di truyền~\cite{saval2023mixed}. Khi kiểm tra lưu lượng, tiêu chí chấp nhận thường dùng là thống kê GEH: hướng dẫn TAG Unit M3.1 của Bộ Giao thông Anh yêu cầu GEH nhỏ hơn 5 ở hơn 85\% số lưu lượng đếm~\cite{dft2026tagm31}.
+
+Optuna~\cite{akiba2019optuna} là khung tối ưu siêu tham số mã nguồn mở. Không gian tìm kiếm được định nghĩa ngay trong mã của hàm mục tiêu (define-by-run), và khung hỗ trợ nhiều thuật toán lấy mẫu cùng cơ chế cắt tỉa lần thử kém. Optuna tìm được giá trị số cho tham số vType và tham số luật TraCI trong một không gian cố định. Giới hạn của nó là cấu trúc mô hình (luật nào, cho nhóm tài xế nào) phải có sẵn, và nó không giải thích kết quả. Trong luận văn, Optuna là phương án đối sánh B2, dùng cùng không gian tham số và cùng ngân sách số lần chạy với vòng lặp LLM (Mục~\ref{section:3.8}).
+
+LLM sinh được văn bản có cấu trúc theo lược đồ cho trước và nhận được phản hồi bằng số liệu hay ngôn ngữ tự nhiên. Vì vậy LLM có thể làm người lập mô hình: đề xuất cấu trúc luật, chọn tham số kèm lý do, và sửa đề xuất theo sai lệch giữa mô phỏng và quan sát.
+
+Các công trình gần nhất dùng LLM để điều khiển chính SUMO. AgentSUMO~\cite{jeong2025agentsumo} để LLM diễn giải yêu cầu bằng ngôn ngữ tự nhiên, suy ra tham số còn thiếu và tách yêu cầu thành các thao tác SUMO cụ thể để sinh kịch bản mô phỏng. SUMO-MCP~\cite{ye2025sumomcp} nối SUMO với tác tử LLM qua Model Context Protocol, tức là một nền tảng công cụ chứ không phải một phương pháp hiệu chỉnh. ChatSUMO Agent~\cite{li2026chatsumo} là tác tử LLM vòng kín có công cụ dựng mạng, sinh tuyến, hiệu chỉnh và phân tích kết quả, chỉnh tham số và nhu cầu theo các chỉ số người dùng đặt ra. Cả ba đều hướng tới cấu hình kịch bản và nhu cầu. Theo khảo sát của luận văn, chưa có công trình nào dùng LLM sinh cấu trúc luật hành vi tài xế (tham số vType cùng luật có điều kiện) cho dòng xe hỗn hợp không tuân thủ, có kiểm tra hợp lệ trước khi chạy và so sánh với một bộ tối ưu trên cùng ngân sách.
+
+\subsection{Khoảng trống nghiên cứu}
+\label{subsection:2.1.5}
+
+Bảng~\ref{table:2.2} gom bốn giới hạn của các công trình trên và cách luận văn xử lý từng giới hạn.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Giới hạn của các công trình hiện có và hướng xử lý của luận văn.}
+\label{table:2.2}
+\begin{tabular}{|p{5.2cm}|p{8.8cm}|}
+\hline
+\textbf{Giới hạn} & \textbf{Cách luận văn xử lý} \\
+\hline
+SUMO mặc định, kể cả với làn con, không biểu diễn vượt đèn theo đoàn, xuất phát sớm, dừng chờ giữa nút & Bổ sung luật TraCI có điều kiện bên cạnh tham số vType (Mục~\ref{section:3.3}) \\
+\hline
+Mô hình Hà Nội đã công bố~\cite{saval2023mixed}: cấu trúc luật cố định, hiệu chỉnh cho một đoạn phố, chạy trên nền khác SUMO, không có rẽ trái dừng chờ & Dựng mô hình trên SUMO cho một nút, với 11 hành vi (Mục~\ref{section:1.2}) \\
+\hline
+Số liệu thực nghiệm rời rạc, thiếu nhiều đại lượng cần cho hiệu chỉnh & Dữ liệu đại diện có nhãn bằng chứng cho từng giá trị (Mục~\ref{section:3.6}); sẽ thay bằng dữ liệu video khi có \\
+\hline
+Hiệu chỉnh tự động chỉ tìm giá trị số trong cấu trúc cố định & LLM đề xuất cả cấu trúc lẫn tham số; mọi đề xuất qua kiểm tra hợp lệ; so sánh công bằng với Optuna (Mục~\ref{section:3.8}) \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Yêu cầu đối với hệ thống}
+\label{section:2.2}
+
+\subsection{Chức năng}
+\label{subsection:2.2.1}
+
+Hệ thống là quy trình hiệu chỉnh hành vi tài xế cho mô phỏng SUMO của nút giao nghiên cứu. Bảng~\ref{table:2.3} liệt kê tám chức năng và trạng thái của từng chức năng.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Các chức năng của hệ thống.}
+\label{table:2.3}
+\begin{tabular}{|p{2.8cm}|p{8.4cm}|p{2.6cm}|}
+\hline
+\textbf{Chức năng} & \textbf{Nội dung} & \textbf{Trạng thái} \\
+\hline
+Dựng mạng & Sinh mạng mô phỏng từ dữ liệu OpenStreetMap và tệp cấu hình hiện trường; áp tệp vá plain XML cho bề rộng làn, kết nối rẽ và chương trình đèn & Đã triển khai \\
+\hline
+Sinh nhu cầu & Tạo tệp lộ trình theo từng ngày dữ liệu và seed & Đã triển khai \\
+\hline
+Quản lý luật & Lược đồ đặc tả luật, tệp miền tham số, bộ kiểm tra hợp lệ, bộ biên dịch ra tệp kiểu phương tiện cho SUMO và tệp luật cho bộ điều khiển TraCI & Đã triển khai \\
+\hline
+Chạy mô phỏng & Khởi động SUMO qua \texttt{libsumo} hoặc TraCI, gắn bộ điều khiển, thu đầu ra, chuyển sang lược đồ dữ liệu quan sát, ghi \texttt{manifest.json} & Đã triển khai \\
+\hline
+Dữ liệu mục tiêu & Sinh các ngày dữ liệu đại diện từ bảng giá trị mục tiêu & Đã triển khai \\
+\hline
+Đánh giá & Tính chỉ số M1--M10 (Bảng~\ref{table:3.3}), khoảng cách giữa mô phỏng và quan sát, điểm tổng & Đã triển khai \\
+\hline
+Vòng lặp hiệu chỉnh & Gọi LLM sinh và tinh chỉnh đặc tả luật & Đã triển khai; P1, P2 đã chạy trên mạng 04/11 \\
+\hline
+Đối sánh & Chạy Optuna và đánh giá cuối các phương án & B2 đã chạy trên mạng 04/11; H và đánh giá cuối dự kiến \\
+\hline
+\end{tabular}
+\end{table}
+
+Ba thành phần cốt lõi có yêu cầu riêng. Bộ kiểm tra hợp lệ phải từ chối đặc tả vi phạm lược đồ, dùng thuộc tính không có trong tệp miền, có giá trị ngoài miền, có tổng tỷ trọng nguyên mẫu trong một phân phối khác 1, có tham số luật sai hoặc mâu thuẫn logic. Nó trả về cả danh sách lỗi có mã, không dừng ở lỗi đầu tiên, để danh sách này gửi lại được cho LLM.
+
+Bộ biên dịch phải sinh các phân phối kiểu phương tiện đúng tên mà tệp lộ trình tham chiếu (\texttt{car}, \texttt{moto}, \texttt{moto\_violator}), và chỉ dùng thuộc tính đã khai báo hợp lệ. Nhờ vậy mọi đặc tả dùng chung một tệp nhu cầu.
+
+Bộ điều khiển TraCI chỉ được xử lý xe trong vùng nút, không đặt chồng nhiều can thiệp lên một xe, và không tắt các cơ chế an toàn nằm ngoài phạm vi luật. Nó phải ghi mọi can thiệp cùng việc SUMO có thực thi lệnh hay không.
+
+\subsection{Quy trình một vòng hiệu chỉnh}
+\label{subsection:2.2.2}
+
+Một vòng hiệu chỉnh gồm sáu bước (Hình~\ref{fig:1.1} cho thấy năm bước đầu). Bảng~\ref{table:2.4} mô tả đầu vào, đầu ra và trạng thái từng bước.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Sáu bước của một vòng hiệu chỉnh.}
+\label{table:2.4}
+\begin{tabular}{|c|p{2.6cm}|p{5.4cm}|p{5cm}|}
+\hline
+\textbf{Bước} & \textbf{Tên} & \textbf{Nội dung} & \textbf{Trạng thái} \\
+\hline
+1 & Sinh đặc tả & LLM nhận mô tả nút, từ điển tham số sinh từ tệp miền, giá trị mục tiêu của các ngày hiệu chỉnh và phản hồi vòng trước; trả về đặc tả JSON. LLM không viết mã và không sửa mạng & Đã triển khai. Đặc tả B0, B1 viết tay; đặc tả của P1, P2 do LLM cục bộ sinh (Mục~\ref{section:3.8}) \\
+\hline
+2 & Kiểm tra hợp lệ & Đối chiếu đặc tả với lược đồ, tệp miền và ràng buộc logic (Mục~\ref{section:3.4}). Đặc tả sai không được chạy; LLM được yêu cầu sửa, tối đa 3 lần & Đã triển khai \\
+\hline
+3 & Biên dịch & Sinh \texttt{vtypes.add.xml} (ba phân phối kiểu xe) và \texttt{traci\_rules.json} (luật có điều kiện) & Đã triển khai \\
+\hline
+4 & Mô phỏng & Chạy SUMO với mạng, lộ trình và kiểu xe đã biên dịch, gắn bộ điều khiển TraCI. Mỗi lần chạy ghi đầu ra SUMO, \texttt{interventions.csv}, các bảng theo lược đồ quan sát và \texttt{manifest.json} (cấu hình, giá trị băm đầu vào, số teleport, số va chạm, kết luận hợp lệ) & Đã triển khai \\
+\hline
+5 & Tính chỉ số & Tính G0 và M1--M10 trên các bảng đầu ra; tính khoảng cách tới dữ liệu mục tiêu, sàn nhiễu giữa các ngày và điểm tổng & Đã triển khai \\
+\hline
+6 & Phản hồi và chọn đặc tả & Gộp khoảng cách theo chỉ số, lỗi kiểm tra hợp lệ và thống kê can thiệp TraCI thành phản hồi, chỉ dựa trên các ngày hiệu chỉnh. Giữ đặc tả tốt nhất trong các lần chạy đủ điều kiện. Dừng khi hết ngân sách số lần chạy; sau đó đánh giá trên ngày đánh giá & Phản hồi và chọn đã triển khai; đánh giá cuối dự kiến \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Yêu cầu phi chức năng}
+\label{subsection:2.2.3}
+
+\textbf{Tái lập.} Mọi kết quả phải tái lập được từ mã nguồn và dữ liệu đầu vào. Mạng được sinh bằng script từ tệp OpenStreetMap cộng các tệp vá plain XML; không ai sửa tay \texttt{.net.xml}, và thư mục dữ liệu thô không đổi. Seed cố định cho sinh nhu cầu, sinh dữ liệu đại diện và mô phỏng. Mỗi lần chạy ghi \texttt{manifest.json} gồm: mã commit và cờ cây mã có thay đổi chưa commit; phiên bản SUMO; backend; giá trị băm của đặc tả, mạng, lộ trình và cấu hình hiện trường; nguồn cấu hình hiện trường; cấu hình thí nghiệm; các tùy chọn SUMO.
+
+\textbf{Không bịa số liệu hiện trường.} Giá trị đo thực địa (bề rộng làn, chu kỳ đèn, nhánh cấm rẽ, lưu lượng) chỉ lấy từ tệp cấu hình hiện trường. Giá trị chưa đo để \texttt{null} kèm chú thích \texttt{TODO\_MEASURE}; nếu một giá trị bắt buộc còn \texttt{null}, mã báo lỗi thay vì điền mặc định. Tham số thí nghiệm chưa chốt (\texttt{TODO\_DECIDE}) cũng gây lỗi khi dùng. Cấu hình đại diện dựa trên tài liệu nằm trong một tệp riêng, mỗi giá trị kèm nguồn và nhãn bằng chứng, và chỉ dùng khi được chỉ định rõ.
+
+\textbf{Xác minh tên tham số SUMO.} Mọi thuộc tính vType và tùy chọn của \texttt{netconvert}, \texttt{sumo} được kiểm tra bằng lệnh trợ giúp hoặc tài liệu chính thức trước khi dùng. Mỗi dòng của tệp miền tham số ghi đường dẫn tài liệu xác nhận tên thuộc tính. Khi chưa biết SUMO xử lý một tình huống ra sao, luận văn viết một thí nghiệm nhỏ để kiểm tra; thí nghiệm về số xe có thể dừng chờ giữa nút là một ví dụ.
+
+\textbf{Hiệu năng và tương đương giữa các backend.} Chạy hàng loạt dùng \texttt{libsumo} để giảm chi phí giao tiếp; TraCI dùng khi cần gỡ lỗi với giao diện đồ họa. Hai backend phải cho kết quả như nhau: một kiểm thử tự động chạy một kịch bản nhỏ với cùng seed qua cả hai và yêu cầu quỹ đạo của mọi xe trùng khớp. Bộ điều khiển dùng đăng ký nhận dữ liệu và chỉ xử lý xe trong vùng nút để giữ chi phí mỗi bước thấp.
+
+\textbf{Khả chuyển.} Hệ thống phát triển trên Windows và chạy được trên Linux. Đường dẫn dùng \texttt{pathlib}, không viết cứng ký tự phân cách; tệp đầu ra đọc được ở cả \texttt{.xml} và \texttt{.xml.gz}. Mã cần Python 3.10 trở lên trong môi trường ảo. Phần gọi LLM dùng giao diện tương thích OpenAI để không gắn với một runtime.
+
+\textbf{Kiểm thử.} Mọi thành phần có kiểm thử tự động bằng \texttt{pytest} trên dữ liệu tổng hợp nhỏ, từ dựng mạng tới vòng lặp LLM và Optuna. Kết quả lần chạy gần nhất nằm ở Mục~\ref{section:testing}.
+
+Chương này đã cho thấy mỗi hướng hiện có giải quyết được một phần của bài toán. Mô hình làn con của SUMO xử lý được phần không gian của dòng hỗn hợp nhưng không tự tạo hành vi không tuân thủ phụ thuộc ngữ cảnh. Mô hình Hà Nội đã công bố có luật xác suất cho hành vi không tuân thủ nhưng cấu trúc luật cố định và không có các hành vi tại nút. Bộ tối ưu như Optuna chỉ tìm giá trị số trong một cấu trúc có sẵn, còn các công trình dùng LLM với SUMO hướng tới cấu hình kịch bản thay vì luật hành vi. Số liệu thực nghiệm về xe máy rời rạc, nên phần lớn giá trị mục tiêu phải là giá trị chuyển giao hoặc giả định. Từ đó, chương đặt ra tám chức năng, một quy trình hiệu chỉnh sáu bước và các yêu cầu tái lập, không bịa số liệu hiện trường, xác minh tên tham số SUMO, tương đương giữa hai backend và khả chuyển. Chương~\ref{chapter:Methodology} trình bày phương pháp đáp ứng các yêu cầu này.
+
+\end{document}

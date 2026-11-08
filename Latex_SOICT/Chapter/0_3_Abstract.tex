@@ -1,0 +1,26 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+
+\begin{center}
+    \Large{\textbf{TÓM TẮT NỘI DUNG LUẬN VĂN}}\\
+\end{center}
+\vspace{1cm}
+% Cập nhật tạm thời 2026-10-31. TODO: cập nhật khi có kết quả đánh giá cuối E1, E2 với LLM cục bộ và dữ liệu quan sát thực.
+\textbf{Bối cảnh.} Mô phỏng vi mô là công cụ chuẩn để phân tích nút giao có đèn tín hiệu, nhưng mô hình hành vi mặc định của SUMO giả định dòng xe đi theo làn và tuân thủ luật. Dòng ô tô và xe máy tại Hà Nội không như vậy: xe vượt đèn đỏ theo đoàn, xuất phát trước đèn xanh, luồn lách theo phương ngang, dừng trên làn rẽ phải, đi trên vỉa hè khi ùn, và rẽ trái trái phép bằng cách dừng chờ giữa nút. Chỉnh tay từng tham số để tái hiện các hành vi này tốn công và khó truy vết.
+
+\textbf{Mục tiêu.} Luận văn mô phỏng hành vi tham gia giao thông tại nút Lê Văn Lương -- Hoàng Đạo Thúy (Thanh Xuân, Hà Nội) trong cao điểm sáng 07:30--09:00, sao cho giống thực tế nhất có thể. Kịch bản gồm 11 hành vi, chia thành ba nhóm: không tuân thủ tín hiệu, tìm khoảng trống khi ùn, và tương tác trong nút. Rẽ trái trái phép chờ giữa nút là một trong 11 hành vi này.
+
+\textbf{Phương pháp.} Một mô hình ngôn ngữ lớn (LLM) chạy cục bộ sinh và tinh chỉnh lặp một đặc tả luật hành vi tài xế. Đặc tả gồm tham số kiểu phương tiện và các luật có điều kiện thực thi qua TraCI. LLM chỉ sinh luật bên ngoài vòng mô phỏng; SUMO và bộ điều khiển TraCI thực thi luật. Mỗi đặc tả được kiểm tra theo lược đồ và miền tham số có ghi nguồn trước khi biên dịch và chạy.
+
+\textbf{Kết quả hiện có.} Toàn bộ quy trình đã được cài đặt: mạng mô phỏng tái lập được, bộ kiểm tra hợp lệ, bộ biên dịch, bộ điều khiển với sáu luật có điều kiện, mười chỉ số M1--M10 kèm điểm tổng, khung đánh giá với ngân sách số lần chạy chung, vòng lặp LLM và phương án đối sánh Optuna. Mười trong 11 hành vi đã được đưa vào mô hình; hành vi đi ngược chiều được hoãn sau thí nghiệm khả thi. LLM cục bộ là \texttt{qwen3.5:9b} (lượng tử hóa Q4\_K\_M) chạy qua Ollama. Trên mạng ngày 27/10, phương án đối sánh Optuna đã dùng hết ngân sách 36 lần chạy; trong 12 đặc tả của nó, không đặc tả nào đạt tiêu chí đủ điều kiện, vì mô hình nền quá tải ở mức nhu cầu đại diện. Sau khảo sát hiện trường, kịch bản đổi sang đèn ba pha, cấm rẽ trái ở hai nhánh Hoàng Đạo Thúy và làn rẽ phải liên tục chỉ ở 30~m cuối. Trên mạng hiện tại, SUMO mặc định đủ điều kiện ở 15/15 lần chạy, còn bộ luật thủ công thì chưa. Optuna và hai chiến dịch LLM (chỉnh tham số trên cấu trúc cố định, và sinh cả cấu trúc) đều dùng hết ngân sách 36 lần chạy nhưng chưa có đặc tả nào đủ điều kiện; phân tích loại bỏ cho thấy nguyên nhân chính là gia tốc xe máy chuyển giao từ tài liệu trong bộ luật thủ công. LLM cục bộ mắc chủ yếu lỗi cấu trúc mà bộ kiểm tra hợp lệ bắt được trước khi chạy. Chưa có đánh giá cuối, nên chưa so sánh được LLM với Optuna.
+
+\textbf{Giới hạn.} Chưa có dữ liệu quan sát từ video, nên quy trình được kiểm thử trên các ngày dữ liệu đại diện, tổng hợp từ tài liệu đã công bố về các nút giao khác. Các giá trị tạm thời này được đánh dấu trong luận văn để thay bằng số đo thật. Kết quả trên dữ liệu này chỉ cho biết quy trình vận hành được, chưa cho biết mô phỏng giống giao thông thực đến mức nào. \textbf{[TODO: kết quả đánh giá cuối E1, E2 với LLM cục bộ]}
+
+\begin{flushright}
+Học viên thực hiện\\
+\begin{tabular}{@{}c@{}}
+\textit{(Ký và ghi rõ họ tên)}
+\end{tabular}
+\end{flushright}
+
+\end{document}
