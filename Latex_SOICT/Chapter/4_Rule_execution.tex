@@ -39,15 +39,25 @@ Cách làm này tách hai câu hỏi. Câu hỏi ``không gian này có tồn t�
 
 Bộ điều khiển tuân theo năm nguyên tắc.
 
-\textbf{Chỉ gỡ đúng ràng buộc cần gỡ.} Mô hình chuẩn của trình mô phỏng gồm nhiều ràng buộc an toàn độc lập: không vượt đèn đỏ, nhường xe xung đột khi vào nút, giữ khoảng cách an toàn với xe trước, giới hạn gia tốc. Luật vượt đèn đỏ chỉ gỡ ràng buộc ``không vượt đèn đỏ''; mọi ràng buộc khác, kể cả nhường xe xung đột, được giữ. Ràng buộc nào cần gỡ được xác định bằng thí nghiệm trên một nút nhỏ, không suy từ tài liệu. Nếu gỡ hết các ràng buộc, xe chắc chắn làm được hành vi, nhưng cũng lao vào dòng xe cắt ngang; một bộ luật như vậy có thể ``khớp'' dữ liệu nhờ va chạm và chồng lấn vật lý, và vòng tối ưu sẽ khai thác lỗ hổng đó.
+\subsection{Chỉ gỡ đúng ràng buộc cần gỡ}
 
-\textbf{Chỉ giữ, không đẩy.} Luật được phép làm xe đi chậm hơn hoặc chờ lâu hơn so với mô hình chuẩn; luật không được ép xe đi qua một dòng xung đột vào thời điểm định trước, và không được cho xe khác bỏ qua xe đó. Với hành vi rẽ trái chờ giữa nút, nguyên tắc này giới hạn luật ở việc kéo dài thời gian giữ xe (Mục~\ref{section:rg_mechanisms}).
+Mô hình chuẩn của trình mô phỏng gồm nhiều ràng buộc an toàn độc lập: không vượt đèn đỏ, nhường xe xung đột khi vào nút, giữ khoảng cách an toàn với xe trước, giới hạn gia tốc. Luật vượt đèn đỏ chỉ gỡ ràng buộc ``không vượt đèn đỏ''; mọi ràng buộc khác, kể cả nhường xe xung đột, được giữ. Ràng buộc nào cần gỡ được xác định bằng thí nghiệm trên một nút nhỏ, không suy từ tài liệu. Nếu gỡ hết các ràng buộc, xe chắc chắn làm được hành vi, nhưng cũng lao vào dòng xe cắt ngang; một bộ luật như vậy có thể ``khớp'' dữ liệu nhờ va chạm và chồng lấn vật lý, và vòng tối ưu sẽ khai thác lỗ hổng đó.
 
-\textbf{Mỗi xe một can thiệp.} Một xe đang chịu một luật bị các luật khác bỏ qua cho tới khi can thiệp kết thúc, để các lệnh ghi đè không chồng lên nhau và mỗi hành vi quan sát được có đúng một nguyên nhân.
+\subsection{Chỉ giữ, không đẩy}
 
-\textbf{Khôi phục và kiểm tra lại.} Mọi thay đổi trạng thái của xe được hoàn tác khi can thiệp kết thúc. Sau mỗi lần đặt và mỗi lần khôi phục, bộ điều khiển đọc lại giá trị từ trình mô phỏng và dừng lần chạy nếu giá trị không khớp. Bộ điều khiển không đổi thuộc tính của nguyên mẫu trong lúc chạy, vì việc đó có thể tách xe khỏi nguyên mẫu ban đầu và làm hỏng việc đối chiếu xe với đặc tả.
+Luật được phép làm xe đi chậm hơn hoặc chờ lâu hơn so với mô hình chuẩn; luật không được ép xe đi qua một dòng xung đột vào thời điểm định trước, và không được cho xe khác bỏ qua xe đó. Với hành vi rẽ trái chờ giữa nút, nguyên tắc này giới hạn luật ở việc kéo dài thời gian giữ xe (Mục~\ref{section:rg_mechanisms}).
 
-\textbf{Chỉ xét vùng nút.} Bộ điều khiển chỉ xử lý xe trong một bán kính quanh nút giao đủ phủ các không gian vi phạm, và đọc trạng thái xe theo cơ chế đăng ký nhận dữ liệu thay vì hỏi từng xe, để chi phí mỗi bước không tăng theo kích thước mạng. Trạng thái đèn của mỗi xe được lấy theo đúng luồng mà xe sẽ đi, để xe rẽ trong pha mũi tên riêng không bị coi là vượt đèn đỏ.
+\subsection{Mỗi xe một can thiệp}
+
+Một xe đang chịu một luật bị các luật khác bỏ qua cho tới khi can thiệp kết thúc, để các lệnh ghi đè không chồng lên nhau và mỗi hành vi quan sát được có đúng một nguyên nhân.
+
+\subsection{Khôi phục và kiểm tra lại}
+
+Mọi thay đổi trạng thái của xe được hoàn tác khi can thiệp kết thúc. Sau mỗi lần đặt và mỗi lần khôi phục, bộ điều khiển đọc lại giá trị từ trình mô phỏng và dừng lần chạy nếu giá trị không khớp. Bộ điều khiển không đổi thuộc tính của nguyên mẫu trong lúc chạy, vì việc đó có thể tách xe khỏi nguyên mẫu ban đầu và làm hỏng việc đối chiếu xe với đặc tả.
+
+\subsection{Chỉ xét vùng nút}
+
+Bộ điều khiển chỉ xử lý xe trong một bán kính quanh nút giao đủ phủ các không gian vi phạm, và đọc trạng thái xe theo cơ chế đăng ký nhận dữ liệu thay vì hỏi từng xe, để chi phí mỗi bước không tăng theo kích thước mạng. Trạng thái đèn của mỗi xe được lấy theo đúng luồng mà xe sẽ đi, để xe rẽ trong pha mũi tên riêng không bị coi là vượt đèn đỏ.
 
 \section{Ghi nhận can thiệp}
 \label{section:ex_log}

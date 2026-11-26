@@ -17,9 +17,15 @@ Quá trình xây dựng cho thấy ba điều. Thứ nhất, nhiều hiện tư�
 
 Bộ thực thi luật tạo ra được hành vi vượt đèn đỏ mà SUMO mặc định không có: trên mạng N7, 1,90\% xe máy của B1 vượt đèn đỏ, so với 0\% của B0, và B1 có ít va chạm trên làn hơn B0 (1,6 so với 8,0/h). Vế thứ hai của câu hỏi có câu trả lời là chưa: B1 để lại 1851--2140 xe chờ vào mạng, so với 1055--1199 của B0, và cả hai không đạt tiêu chí chấp nhận ở lần chạy nào (Mục~\ref{section:compare_b0_b1}). Ngay cả B0 cũng chỉ cho số lượt qua vạch dừng bằng 83\% nhu cầu đo từ video.
 
-%%CH2%%
+\subsection{Câu hỏi 2}
 
-%%CH3%%
+Trên cùng không gian tham số và cùng ngân sách 36 lần chạy, Optuna cho $S$ nhỏ hơn LLM: đặc tả B2 được chọn có $S$ 0,927 khi hiệu chỉnh và 0,926 trên ngày kiểm định, so với 1,107 và 1,076 của đặc tả P1 được chọn. Optuna đạt điều này bằng cách tăng gia tốc của xe, đổi lại nhiều va chạm trên làn hơn B0 (13,2 so với 10,5/h trên ngày kiểm định); P1 giữ nguyên mọi thuộc tính vType của B1. Không phương án nào đạt tiêu chí chấp nhận, nên câu trả lời dựa trên quy tắc chọn dự phòng và chưa đủ để nói phương án nào tái hiện giao thông tốt hơn (Mục~\ref{subsection:campaigns_n1108}, \ref{section:benchmark}).
+
+\subsection{Câu hỏi 3}
+
+\texttt{qwen3.5:9b} sinh được đặc tả hợp lệ ở 14/16 mẫu P1 (chế độ khóa cấu trúc) nhưng ở 0/20 mẫu P2 (chế độ đầy đủ) trên N7. Lỗi chủ yếu là tổng tỷ trọng, và ở chế độ đầy đủ là lỗi cấu trúc gắn với ràng buộc riêng của nút: đặt luật tìm khoảng trống cho xe không có phương án nào, dùng tên phân phối làm mã nguyên mẫu, bỏ trống phân phối \texttt{moto\_violator}. Bộ kiểm tra hợp lệ chặn mọi lần trả lời hỏng trước khi chạy, nên không lần chạy SUMO nào bị tốn cho đặc tả hỏng (Mục~\ref{subsection:qwen_campaign}).
+
+\subsection{Phạm vi của các câu trả lời}
 
 Mọi kết quả trên tính trên nhu cầu đo từ hai đoạn video ngắn, các chỉ số hành vi lấy từ tài liệu và các giá trị tạm thời của hình học và chương trình đèn. Chúng cho biết quy trình vận hành được với nhu cầu đo tại nút và mô phỏng khác mô hình chuẩn ở đâu; chúng chưa cho biết các hành vi vi phạm trong mô phỏng giống giao thông thực tại nút đến mức nào.
 

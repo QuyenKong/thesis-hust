@@ -145,5 +145,27 @@ def llm():
             print(f"  {v:3d}  {k}")
 
 
+def bench():
+    """BENCH_v1126 (VIDEO_V1 x seeds 1-20): one row per run, then mean / min / max per spec."""
+    rows, specs = [], []
+    for p in sorted((CAMP / "BENCH_v1126").glob("*.pkl")):
+        res = pickle.load(open(p, "rb"))
+        rows += eval_rows(res, p.stem)
+        specs.append({"spec": p.stem, "S": S_of(res), "interventions": json.dumps(res.interventions_summary)})
+    df = pd.DataFrame(rows)
+    OUT.mkdir(parents=True, exist_ok=True)
+    df.to_csv(OUT / "bench_runs.csv", index=False)
+    pd.DataFrame(specs).to_csv(OUT / "bench_specs.csv", index=False)
+    num = ["collisions_per_hour", "lane_collisions_per_hour", "jam_teleports_per_hour", "backlog", "geh_share"]
+    pd.set_option("display.width", 250)
+    print(df.groupby("spec")[num].agg(["mean", "std", "min", "max"]).T.round(3).to_string())
+    print(df.groupby("spec")["eligibility"].value_counts().to_string())
+    print(df.groupby("spec")["g0_pass"].sum().to_string())
+    for s in specs:
+        print(s["spec"], "S", round(s["S"], 4))
+    for spec, g in df.groupby("spec"):
+        print(spec, "reasons:", collections.Counter(x.split(":")[0] for r in g["reasons"] for x in r.split("; ") if x))
+
+
 if __name__ == "__main__":
-    {"ref": ref, "camp": camp, "llm": llm}[sys.argv[1]]()
+    {"ref": ref, "camp": camp, "llm": llm, "bench": bench}[sys.argv[1]]()
