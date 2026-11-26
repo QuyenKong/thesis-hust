@@ -1,73 +1,38 @@
 \documentclass[../main.tex]{subfiles}
 \begin{document}
 
-\section{Đặt vấn đề}
+\section{Bối cảnh và động lực}
 \label{section:1.1}
 
-Giao thông đô thị Hà Nội là dòng xe hỗn hợp, trong đó xe máy chiếm đa số. Xe máy chiếm trên 90\% số phương tiện đăng ký tại Hà Nội~\cite{nguyen2022motorcycles}. Tại nút Láng Hạ -- Láng, một nút có đèn trên cùng trục Láng Hạ -- Lê Văn Lương, xe máy chiếm khoảng 86,5\% số phương tiện đếm từ video trong giờ cao điểm~\cite{mai2019signal}. Thành phố Hồ Chí Minh có tỷ lệ tương tự, 85--90\%~\cite{nguyen2026surtrac}. Ô tô và xe máy dùng chung lòng đường; xe máy không đi theo làn cố định mà len vào các khoảng trống ngang giữa các xe khác.
+Một mô hình tái hiện được cách người Việt Nam đi qua nút giao cho phép trả lời trên máy tính những câu hỏi mà hiện nay chỉ trả lời được sau khi nút đã xây xong hoặc biện pháp đã áp dụng ngoài đường. Mô phỏng giao thông vi mô tái hiện từng phương tiện và tương tác giữa chúng trên một mạng đường chi tiết tới từng làn và từng hướng rẽ~\cite{lopez2018sumo}, nên một thiết kế hay một biện pháp có thể được thử trước khi làm thật. Mô hình hành vi như vậy có ít nhất ba nhóm người dùng.
 
-Dòng xe tại nút có đèn còn có nhiều hành vi trái luật. Video tại hai nút ở Hà Nội cho thấy 9,64--11,06\% xe máy vượt đèn đỏ và 13,55--15,82\% xe máy xuất phát sớm, tức bắt đầu đi từ khoảng 5~s trở lên trước khi đèn xanh. Với ô tô, các tỷ lệ này chỉ từ 0,50\% đến 1,61\%~\cite{mai2019signal}. Cùng nghiên cứu ghi nhận một lượng lớn xe máy của luồng phụ đi vào giữa nút và dừng chờ khi pha đèn đổi~\cite{mai2019signal}. Luận văn xem xét 11 hành vi như vậy; danh sách đầy đủ ở Bảng~\ref{table:1.1}.
+Nhóm thứ nhất là quy hoạch đô thị và thiết kế nút giao. Khi quy hoạch một nút giao mới, chưa có dòng xe thật để quan sát; người thiết kế chỉ có thể so sánh các thiết kế hình học, cách chia làn và chương trình đèn bằng hàng chờ, độ trễ và số xung đột mà mô phỏng cho ra. Nếu mô hình cho rằng mọi người dừng đúng vạch và rẽ đúng làn, thiết kế được chọn là thiết kế tốt cho một dòng xe không tồn tại. Nhóm thứ hai là tổ chức giao thông: cấm một hướng rẽ, đổi pha đèn hay thêm làn rẽ phải liên tục ở một nút đang khai thác cần được ước lượng tác động trước khi áp dụng. Nhóm thứ ba là kiểm thử hệ thống hỗ trợ lái và xe tự hành. Semrau và Erdmann xây một khung mô phỏng để thử hệ thống hỗ trợ lái trong các tình huống giao thông đặc thù của Trung Quốc~\cite{semrau2016chinese}, vì một hệ thống chỉ được thử với dòng xe tuân thủ thì chưa được thử với những tình huống nó sẽ gặp ngoài đường. Một xe tự hành đi qua nút giao ở Hà Nội sẽ gặp xe máy vượt đèn đỏ theo đoàn, xe máy xuất phát trước đèn xanh và xe máy đứng chờ giữa nút; các tình huống đó phải có trong mô phỏng thì mới kiểm thử được.
 
-SUMO~\cite{lopez2018sumo} là trình mô phỏng vi mô phổ biến để đánh giá phương án tổ chức giao thông trước khi triển khai. Mô hình mặc định của SUMO giả định xe bám theo xe phía trước trong cùng làn, dừng trước vạch khi đèn đỏ và chỉ vào nút khi được phép. Mô hình làn con (sublane) cho phép nhiều xe hẹp chiếm chung một làn và di chuyển theo phương ngang. Dù vậy, với tham số mặc định, SUMO không tạo ra vượt đèn đỏ có xác suất, xuất phát sớm, vượt đèn theo đoàn hay dừng chờ có chủ đích giữa nút. Một mô hình SUMO mặc định cho nút giao ở Hà Nội vì thế có thể cho hàng chờ, thời gian thông qua và số xung đột khác xa thực tế.
+Kết quả của cả ba việc chỉ đáng tin khi mô hình hành vi giống thực tế. Một mô phỏng cho hàng chờ ngắn hơn, ít xung đột hơn hoặc ít tình huống nguy hiểm hơn thực tế sẽ đánh giá quá cao thiết kế đang thử. Luận văn xây dựng một phương pháp để có được mô hình hành vi như vậy cho một nút giao có đèn: từ một danh mục hành vi có cơ sở trong tài liệu, một mô hình ngôn ngữ lớn (LLM) đề xuất bộ luật hành vi, mã tất định thực thi bộ luật trong mô phỏng, và sai lệch giữa mô phỏng và dữ liệu quan sát được dùng để sửa bộ luật. Bộ luật mục tiêu là một tệp văn bản, dùng lại được cho cả ba nhóm người dùng trên.
 
-Để tái hiện các hành vi trên, người lập mô hình phải chỉnh cùng lúc bốn nhóm: (i) tham số bám xe như thời gian phản ứng, khoảng cách tối thiểu, gia tốc và giảm tốc; (ii) tham số chuyển làn và di chuyển ngang của mô hình làn con; (iii) tham số ứng xử tại nút như thời gian chấp nhận đi tiếp khi đèn đỏ và khoảng trống chấp nhận; và (iv) các luật có điều kiện mà tham số tĩnh không biểu diễn được. Không gian này lớn, các tham số tác động lẫn nhau, và mỗi lần đánh giá cần chạy mô phỏng với nhiều seed. Câu hỏi của luận văn là: làm thế nào xây dựng và tinh chỉnh bộ luật hành vi tài xế cho mô phỏng hỗn hợp một cách có hệ thống, có kiểm soát và tái lập được.
+\section{Phát biểu bài toán}
+\label{section:1.current}
 
-\section{Bối cảnh và vấn đề nghiên cứu}
-\label{section:1.bg}
+Các trình mô phỏng vi mô phổ biến dùng mô hình hành vi chuẩn: xe bám theo xe phía trước trong cùng làn, dừng trước vạch khi đèn đỏ, chỉ vào nút khi được phép và nhường đường theo quyền ưu tiên. Mô hình làn con cho phép nhiều xe hẹp chiếm chung một làn và di chuyển theo phương ngang, nên tái hiện được phần không gian của dòng xe máy~\cite{semrau2016chinese}. Các mô hình này được xây cho dòng xe đi theo làn và tuân thủ luật. Với tham số mặc định, chúng không tạo ra vượt đèn đỏ có xác suất, vượt đèn theo đoàn, xuất phát sớm, hay xe rẽ vào hướng cấm rồi dừng chờ giữa nút.
 
-Hiện có ba cách chính để đưa hành vi tài xế Việt Nam vào mô phỏng vi mô. Cách thứ nhất là chỉnh tay tham số của trình mô phỏng. Cách này phụ thuộc vào kinh nghiệm người làm, khó tái lập, và không có tiêu chí rõ để dừng. Cách thứ hai là xây mô hình riêng có luật xác suất cho hành vi không tuân thủ, như mô hình dựa trên tác tử của Saval và cộng sự cho ô tô và xe máy ở Hà Nội~\cite{saval2023mixed}. Mô hình này cho thấy luật xác suất đơn giản đủ đưa hành vi không tuân thủ vào mô phỏng, nhưng cấu trúc luật do người lập mô hình chọn cố định, tham số được hiệu chỉnh cho một đoạn phố, và mô hình không có xuất phát sớm, hiệu ứng bầy đàn hay rẽ trái dừng chờ giữa nút. Cách thứ ba là hiệu chỉnh tự động bằng tối ưu hộp đen, ví dụ giải thuật di truyền hoặc Optuna~\cite{akiba2019optuna}. Bộ tối ưu tìm được giá trị số, nhưng cấu trúc luật (cần luật nào, áp dụng cho nhóm tài xế nào) phải có sẵn, và nó không giải thích vì sao bộ tham số này tốt hơn bộ khác.
+Giao thông Việt Nam khác dòng xe đó ở hai điểm. Điểm thứ nhất là mật độ và thành phần dòng xe. Xe máy chiếm trên 90\% số phương tiện đăng ký tại Hà Nội~\cite{nguyen2022motorcycles} và khoảng 86,5\% số phương tiện đếm được tại một nút có đèn trong giờ cao điểm~\cite{mai2019signal}; ô tô và xe máy dùng chung lòng đường, và xe máy len vào khoảng trống giữa các xe khác thay vì đi theo làn cố định. Điểm thứ hai là mức tuân thủ. Video tại hai nút ở Hà Nội cho thấy 9,64--11,06\% xe máy vượt đèn đỏ và 13,55--15,82\% xe máy xuất phát từ khoảng 5~s trở lên trước khi đèn xanh, trong khi các tỷ lệ này ở ô tô chỉ từ 0,50\% đến 1,61\%~\cite{mai2019signal}. Cùng nghiên cứu ghi nhận nhiều xe máy của luồng phụ đi vào giữa nút và dừng chờ khi pha đèn đổi.
 
-Mô hình ngôn ngữ lớn (LLM) sinh được văn bản có cấu trúc theo lược đồ cho trước và nhận được phản hồi bằng số liệu, nên có thể đóng vai người lập mô hình: đề xuất cấu trúc luật, chọn tham số kèm lý do, và sửa đề xuất theo sai lệch giữa mô phỏng và quan sát. Các công trình gần đây dùng LLM với SUMO, như AgentSUMO~\cite{jeong2025agentsumo}, SUMO-MCP~\cite{ye2025sumomcp} và ChatSUMO Agent~\cite{li2026chatsumo}, đều hướng tới cấu hình kịch bản và nhu cầu. Theo khảo sát ở Chương~\ref{chapter:Related_works}, chưa có công trình nào dùng LLM sinh cấu trúc luật hành vi tài xế cho dòng xe hỗn hợp không tuân thủ, có kiểm tra hợp lệ trước khi chạy và so sánh với một bộ tối ưu trên cùng ngân sách mô phỏng. Đây là vấn đề nghiên cứu của luận văn.
+Theo hiểu biết của tác giả, trong phạm vi khảo sát ở Chương~\ref{chapter:Related_works}, chưa có nghiên cứu nào mô phỏng các hành vi đặc trưng của người tham gia giao thông Việt Nam tại một nút giao có đèn. Mô phỏng nút giao bằng mô hình chuẩn thì có, nhưng không có các hành vi không tuân thủ nêu trên. Công trình gần nhất là mô hình dựa trên tác tử của Saval và cộng sự cho ô tô và xe máy ở Hà Nội~\cite{saval2023mixed}. Mô hình này đưa được hành vi không tuân thủ vào mô phỏng bằng luật xác suất, nhưng cấu trúc luật do người lập mô hình chọn cố định, tham số được hiệu chỉnh cho một đoạn phố chứ không phải một nút, và mô hình không có xuất phát sớm, vượt đèn theo đoàn hay rẽ trái dừng chờ giữa nút. Các hướng hiệu chỉnh tự động, như tối ưu hộp đen~\cite{akiba2019optuna}, tìm được giá trị số cho tham số nhưng cần cấu trúc luật có sẵn. Các công trình dùng LLM với trình mô phỏng~\cite{jeong2025agentsumo,li2026chatsumo} hướng tới cấu hình kịch bản và nhu cầu, không sinh luật hành vi tài xế.
 
-Một hạn chế thực tế đi kèm là dữ liệu. Số liệu đã công bố về hành vi xe máy tại nút có đèn ở Việt Nam rời rạc, đo ở các nút khác, và thiếu nhiều đại lượng cần cho hiệu chỉnh. Tại thời điểm viết, luận văn chưa có video quay tại nút nghiên cứu, nên quy trình phải chạy được và kiểm chứng được trên dữ liệu thay thế trước khi có số đo thật.
+Bài toán của luận văn là mô phỏng hành vi giao thông tại một nút giao, phát biểu như sau. Cho một nút giao có đèn với dòng xe hỗn hợp ô tô và xe máy, mật độ cao và có hành vi không tuân thủ, trong một khung giờ (giờ cao điểm hoặc giờ thấp điểm), cần xây dựng một bộ luật hành vi người tham gia giao thông sao cho trình mô phỏng chạy với bộ luật đó tái hiện các hành vi quan sát được tại nút trong khung giờ đó giống nhất có thể. Đầu vào gồm mô tả nút giao (hình học, làn, chương trình đèn, hướng cấm) và dữ liệu quan sát (số đếm theo hướng, sự kiện vi phạm, hàng chờ, vị trí xe). Đầu ra là một bộ luật kiểm tra được bằng máy, chạy được trong mô phỏng và tái lập được với cùng seed.
 
-\section{Mục tiêu và định hướng giải pháp}
-\label{section:1.2}
+Bài toán có ba khó khăn. Thứ nhất, cấu trúc của mô hình hành vi chưa biết trước: cần luật nào, kích hoạt khi nào, áp dụng cho nhóm người nào, chứ không chỉ cần giá trị của một tập tham số cố định. Thứ hai, không gian tham số lớn, các tham số tác động lẫn nhau, và mỗi lần đánh giá phải chạy mô phỏng nhiều lần với nhiều seed. Thứ ba, số liệu đo về hành vi tại nút giao ở Việt Nam còn rời rạc; nhiều đại lượng cần cho hiệu chỉnh chưa được công bố.
 
-\subsection{Mục tiêu}
+\section{Định hướng giải pháp}
+\label{section:1.3}
 
-Mục tiêu của luận văn là mô phỏng hành vi tham gia giao thông tại nút Lê Văn Lương -- Hoàng Đạo Thúy giống thực tế nhất có thể. Để đạt mục tiêu này, một LLM chạy cục bộ sinh và tinh chỉnh lặp tập luật hành vi tài xế cho SUMO. Luận văn có năm mục tiêu cụ thể: (i) dựng mạng mô phỏng tái lập được cho nút giao, chỉ từ script và các tệp vá cấu hình; (ii) định nghĩa dạng biểu diễn luật gồm tham số kiểu phương tiện và luật có điều kiện thực thi qua TraCI, kèm bộ kiểm tra hợp lệ và bộ biên dịch; (iii) xây dựng bộ điều khiển thực thi luật trong khi mô phỏng, ghi lại mọi lần can thiệp; (iv) xây dựng hệ thống chỉ số để so sánh mô phỏng với dữ liệu quan sát; và (v) so sánh bộ luật do LLM sinh với SUMO mặc định, bộ luật thủ công và Optuna trên cùng ngân sách số lần chạy, tách hai vai trò của LLM là chỉnh tham số trên cấu trúc cố định và sinh cấu trúc luật.
+Giải pháp của luận văn tách việc \emph{sinh luật} khỏi việc \emph{thực thi luật} (Hình~\ref{fig:1.1}).
 
-\subsection{Phạm vi}
+Sinh luật ở đây là việc quyết định mô hình hành vi gồm những gì: chia người tham gia giao thông thành các nguyên mẫu tài xế với tỷ trọng và tham số riêng, chọn các luật có điều kiện (ví dụ ``vượt đèn đỏ với xác suất tăng theo số người vừa vượt'') và giá trị tham số của chúng. Việc này do một LLM chạy cục bộ thực hiện, ngoài vòng mô phỏng. LLM nhận mô tả nút giao, danh mục hành vi và loại luật, danh mục tham số được phép chỉnh kèm miền giá trị, và sai lệch giữa mô phỏng và dữ liệu quan sát của vòng trước. Nó trả về một đặc tả luật dạng văn bản có cấu trúc, kèm lý do cho từng lựa chọn.
 
-Luận văn chỉ xét một nút giao có đèn, bốn nhánh: Lê Văn Lương -- Hoàng Đạo Thúy (quận Thanh Xuân, Hà Nội), trong cao điểm sáng 07:30--09:00. Dòng xe gồm ô tô và xe máy. Người đi bộ, xe buýt, xe tải, ô tô đỗ dưới lòng đường và mô hình chọn lộ trình không được mô hình hóa.
+Thực thi luật ở đây là việc làm cho các xe trong mô phỏng hành xử đúng như đặc tả. Việc này do mã tất định thực hiện, không có LLM. Đặc tả được kiểm tra hợp lệ, rồi biên dịch thành tham số tĩnh mà trình mô phỏng nạp khi khởi động và luật có điều kiện mà một bộ điều khiển đánh giá ở mỗi bước mô phỏng. Bộ điều khiển chỉ can thiệp trong các giới hạn an toàn định trước và ghi lại mọi lần can thiệp. Kết quả mô phỏng được chuyển về cùng dạng với dữ liệu quan sát để tính chỉ số; các chỉ số trở thành phản hồi cho lần sinh luật kế tiếp.
 
-Kịch bản mô phỏng gồm 11 hành vi, chia thành ba nhóm (Bảng~\ref{table:1.1}). Rẽ trái trái phép chờ giữa nút là hành vi 10; nó được mô hình hóa và đánh giá như các hành vi còn lại. Hành vi 8, đi ngược chiều, đã qua thí nghiệm khả thi nhưng được hoãn, nên chưa có trong mô hình.
-
-\begin{table}[ht]
-\centering
-\caption{Mười một hành vi trong kịch bản mô phỏng.}
-\label{table:1.1}
-\begin{tabular}{|c|p{3.2cm}|p{8cm}|}
-\hline
-\textbf{STT} & \textbf{Nhóm} & \textbf{Hành vi} \\
-\hline
-1 & \multirow{3}{3.2cm}{Không tuân thủ tín hiệu} & Ngưỡng kiên nhẫn và vượt đèn đỏ \\
-2 & & Áp lực bầy đàn: vượt đèn đỏ theo đoàn \\
-3 & & Xuất phát sớm trước khi đèn xanh \\
-\hline
-4 & \multirow{5}{3.2cm}{Tìm khoảng trống khi ùn} & Khoảng cách ngang nhỏ, lấn chiếm và luồn lách \\
-5 & & Đi sai làn để né đèn \\
-6 & & Chặn làn rẽ phải liên tục: xe không rẽ phải dừng chờ đèn đỏ trên làn này \\
-7 & & Xe máy đi trên vỉa hè để vượt hàng chờ \\
-8 & & Đi ngược chiều ở đoạn không có dải phân cách (hoãn) \\
-\hline
-9 & \multirow{3}{3.2cm}{Tương tác trong nút} & Chấp nhận khoảng trống nhỏ, tạt đầu \\
-10 & & Rẽ trái trái phép: đi vào giữa nút, dừng chờ, rẽ khi pha đi thẳng của hướng đối diện kết thúc \\
-11 & & Xe máy đi chậm giữa làn \\
-\hline
-\end{tabular}
-\end{table}
-
-LLM sinh luật qua hai kênh là tham số kiểu phương tiện và luật TraCI có điều kiện, và quyết định tỷ trọng các kiểu tài xế. LLM không sinh hay sửa mạng lưới đường. Mạng được giữ cố định, ngoài các bản vá tĩnh chỉ dành cho lớp xe vi phạm ở những hành vi cần không gian riêng: kết nối rẽ trái trái phép ở hai nhánh cấm rẽ trái, và làn vỉa hè.
-
-Luận văn dự kiến dùng dữ liệu quan sát trích từ video quay tại nút trong nhiều ngày; xử lý video nằm ngoài phạm vi. Tại thời điểm viết, chưa có dữ liệu video, và các thông số hiện trường chưa đo được để trống có chủ đích. Quy trình được phát triển và kiểm thử trên dữ liệu đại diện (proxy) xây dựng từ tài liệu về các nút giao khác. Các giá trị tạm thời này được in màu đỏ (Mục~\ref{section:3.2}). Kết quả trong luận văn vì vậy không dùng để kết luận mô phỏng giống giao thông thực đến mức nào.
-
-\subsection{Định hướng giải pháp}
-
-Luận văn tách việc \emph{sinh luật} khỏi việc \emph{thực thi luật} (Hình~\ref{fig:1.1}). Ở mỗi vòng hiệu chỉnh, LLM nhận mô tả nút giao, từ điển các tham số được phép chỉnh, và phản hồi định lượng của vòng trước. LLM trả về một đặc tả luật dạng JSON. Đặc tả được kiểm tra hợp lệ rồi biên dịch thành hai thứ: tham số tĩnh của các kiểu phương tiện mà SUMO nạp khi khởi động, và các luật có điều kiện mà bộ điều khiển TraCI đánh giá ở mỗi bước mô phỏng. LLM không điều khiển xe theo thời gian thực. Kết quả mô phỏng được chuyển về cùng lược đồ với dữ liệu quan sát để tính chỉ số, và các chỉ số tạo thành phản hồi cho vòng sau. Phương pháp chi tiết nằm ở Chương~\ref{chapter:Methodology}.
-
-\begin{figure}[ht]
+\begin{figure}[!htbp]
 \centering
 \begin{tikzpicture}[
     node distance=8mm and 10mm,
@@ -75,10 +40,10 @@ Luận văn tách việc \emph{sinh luật} khỏi việc \emph{thực thi luậ
     llm/.style={box, fill=gray!20, very thick},
     arr/.style={-{Stealth[length=2.4mm]}, thick}
 ]
-\node[llm] (llm) {LLM cục bộ:\\sinh đặc tả luật};
+\node[llm] (llm) {Sinh luật:\\LLM cục bộ};
 \node[box, right=of llm] (val) {1. Kiểm tra\\hợp lệ};
 \node[box, right=of val] (cmp) {2. Biên dịch};
-\node[box, below=of cmp] (sim) {3. Chạy SUMO\\và bộ điều khiển TraCI};
+\node[box, below=of cmp] (sim) {3. Mô phỏng và\\bộ thực thi luật};
 \node[box, left=of sim] (met) {4. Tính chỉ số\\M1--M10};
 \node[box, below=of llm] (fb) {5. Phản hồi\\cho vòng sau};
 \draw[arr] (llm) -- (val);
@@ -88,38 +53,88 @@ Luận văn tách việc \emph{sinh luật} khỏi việc \emph{thực thi luậ
 \draw[arr] (met) -- (fb);
 \draw[arr] (fb) -- (llm);
 \begin{pgfonlayer}{background}
-\node[draw, dashed, gray, rounded corners=3pt, inner sep=4mm, fit=(val)(cmp)(sim)(met), label={[font=\scriptsize, gray]above:mã xác định, không gọi LLM}] {};
+\node[draw, dashed, gray, rounded corners=3pt, inner sep=4mm, fit=(val)(cmp)(sim)(met), label={[font=\scriptsize, gray]above:thực thi luật: mã tất định, không gọi LLM}] {};
 \end{pgfonlayer}
 \end{tikzpicture}
-\caption{Một vòng hiệu chỉnh. LLM chỉ chạy ở bước sinh đặc tả; các bước 1--4 là mã xác định. Bước 2 xuất hai tệp: \texttt{vtypes.add.xml} (tham số kiểu phương tiện) và \texttt{traci\_rules.json} (luật có điều kiện).}
+\caption{Một vòng hiệu chỉnh. LLM chỉ chạy ở bước sinh luật (Chương~\ref{chapter:RuleGeneration}); các bước 1--4 là mã tất định (Chương~\ref{chapter:RuleExecution}). Bước 2 tạo ra tham số tĩnh của các nguyên mẫu tài xế và tập luật có điều kiện cho bộ thực thi.}
 \label{fig:1.1}
 \end{figure}
 
-\section{Đóng góp}
+Việc tách hai phần này hợp với giao thông Việt Nam hơn cách làm quen thuộc ở các nước có dòng xe tuân thủ, vì bốn lý do.
+
+Lý do thứ nhất nằm ở chỗ phần nào của mô hình thay đổi. Với dòng xe tuân thủ, hành vi tại nút giao do luật giao thông và một số mô hình đã được nghiên cứu kỹ quyết định: bám xe, chuyển làn, chấp nhận khoảng trống. Cấu trúc mô hình giống nhau ở mọi nút; hiệu chỉnh là chỉnh giá trị tham số của cấu trúc đó cho khớp số đo tại nút~\cite{hollander2008calibration}. Với giao thông Việt Nam, phần quyết định độ giống thực tế là các hành vi lệch khỏi luật, và hành vi nào xảy ra phụ thuộc vào nút và khung giờ: nút có vỉa hè đi được hay không, có hướng cấm rẽ hay không, hàng chờ giờ cao điểm dài đến đâu. Cấu trúc luật vì vậy phải được chọn lại cho từng kịch bản, và đây là phần cần hiểu biết về hành vi người lái. Luận văn giả thuyết rằng LLM có thể đề xuất phần này, còn bộ tối ưu số thì không, vì bộ tối ưu số cần cấu trúc có sẵn. Ngược lại, phần vật lý của chuyển động (bám xe, tránh va chạm, cơ chế nhường đường) do mô hình chuẩn của trình mô phỏng đảm nhiệm: tham số của nó được hiệu chỉnh, nhưng cấu trúc của nó không đổi giữa các kịch bản. Tách hai phần cho phép giao phần cấu trúc thay đổi cho LLM và giữ phần cơ chế trong mã tất định.
+
+Lý do thứ hai: hành vi vi phạm dễ biến thành va chạm hay xe đi xuyên qua nhau trong mô phỏng, vì nó buộc phải gỡ một số ràng buộc của mô hình chuẩn. Ở dòng xe tuân thủ, vấn đề này gần như không xuất hiện. Khi việc thực thi tách riêng, các giới hạn an toàn nằm ở một chỗ và áp dụng như nhau cho mọi luật, bất kể luật do ai sinh ra.
+
+Lý do thứ ba: mỗi bước mô phỏng của một nút giao giờ cao điểm có hàng trăm xe, phần lớn là xe máy. Gọi LLM cho từng xe ở từng bước vừa không khả thi về thời gian, vừa không tái lập được. Luật được sinh một lần rồi thực thi bằng mã tất định thì mỗi lần chạy lặp lại được với cùng seed.
+
+Lý do thứ tư: đặc tả luật là văn bản có cấu trúc, nên kiểm tra được trước khi chạy, so sánh được giữa các phương án, đọc được bởi người làm quy hoạch, và về nguyên tắc chuyển được sang trình mô phỏng khác bằng một bộ biên dịch khác.
+
+\section{Mục tiêu và phạm vi}
+\label{section:1.2}
+
+\subsection{Mục tiêu}
+
+Mục tiêu của luận văn là xây dựng một phương pháp mô phỏng hành vi người tham gia giao thông Việt Nam tại nút giao có đèn, trong đó LLM sinh và tinh chỉnh lặp bộ luật hành vi, còn mã tất định thực thi bộ luật trong mô phỏng. Luận văn có năm mục tiêu cụ thể: (i) xác định các hành vi cần mô hình hóa và cơ sở của từng hành vi trong tài liệu; (ii) định nghĩa dạng biểu diễn luật gồm tham số tĩnh và luật có điều kiện, kèm bộ kiểm tra hợp lệ; (iii) xây dựng bộ thực thi luật chỉ can thiệp trong giới hạn an toàn và ghi lại mọi lần can thiệp; (iv) xây dựng hệ thống chỉ số để so sánh mô phỏng với dữ liệu quan sát và cập nhật luật; và (v) so sánh luật do LLM sinh với mô hình mặc định, bộ luật viết tay và một bộ tối ưu số trên cùng ngân sách mô phỏng.
+
+\subsection{Phạm vi}
+
+Phương pháp xét một nút giao có đèn với dòng xe gồm ô tô và xe máy, trong một khung giờ (giờ cao điểm hoặc giờ thấp điểm). Người đi bộ, xe buýt, xe tải, ô tô đỗ dưới lòng đường và việc chọn lộ trình không được mô hình hóa. Các hành vi được xét chia thành ba nhóm theo cơ chế: không tuân thủ tín hiệu, tìm khoảng trống khi ùn, và tương tác trong nút (Mục~\ref{section:rg_behaviours}). LLM sinh luật hành vi nhưng không sinh hay sửa mạng đường; các không gian chỉ xe vi phạm được dùng (ví dụ vỉa hè) là bản vá tĩnh của mạng.
+
+Chương~\ref{chapter:RuleGeneration} và Chương~\ref{chapter:RuleExecution} trình bày phương pháp cho một nút giao bất kỳ, không gắn với địa điểm hay giờ cụ thể. Chương~\ref{chapter:Experiment} áp dụng phương pháp cho một nút giao cụ thể ở Hà Nội trong một khung giờ cao điểm để minh họa và đánh giá. Dữ liệu quan sát lấy từ hai đoạn video ngắn quay tại nút trong giờ cao điểm. Video cho lưu lượng, tỷ lệ hướng đi, tỷ lệ xe máy và chu kỳ đèn; các chỉ số hành vi mà video chưa đo được lấy giá trị mục tiêu từ số liệu đã công bố về các nút giao khác, mỗi giá trị gắn nhãn chuyển giao hoặc giả định. Kết quả thực nghiệm vì vậy cho biết quy trình vận hành được với nhu cầu đo tại nút và mô phỏng khác mô hình chuẩn ở đâu; mức giống giao thông thực của các hành vi vi phạm chỉ kiểm được khi chính các hành vi đó được đo từ video. Khung giờ thấp điểm chưa được thực nghiệm.
+
+\section{Câu hỏi nghiên cứu}
+\label{section:rq}
+
+Các mục tiêu trên dẫn tới ba câu hỏi nghiên cứu mà phần thực nghiệm phải trả lời. Câu hỏi mô phỏng giống giao thông thực đến đâu cần các chỉ số hành vi đo bằng video tại nút. Luận văn mới đo từ video được lưu lượng, tỷ lệ hướng đi và chu kỳ đèn, nên câu hỏi đó không nằm trong ba câu hỏi dưới đây.
+
+\begin{enumerate}[label=\textbf{CH\arabic*.}, leftmargin=*]
+    \item Bộ thực thi luật có tạo ra trong mô phỏng các hành vi vi phạm mà mô hình chuẩn của trình mô phỏng không có, mà không làm tăng va chạm mô phỏng và số xe kẹt so với mô hình chuẩn không?
+    \item Trên cùng không gian tham số và cùng ngân sách số lần chạy mô phỏng, đặc tả do LLM cục bộ sinh (chỉ tham số, và cả cấu trúc lẫn tham số) so với đặc tả do bộ tối ưu số tìm ra như thế nào?
+    \item Một LLM cục bộ cỡ chín tỷ tham số có sinh được đặc tả hợp lệ không, mắc những lỗi gì, và bộ kiểm tra hợp lệ có chặn được các lỗi đó trước khi tốn lần chạy mô phỏng không?
+\end{enumerate}
+
+\section{Đóng góp của luận văn}
 \label{section:1.contrib}
 
-Luận văn có bốn đóng góp chính:
+Luận văn có bốn đóng góp chính. Bảng~\ref{table:contrib} nối mỗi đóng góp với câu hỏi nghiên cứu, bằng chứng và mức kiểm chứng hiện có.
 \begin{enumerate}
-    \item Mạng mô phỏng và quy trình chạy tái lập được cho nút giao, trong đó mạng sinh hoàn toàn bằng script và tệp vá, và mỗi lần chạy ghi một tệp \texttt{manifest.json}.
-    \item Dạng biểu diễn luật hành vi có miền tham số kiểm chứng theo tài liệu SUMO, cùng bộ kiểm tra hợp lệ, bộ biên dịch và bộ điều khiển TraCI chỉ can thiệp trong giới hạn an toàn và ghi lại mọi can thiệp.
-    \item Thí nghiệm khả thi cho các hành vi cần không gian riêng, trong đó có dừng chờ giữa nút, và dữ liệu đại diện có nhãn bằng chứng cho từng giá trị khi chưa có dữ liệu quan sát.
-    \item Khung so sánh công bằng giữa luật do LLM sinh và các phương án đối sánh, trên cùng không gian tham số và cùng ngân sách mô phỏng, đã chạy với LLM cục bộ \texttt{qwen3.5:9b} và Optuna trên dữ liệu đại diện.
+    \item Một phương pháp mô phỏng hành vi tại nút giao tách sinh luật khỏi thực thi luật, trong đó LLM chỉ sinh đặc tả luật ngoài vòng mô phỏng và mọi đặc tả đi qua cùng một bộ kiểm tra hợp lệ và một bộ thực thi.
+    \item Một danh mục 11 hành vi của người tham gia giao thông tại nút có đèn, xây dựng bằng cách tổng hợp các nghiên cứu đã công bố và bổ sung từ quan sát, kèm cơ chế kích hoạt và biến điều khiển của luật tương ứng.
+    \item Các nguyên tắc thực thi luật an toàn và kiểm chứng được: chỉ gỡ đúng ràng buộc mà hành vi vi phạm cần gỡ, chỉ giữ xe chứ không đẩy xe qua xung đột, và ghi lại việc trình mô phỏng có thi hành từng lệnh hay không.
+    \item Một hệ thống chỉ số và khung so sánh các nguồn sinh đặc tả trên cùng không gian tham số và cùng ngân sách mô phỏng, đã hiện thực trên SUMO và chạy với LLM cục bộ \texttt{qwen3.5:9b} trên nhu cầu đo từ video tại nút.
 \end{enumerate}
-Chương~\ref{chapter:SolutionAndContribution} trình bày chi tiết bảy giải pháp kỹ thuật tạo nên các đóng góp này. Đánh giá cuối trên các ngày dữ liệu dành riêng vẫn là phần dự kiến.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Đóng góp, câu hỏi nghiên cứu, bằng chứng và mức kiểm chứng.}
+\label{table:contrib}
+\begin{tabular}{|p{1.4cm}|p{1.3cm}|>{\raggedright\arraybackslash}p{5.3cm}|>{\raggedright\arraybackslash}p{5.1cm}|}
+\hline
+\textbf{Đóng góp} & \textbf{Câu hỏi} & \textbf{Bằng chứng} & \textbf{Mức kiểm chứng} \\ \hline
+1 & CH2, CH3 & Quy trình chạy trọn vòng với Optuna và LLM cục bộ (Mục~\ref{subsection:campaigns_n1108}, \ref{subsection:qwen_campaign}) & Vận hành được với nhu cầu đo từ video; chưa có đặc tả nào đạt tiêu chí chấp nhận \\ \hline
+2 & -- & Tổng hợp tài liệu (Mục~\ref{section:rg_behaviours}); mười hành vi hiện thực trên SUMO (Bảng~\ref{table:3.1}) & Có cơ sở tài liệu cho hành vi 1--4, 9, 10; hành vi 5--8, 11 từ quan sát, chưa đo \\ \hline
+3 & CH1 & Thí nghiệm speed mode, kiểm thử giữ xe, nhật ký can thiệp (Mục~\ref{section:5.2}, \ref{section:5.3}) & Kiểm chứng bằng thí nghiệm và kiểm thử tự động \\ \hline
+4 & CH1, CH2 & So sánh B0 và B1 (Mục~\ref{section:compare_b0_b1}); các chiến dịch cùng ngân sách (Mục~\ref{subsection:campaigns_n1108}) & Khung chạy đúng ngân sách; phép so sánh LLM với Optuna chưa cho kết luận \\ \hline
+\end{tabular}
+\end{table}
+
+Mục~\ref{section:solutions} trình bày bảy giải pháp kỹ thuật khi hiện thực các đóng góp này trên SUMO.
 
 \section{Bố cục luận văn}
 \label{section:1.4}
 
 Phần còn lại của luận văn được tổ chức như sau.
 
-Chương~\ref{chapter:Related_works} khảo sát SUMO và mô hình làn con, các mô hình giao thông hỗn hợp không tuân thủ đã công bố, số liệu thực nghiệm về hành vi xe máy, và các hướng hiệu chỉnh tự động có hoặc không dùng LLM. Từ các giới hạn của những công trình này, chương đặt ra chức năng và yêu cầu phi chức năng của hệ thống.
+Chương~\ref{chapter:Related_works} trình bày nền tảng lý thuyết: các khái niệm cơ bản về nút có đèn và mô hình bám xe, số liệu đã công bố về hành vi xe máy tại nút có đèn, mô phỏng vi mô với mô hình làn con, và các công trình về mô hình hóa dòng xe hỗn hợp, hiệu chỉnh mô phỏng và dùng LLM như một bộ tối ưu hay với trình mô phỏng.
 
-Chương~\ref{chapter:Methodology} trình bày phương pháp. Chương mô tả kịch bản và mạng mô phỏng, cách biểu diễn luật hành vi bằng tham số kiểu phương tiện và luật TraCI có điều kiện, bộ kiểm tra hợp lệ, bộ điều khiển thực thi luật, dữ liệu mục tiêu cùng quy ước giá trị tạm thời, hệ thống chỉ số M1--M10, và quy trình hiệu chỉnh với sáu phương án đối sánh.
+Chương~\ref{chapter:RuleGeneration} nêu tổng quan phương pháp rồi trình bày phần sinh luật: kịch bản ở mức ý tưởng, cách xác định 11 hành vi bằng cách tổng hợp tài liệu, cơ sở khoa học và biến điều khiển của từng loại luật, dạng biểu diễn luật, lý do và cách dùng LLM để sinh luật, và vòng tinh chỉnh theo phản hồi.
 
-Chương~\ref{chapter:Experiment} mô tả phần cài đặt phần mềm, kiểm thử, và các thực nghiệm theo thứ tự thời gian qua sáu phiên bản mạng: từ các thí nghiệm khả thi, kết quả tham chiếu của SUMO mặc định và bộ luật thủ công, tới ba chiến dịch hiệu chỉnh bằng Optuna và LLM cục bộ trên mạng hiện tại. Mỗi kết quả đi kèm điều kiện chạy và phần diễn giải tách khỏi số liệu.
+Chương~\ref{chapter:RuleExecution} trình bày phần thực thi luật: kiểm tra hợp lệ, hai lớp thực thi, không gian riêng cho xe vi phạm, các nguyên tắc can thiệp an toàn, cách ghi nhận can thiệp, cách đo kết quả của một lần chạy, và thiết kế so sánh các nguồn sinh đặc tả.
 
-Chương~\ref{chapter:SolutionAndContribution} tổng hợp bảy giải pháp kỹ thuật mà luận văn coi là đóng góp chính, mỗi giải pháp gồm vấn đề, cách giải quyết và kết quả kiểm chứng được.
+Chương~\ref{chapter:Experiment} hiện thực phương pháp trên SUMO cho nút Lê Văn Lương -- Hoàng Minh Giám -- Nguyễn Tuân (Hà Nội) trong giờ cao điểm, mô tả dữ liệu quan sát lấy từ video quay tại nút và cấu hình đánh giá, rồi trình bày kết quả theo ba câu hỏi nghiên cứu và đánh giá các bộ luật tốt nhất trên ngày kiểm định.
 
-Chương~\ref{chapter:conclusion} tóm tắt những gì đã làm được, các phát hiện trong quá trình xây dựng, những việc chưa làm, và hướng phát triển, trong đó quan trọng nhất là thay dữ liệu đại diện bằng dữ liệu đo tại nút.
+Chương~\ref{chapter:conclusion} tóm tắt kết quả đạt được, trả lời từng câu hỏi nghiên cứu, nêu hạn chế và hướng phát triển.
 
 \end{document}

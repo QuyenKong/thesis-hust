@@ -1,0 +1,23 @@
+# Rẽ trái trái phép ở HDT_N, HDT_S: xe vào giữa nút trong pha HDT xanh, đứng chờ, rồi xả khi đổi pha.
+# Dùng cho M7. 1 lượt xem, theo dõi lòng nút trong pha HDT và vài giây sau đó.
+#
+# n_entered: tổng số xe rẽ trái trái phép từ nhánh này trong chu kỳ (bằng tổng illegal_l của chu kỳ đó).
+# n_through_gaps: số xe rẽ được ngay qua khe hở dòng đi thẳng ngược chiều, không phải đứng chờ đến cuối pha.
+# t_count: thời điểm đếm số xe đang đứng chờ, lấy lúc đèn HDT chuyển vàng.
+# n_waiting: số xe đang đứng chờ giữa nút ở t_count (M7a).
+# t_clear_start: lúc xe chờ đầu tiên bắt đầu đi tiếp. t_clear_end: lúc xe chờ cuối cùng rời lòng nút.
+# crossing_start_delay: thời điểm xe đầu tiên của LVL_straight qua vạch sau khi LVL_straight xanh, nếu
+#   xe chờ giữa nút cản đường (để tính M7c); null nếu không cản.
+# Nhánh nào khác cũng có rẽ trái trái phép (ví dụ LVL quay đầu sai chỗ): thêm khối và ghi notes.
+
+cycles:
+  - {cycle: 1, approach: HDT_N, n_entered: null, n_through_gaps: null, t_count: null, n_waiting: null, t_clear_start: null, t_clear_end: null, crossing_start_delay: null, vclass_mix: null}
+  - {cycle: 1, approach: HDT_S, n_entered: null, n_through_gaps: null, t_count: null, n_waiting: null, t_clear_start: null, t_clear_end: null, crossing_start_delay: null, vclass_mix: null}
+  - {cycle: 2, approach: HDT_N, n_entered: null, n_through_gaps: null, t_count: null, n_waiting: null, t_clear_start: null, t_clear_end: null, crossing_start_delay: null, vclass_mix: null}
+  - {cycle: 2, approach: HDT_S, n_entered: null, n_through_gaps: null, t_count: null, n_waiting: null, t_clear_start: null, t_clear_end: null, crossing_start_delay: null, vclass_mix: null}
+  - {cycle: 3, approach: HDT_N, n_entered: null, n_through_gaps: null, t_count: null, n_waiting: null, t_clear_start: null, t_clear_end: null, crossing_start_delay: null, vclass_mix: null}
+  - {cycle: 3, approach: HDT_S, n_entered: null, n_through_gaps: null, t_count: null, n_waiting: null, t_clear_start: null, t_clear_end: null, crossing_start_delay: null, vclass_mix: null}
+
+# vclass_mix: số ô tô trong n_waiting, ví dụ "1 car" (còn lại là xe máy)
+waiting_position: null     # xe chờ đứng ở đâu trong nút: giữa nút / sát vạch nhánh đối diện / chỗ khác
+notes: null

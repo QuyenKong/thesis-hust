@@ -1,0 +1,42 @@
+# Xe tìm khoảng trống để vượt hàng chờ. Chỉ làm ở nhánh F2 (site_survey.yaml f2_approaches): nhánh
+# camera thấy 50-100 m hàng chờ và vỉa hè. Dùng cho M9, M10 và xác suất chọn khoảng trống theo độ dài
+# hàng chờ. 1 lượt xem cho mỗi nhánh F2.
+#
+# events: mỗi lần một xe rời hàng chờ của làn đúng để vào chỗ khác, ghi một dòng:
+#   space: right_lane  = xe đi thẳng chen vào làn 0 (làn rẽ phải liên tục) để vượt hàng
+#          sidewalk    = xe máy leo lên vỉa hè
+#          wrong_lane  = xe rẽ (trái/quay đầu) đi làn không đúng hướng để vượt hàng, rồi cắt về
+#          opposite    = lấn sang phần đường ngược chiều (ngoài phạm vi mô phỏng, chỉ ghi để báo cáo)
+#   queue_back: đuôi hàng chờ của làn đúng lúc đó (mốc hoặc số m)
+#
+# lane0_blocks: mỗi xe đi thẳng đứng trên làn 0 làm xe rẽ phải phía sau phải dừng (M9):
+#   t_start lúc xe rẽ phải đầu tiên bị chặn phải dừng, t_end lúc làn 0 thông lại.
+#
+# queue_every_10s: đuôi hàng chờ ở các phút :00, :10, :20... của video.
+
+approach: null             # nhánh F2 đang đếm; nhánh F2 thứ hai: chép thêm 1 tệp 06b_space_seeking.yaml
+
+events:
+  - {t: null, vclass: null, space: null, queue_back: null}
+  - {t: null, vclass: null, space: null, queue_back: null}
+  - {t: null, vclass: null, space: null, queue_back: null}
+  - {t: null, vclass: null, space: null, queue_back: null}
+  - {t: null, vclass: null, space: null, queue_back: null}
+  - {t: null, vclass: null, space: null, queue_back: null}
+  - {t: null, vclass: null, space: null, queue_back: null}
+  - {t: null, vclass: null, space: null, queue_back: null}
+  # thêm dòng nếu thiếu
+
+lane0_blocks:
+  - {t_start: null, t_end: null, blocker_vclass: null, n_right_turners_stopped: null}
+  - {t_start: null, t_end: null, blocker_vclass: null, n_right_turners_stopped: null}
+  - {t_start: null, t_end: null, blocker_vclass: null, n_right_turners_stopped: null}
+
+# 31 giá trị cho 00:00, 00:10, ..., 05:00. Ví dụ [20, 25, "cột điện thứ 2", 60, "beyond", ...]
+queue_every_10s: null
+
+sidewalk_speed_samples:    # tùy chọn: thời gian xe máy đi giữa 2 mốc trên vỉa hè
+  - {from_landmark: null, to_landmark: null, t_from: null, t_to: null}
+  - {from_landmark: null, to_landmark: null, t_from: null, t_to: null}
+
+notes: null

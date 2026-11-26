@@ -1,0 +1,46 @@
+# Mốc đổi đèn. 1 lượt xem.
+# Ghi MỌI lần một nhóm đèn đổi màu, theo thứ tự thời gian. Nhìn đèn trực tiếp, hoặc suy ra từ đồng hồ
+# đếm ngược, hoặc từ lúc dòng xe bắt đầu/dừng (ghi how: inferred).
+#
+# Nhóm đèn (thứ tự pha đã ghi nhận tại hiện trường 28/10):
+#   LVL_straight : LVL_W + LVL_E đi thẳng (và rẽ phải nếu có đèn)
+#   LVL_left     : mũi tên rẽ trái của LVL_W + LVL_E (LVL đi thẳng đỏ trong pha này)
+#   HDT          : HDT_N + HDT_S
+# Nếu thấy HDT_N và HDT_S xanh lệch nhau, ghi riêng group: HDT_N / HDT_S.
+# state: G (xanh) | y (vàng) | r (đỏ). Đỏ toàn phần = khoảng giữa lúc nhóm trước sang r và nhóm sau sang G.
+# how: seen (thấy đèn) | countdown (đọc đồng hồ đếm ngược) | inferred (suy từ dòng xe)
+
+events:
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  - {t: null, group: null, state: null, how: null}
+  # thêm dòng nếu thiếu; xóa dòng thừa
+
+# Ví dụ:
+#   - {t: "00:12", group: HDT, state: y, how: seen}
+#   - {t: "00:16", group: HDT, state: r, how: seen}
+#   - {t: "00:18", group: LVL_straight, state: G, how: countdown}
+
+right_turn_signal: null    # true nếu làn rẽ phải có đèn riêng; hiện ghi nhận là rẽ phải tự do
+notes: null

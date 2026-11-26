@@ -1,0 +1,83 @@
+# Khảo sát hình học nút, điền 1 lần cho cả nút (không theo video).
+# Mỗi giá trị có trường *_source: field (đo tại chỗ) | google_earth (thước đo của Google Earth/Maps) | video.
+# Chưa đo: để null. Không ước đoán.
+# Làn đánh số từ phải sang trái theo hướng xe chạy: làn 0 = ngoài cùng bên phải.
+
+approaches:
+  LVL_W:                         # Lê Văn Lương, xe vào từ phía Tố Hữu
+    n_lanes: null                # số làn xe chạy ở vạch dừng
+    lane_movements: null         # mũi tên sơn trên từng làn, ví dụ [[r, s], [s], [s, l, u]]; làn không có mũi tên: []
+    lane_widths_m: null          # ví dụ [3.2, 3.3, 3.5]
+    lane_widths_source: null
+    u_turn_banned: null          # true nếu có biển cấm quay đầu
+    hard_median_length_m: null   # dải phân cách cứng trước vạch dừng; 0 nếu chỉ có vạch sơn
+    sidewalk_width_m: null       # vỉa hè bên phải nhánh vào
+    sidewalk_start_m: null       # xe máy leo vỉa hè từ cách vạch dừng bao nhiêu m (chỉ nhánh F2)
+    source: null
+    landmarks:                   # mốc nhìn thấy trên video, khoảng cách từ vạch dừng ngược về phía xe tới
+      - {name: "mốc 30 m (đầu làn rẽ phải liên tục)", dist_m: 30, what: null}   # what: vật gì ở đó, ví dụ "cột điện thứ 1"
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+    notes: null
+
+  LVL_E:                         # Lê Văn Lương, xe vào từ phía Láng Hạ
+    n_lanes: null
+    lane_movements: null
+    lane_widths_m: null
+    lane_widths_source: null
+    u_turn_banned: null
+    hard_median_length_m: null
+    sidewalk_width_m: null
+    sidewalk_start_m: null
+    source: null
+    landmarks:
+      - {name: "mốc 30 m (đầu làn rẽ phải liên tục)", dist_m: 30, what: null}
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+    notes: null
+
+  HDT_N:                         # Hoàng Đạo Thúy, xe vào từ phía Hoàng Minh Giám (cấm rẽ trái)
+    n_lanes: null
+    lane_movements: null
+    lane_widths_m: null
+    lane_widths_source: null
+    u_turn_banned: null
+    hard_median_length_m: null
+    sidewalk_width_m: null
+    sidewalk_start_m: null
+    source: null
+    landmarks:
+      - {name: "mốc 30 m (đầu làn rẽ phải liên tục)", dist_m: 30, what: null}
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+    notes: null
+
+  HDT_S:                         # Hoàng Đạo Thúy, xe vào từ phía Nguyễn Tuân (cấm rẽ trái)
+    n_lanes: null
+    lane_movements: null
+    lane_widths_m: null
+    lane_widths_source: null
+    u_turn_banned: null
+    hard_median_length_m: null
+    sidewalk_width_m: null
+    sidewalk_start_m: null
+    source: null
+    landmarks:
+      - {name: "mốc 30 m (đầu làn rẽ phải liên tục)", dist_m: 30, what: null}
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+      - {name: null, dist_m: null, what: null}
+    notes: null
+
+exits:                           # nhánh ra khỏi nút; bề rộng làn ra cũng là bề rộng lòng nút
+  LVL_W_out: {lane_widths_m: null, source: null}
+  LVL_E_out: {lane_widths_m: null, source: null}
+  HDT_N_out: {lane_widths_m: null, source: null}
+  HDT_S_out: {lane_widths_m: null, source: null}
+
+# Hai lựa chọn sau khi xem cả hai video:
+illegal_left_approaches_seen: null   # nhánh nào thấy xe rẽ trái trái phép, ví dụ [HDT_N, HDT_S]
+f2_approaches: null                  # 1-2 nhánh camera thấy 50-100 m hàng chờ và vỉa hè, ví dụ [LVL_W]

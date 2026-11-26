@@ -10,107 +10,125 @@ source:
   osm_file: scenario_raw/2026-10-02-06-34-26/osm_bbox.osm.xml.gz
 
 intersection:
-  name: "Le Van Luong x Hoang Dao Thuy"
-  center_lonlat: [105.8047, 21.0053]
-  cut_radius_m: 300            # length of each approach kept
+  name: "Le Van Luong x Hoang Minh Giam x Nguyen Tuan"   # Viktor 2026-11-25: the study junction (was HDT by mistake)
+  center_lonlat: [105.8003, 21.00225]   # OSM nodes LVL x NT x HMG (21.00232, 105.80023) / (21.00215, 105.80036), midpoint
+  cut_radius_m: 190            # length of each approach kept; < 212 m keeps the Khuat Duy Tien underpass ramp of LVL
+                               # (OSM ways 899919254/5) out (docs/research/site_lvl_nt_hmg.md)
+  join_nodes: [320101377, 10617504197, 10538711449, 444501627]   # OSM nodes where the dual carriageways of LVL, HMG
+                               # and NT cross (11.7-13.9 m from the centre); netconvert does not join them by itself
+                               # (checked 2026-11-26 with --junctions.join-dist 20 and 25), so build_net joins them
+                               # explicitly and puts the signal on the joined node
 
-approaches:                    # logical ids are placeholders; edge <-> direction is verified in Phase 1
-  - id: LVL_W                  # Le Van Luong, west approach
-    edge: "711526326#1"        # arm from SW (To Huu side), heading NE = AM inbound (Task 2, scenario/net/edge_table.csv)
-    lane_widths_m: null        # TODO_MEASURE, list per lane
-    lane_movements: null       # TODO_MEASURE: per lane (index 0 = rightmost), permitted movements r/s/l/u from markings
-                               # (continuous_right_lane, separator open: lane 0 = [r, s])
-    left_turn_banned: false    # Viktor 2026-10-28 (field): LVL -> Hoang Minh Giam permitted, protected left arrow
-    u_turn_banned: null        # TODO_MEASURE
-    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
-                                         # not signal controlled; modelled as existing lane 0 (no lane added)
-    right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
+approaches:                    # LVL x HMG x NT (2026-11-26); edge <-> arm by bearing (build_net.ARM_BEARINGS)
+  # Lane counts: Viktor 2026-11-26 (field). Lane movements: derived from that description (continuous right turn from
+  # lane 0, lefts / U-turns only on LVL, from the leftmost lane); arrows not surveyed lane by lane.
+  - id: LVL_W                  # Le Van Luong from the To Huu side (SW), towards the centre
+    edge: "710360128#0"        # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5, 3.5, 3.5]   # 4 lanes = 3 mixed + the BRT lane, modelled as an ordinary lane (Viktor 26/11); # 3.5 m per lane: TCXDVN 104:2007 Table 10, secondary arterial (standard, not measured; docs/research/site_lvl_nt_hmg.md)
+    lane_movements: [[r, s], [s], [s], [s, l, u]]
+    left_turn_banned: false    # Viktor 2026-10-28 / 2026-11-26 (field): LVL -> Hoang Minh Giam permitted, protected left arrow
+    u_turn_banned: false       # Viktor 2026-11-26 (field): U-turn permitted on LVL, in the left-arrow phase
+    continuous_right_lane: true          # Viktor 26/11 + VTC News 16/01/2026 (chevron-marked continuous right LVL -> NT)
+    right_turn_on_red: false             # not needed: the right turn is never red (continuous lane)
+    right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green
     right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
-    sidewalk_width_m: null               # TODO_MEASURE
-    bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
-                                         # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
-    sidewalk_start_m: null               # TODO_MEASURE: distance from the stop line where riders get on the sidewalk
-                                         # (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
-    sidewalk_speed_mps: null             # TODO_MEASURE: riding speed on the sidewalk (f2_measured_approaches only)
+    sidewalk_width_m: null               # TODO_MEASURE (only needed on f2_measured_approaches)
+    sidewalk_start_m: null               # TODO_MEASURE (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
+    sidewalk_speed_mps: null             # TODO_MEASURE (f2_measured_approaches only)
+    bollard_length_m: null               # not used: right_lane_separator open
     hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
-  - id: LVL_E                  # Le Van Luong, east approach
-    edge: "37876499#0"         # arm from NE (Task 2)
-    lane_widths_m: null        # TODO_MEASURE
-    lane_movements: null       # TODO_MEASURE
-    left_turn_banned: false    # Viktor 2026-10-28 (field): LVL -> Nguyen Tuan permitted, protected left arrow
-    u_turn_banned: null        # TODO_MEASURE
-    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
-                                         # not signal controlled; modelled as existing lane 0 (no lane added)
-    right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
-    right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
-    sidewalk_width_m: null               # TODO_MEASURE
-    bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
-                                         # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
-    sidewalk_start_m: null               # TODO_MEASURE: distance from the stop line where riders get on the sidewalk
-                                         # (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
-    sidewalk_speed_mps: null             # TODO_MEASURE: riding speed on the sidewalk (f2_measured_approaches only)
+  - id: LVL_E                  # Le Van Luong from the Lang Ha side (NE)
+    edge: "711526328#7"        # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5, 3.5, 3.5]   # 4 lanes = 3 mixed + BRT lane as ordinary (Viktor 26/11); # 3.5 m per lane: TCXDVN 104:2007 Table 10, secondary arterial (standard, not measured; docs/research/site_lvl_nt_hmg.md)
+    lane_movements: [[r, s], [s], [s], [s, l, u]]
+    left_turn_banned: false    # Viktor 2026-10-28 / 2026-11-26 (field): LVL -> Nguyen Tuan permitted, protected left arrow
+    u_turn_banned: false       # Viktor 2026-11-26 (field)
+    continuous_right_lane: true          # Viktor 2026-11-26 (field)
+    right_turn_on_red: false
+    right_lane_separator: open           # Viktor 2026-10-28 (field)
+    right_lane_length_m: 30              # Viktor 2026-10-29 (field)
+    sidewalk_width_m: null               # TODO_MEASURE (only needed on f2_measured_approaches)
+    sidewalk_start_m: null               # TODO_MEASURE (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
+    sidewalk_speed_mps: null             # TODO_MEASURE (f2_measured_approaches only)
+    bollard_length_m: null               # not used: right_lane_separator open
     hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
-  - id: HDT_N                  # Hoang Dao Thuy, north approach
-    edge: "953158817#2"        # arm from NW; includes unnamed OSM way 1071601648 (= HDT, Task 2)
-    lane_widths_m: null        # TODO_MEASURE
-    lane_movements: null       # TODO_MEASURE
-    left_turn_banned: true     # Viktor 2026-10-28 (field): Hoang Minh Giam -> LVL banned
-    u_turn_banned: null        # TODO_MEASURE
-    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
-                                         # not signal controlled; modelled as existing lane 0 (no lane added)
-    right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
-    right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
-    sidewalk_width_m: null               # TODO_MEASURE
-    bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
-                                         # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
-    sidewalk_start_m: null               # TODO_MEASURE: distance from the stop line where riders get on the sidewalk
-                                         # (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
-    sidewalk_speed_mps: null             # TODO_MEASURE: riding speed on the sidewalk (f2_measured_approaches only)
+  - id: HMG                    # Hoang Minh Giam (NW)
+    edge: "1304254918"         # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5, 3.5]        # 3 lanes (Viktor 26/11; OSM has 1, the start of HMG was widened, VTC News 16/01/2026); # 3.5 m per lane: TCXDVN 104:2007 Table 10, secondary arterial (standard, not measured; docs/research/site_lvl_nt_hmg.md)
+    lane_movements: [[r, s], [s], [s]]
+    left_turn_banned: true     # Viktor 2026-10-28 / 2026-11-26 (field): HMG -> LVL (left) banned
+    u_turn_banned: true        # Viktor 2026-11-26 (field): no U-turn on HMG / NT
+    continuous_right_lane: true          # Viktor 2026-11-26 (field): lane 0 continuous right
+    right_turn_on_red: false
+    right_lane_separator: open           # assumed same as LVL (Viktor 2026-10-28 described no bollards at the junction)
+    right_lane_length_m: 30              # assumed same as LVL (Viktor 2026-10-29)
+    sidewalk_width_m: null               # TODO_MEASURE (only needed on f2_measured_approaches)
+    sidewalk_start_m: null               # TODO_MEASURE (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
+    sidewalk_speed_mps: null             # TODO_MEASURE (f2_measured_approaches only)
+    bollard_length_m: null               # not used: right_lane_separator open
     hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
-  - id: HDT_S                  # Hoang Dao Thuy, south approach
-    edge: "1346358303"         # arm from SE (Task 2)
-    lane_widths_m: null        # TODO_MEASURE
-    lane_movements: null       # TODO_MEASURE
-    left_turn_banned: true     # Viktor 2026-10-28 (field): Nguyen Tuan -> LVL banned
-    u_turn_banned: null        # TODO_MEASURE
-    continuous_right_lane: true          # confirmed by Viktor (PLAN 0): outermost right lane = continuous right turn,
-                                         # not signal controlled; modelled as existing lane 0 (no lane added)
-    right_lane_separator: open           # Viktor 2026-10-28 (field): no bollards, straight from lane 0 legal on green (none | paint | bollards | open)
-    right_lane_length_m: 30              # Viktor 2026-10-29 (field): lane 0 is the right-turn lane over the last 30 m only
-    sidewalk_width_m: null               # TODO_MEASURE
-    bollard_length_m: null               # TODO_MEASURE: stop line to the first bollard (right_lane_separator bollards: the
-                                         # stretch where lane 0 <-> 1 changes are impossible, PLAN behaviour 6 / Phase 3A)
-    sidewalk_start_m: null               # TODO_MEASURE: distance from the stop line where riders get on the sidewalk
-                                         # (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
-    sidewalk_speed_mps: null             # TODO_MEASURE: riding speed on the sidewalk (f2_measured_approaches only)
+  - id: NT                     # Nguyen Tuan (SE)
+    edge: "710360129#0"        # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5, 3.5]        # 3 lanes (Viktor 26/11; OSM 2); # 3.5 m per lane: TCXDVN 104:2007 Table 10, secondary arterial (standard, not measured; docs/research/site_lvl_nt_hmg.md)
+    lane_movements: [[r, s], [r, s], [s]]   # right turn from lanes 0-1: riders turn right two abreast in IMG_4801 (decision D21)
+    left_turn_banned: true     # Viktor 2026-10-28 / 2026-11-26 (field): NT -> LVL (left) banned
+    u_turn_banned: true        # Viktor 2026-11-26 (field)
+    continuous_right_lane: false         # Viktor 2026-11-26 (field): no continuous right-turn lane on NT
+    right_turn_on_red: true              # Viktor 2026-11-26 (field): right turn allowed on red (stop, then go: SUMO link state 's')
+    sidewalk_width_m: null               # TODO_MEASURE (only needed on f2_measured_approaches)
+    sidewalk_start_m: null               # TODO_MEASURE (f2_measured_approaches only, PLAN behaviour 7 / Phase 3B)
+    sidewalk_speed_mps: null             # TODO_MEASURE (f2_measured_approaches only)
+    bollard_length_m: null               # not used: right_lane_separator open
     hard_median_length_m: null           # TODO_MEASURE: hard median length before the stop line (0 if none)
 
 exits:                         # outbound edges of the target junction; their widths are also the box widths
   - id: LVL_W_out
-    edge: "711526328#0"        # out to SW (scenario/net/edge_table.csv)
-    lane_widths_m: null        # TODO_MEASURE, list per lane (index 0 = rightmost)
+    edge: "710360126"          # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5, 3.5, 3.5]   # PROVISIONAL: assumed = inbound LVL (Viktor gave inbound counts only); # 3.5 m per lane: TCXDVN 104:2007 Table 10, secondary arterial (standard, not measured; docs/research/site_lvl_nt_hmg.md)
   - id: LVL_E_out
-    edge: "37877893#0"         # out to NE
-    lane_widths_m: null        # TODO_MEASURE
-  - id: HDT_N_out
-    edge: "408823207#0"        # out to NW
-    lane_widths_m: null        # TODO_MEASURE
-  - id: HDT_S_out
-    edge: "37871458#0"         # out to SE
-    lane_widths_m: null        # TODO_MEASURE
+    edge: "710360127#0"        # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5, 3.5, 3.5]   # PROVISIONAL, as LVL_W_out
+  - id: HMG_out
+    edge: "1130829742#0"       # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5, 3.5]       # 3 lanes: Viktor 2026-11-26 (field: NT -> HMG direction has 3 lanes); 3.5 m TCXDVN 104:2007 (standard)
+  - id: NT_out
+    edge: "1130838748#0"       # thesis_sumo.net.build 2026-11-26 (bearing rule, build_net.ARM_BEARINGS)
+    lane_widths_m: [3.5, 3.5]             # PROVISIONAL: OSM 2; NT is 4 lanes (2 per direction), Lao Dong 15/08/2024
 
 signal:
   type: static
-  cycle_s: null                # TODO_MEASURE from video
-  phases: null                 # TODO_MEASURE: [{name, duration_s, green_movements}], incl. yellow and all-red
-                               # stage order (Viktor 2026-10-28, field): LVL straight -> LVL left arrow (both LVL
-                               # lefts, LVL straight red) -> HDT_N / HDT_S; durations TODO_MEASURE
+  cycle_s: 160.0               # measured 2026-11-25 PM, IMG_4801: pedestrian head (Dat Bike corner) green onsets
+                               # 39.5 s and 199.5 s, green 33 s each (video/runs/V2_IMG_4801/light_rgb.csv)
+  stage_totals_s:              # stage length incl. its yellow + all-red; sum = cycle_s
+    LVL_straight: 60           # Viktor 2026-11-26, field estimate ("thuong thi"), not timed
+    LVL_left: 40               # Viktor 2026-11-26, field estimate, not timed (both LVL lefts, LVL straight red)
+    cross: 60                  # derived: 160 - 60 - 40 (NT + HMG); pedestrian green across LVL inside it (33 s, measured)
+  stage_order: [LVL_straight, LVL_left, cross]   # Viktor 2026-10-28 and 2026-11-26 (field)
+  yellow_s: 4                  # PROVISIONAL (Viktor 2026-11-26: fill so the cycle is 160 s, confirm 27/11);
+                               # value from [S2] TCCS 24:2018 cl. 6.7.6 (4 s for V <= 60 km/h), not timed on site
+  all_red_s: 2                 # PROVISIONAL, assumed (same as site.proxy.yaml); TODO_MEASURE, confirm 27/11
+  # green = stage total - yellow - all-red: 54 / 34 / 54 s; sum with intergreens = 160 s.
+  # Approach ids HMG / NT are the new junction's (migration of 2026-11-26: HDT_N -> HMG, HDT_S -> NT).
+  phases:
+    - {name: LVL_straight, duration_s: 54, green_movements: [LVL_W:r, LVL_W:s, LVL_E:r, LVL_E:s], yellow_movements: []}
+    - {name: LVL_straight_yellow, duration_s: 4, green_movements: [], yellow_movements: [LVL_W:r, LVL_W:s, LVL_E:r, LVL_E:s]}
+    - {name: LVL_straight_allred, duration_s: 2, green_movements: [], yellow_movements: []}
+    - {name: LVL_left, duration_s: 34, green_movements: [LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t], yellow_movements: []}
+    - {name: LVL_left_yellow, duration_s: 4, green_movements: [], yellow_movements: [LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t]}
+    - {name: LVL_left_allred, duration_s: 2, green_movements: [], yellow_movements: []}
+    - {name: cross_green, duration_s: 54, green_movements: [HMG:r, HMG:s, HMG:l, NT:r, NT:s, NT:l], yellow_movements: []}
+    - {name: cross_yellow, duration_s: 4, green_movements: [], yellow_movements: [HMG:r, HMG:s, HMG:l, NT:r, NT:s, NT:l]}
+    - {name: cross_allred, duration_s: 2, green_movements: [], yellow_movements: []}
+  # HMG:l / NT:l are the banned lefts, open to illegal_left.vclass only (apply_patches): yielding green in their own
+  # approach's green, as on the proxy net (test_illegal_left_green_in_own_through_phase)
+  # evidence: cycle measured (video); stage totals 60/40 Viktor field estimate, 60 derived; yellow 4 s [S2]; all-red 2 s
+  # assumed; all PROVISIONAL until Viktor confirms 2026-11-27
 
 illegal_left:
-  approaches: null             # TODO_MEASURE: approaches where illegal left turns occur
+  approaches: [HMG, NT]        # left banned on both (Viktor 26/11); illegal lefts NT -> LVL_W seen in IMG_4801 tracking (draft)
   vclass: custom1
-  mode: null                   # TODO_DECIDE: native | box_edge (PLAN Phase 3: wait at SUMO's internal junction, or an
-                               # explicit waiting edge with its own signal link); decide from the measured box counts
+  mode: native                 # Phase 3 decision (docs/research/phase3_box_capacity.md; box_edge not implemented),
+                               # same as site.proxy.yaml; re-check against the measured box counts (M7a) once counted
 
 violator_classes:              # vClasses of the violator vTypes; only they may use the violator-only connections
   moto: custom1                # moto_violator: banned left turn, sidewalk lane

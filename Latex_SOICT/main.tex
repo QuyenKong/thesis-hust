@@ -34,9 +34,11 @@
 
 \usepackage{listings}
 \usepackage{float}
+\usepackage[section]{placeins} % Bảng, hình không trôi qua ranh giới mục (bổ sung so với mẫu)
+\raggedbottom % Không giãn khoảng cách đoạn khi bảng [H] nhảy trang (twoside mặc định \flushbottom)
 \usepackage{subcaption}
 \usepackage{tikz} % Sơ đồ quy trình và mặt bằng nút giao (bổ sung so với mẫu)
-\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric,fit,backgrounds}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric,fit,backgrounds,patterns}
 
 \usepackage[nonumberlist, nopostdot, nogroupskip, acronym]{glossaries}
 \usepackage{glossary-superragged}
@@ -53,11 +55,28 @@
 \usepackage[backend=biber,style=ieee]{biblatex}
 
 \addbibresource{\subfix{reference.bib}} % \subfix: đúng đường dẫn cả khi biên dịch riêng một chương
+% URL dài trong danh mục tài liệu được ngắt ở mọi ký tự, tránh tràn lề
+\setcounter{biburlnumpenalty}{9000}
+\setcounter{biburlucpenalty}{9000}
+\setcounter{biburllcpenalty}{9000}
+
+% Tránh tràn lề: cho phép giãn thêm khi dàn dòng, và cho ngắt dòng sau dấu gạch dưới
+% trong tên định danh như \texttt{queue\_space\_seeking}
+\setlength{\emergencystretch}{3em}
+\let\gachduoi\_
+\renewcommand{\_}{\gachduoi\allowbreak}
 
 \input{glossary}
 
-% Giá trị tạm thời (cấu hình đại diện, mục tiêu đại diện, tham số giả định): in màu đỏ, sẽ thay bằng số đo thực
-\newcommand{\tamthoi}[1]{\textcolor{red}{#1}}
+% Giá trị tạm thời (cấu hình thay thế, mục tiêu thay thế, tham số giả định): in màu đỏ kèm dấu dagger
+% để vẫn nhận ra khi in đen trắng; sẽ thay bằng số đo thực
+\newcommand{\tamthoi}[1]{\textcolor{red}{#1}\ensuremath{^{\dagger}}}
+
+% Ghi chú làm việc (TODO, câu hỏi cho GVHD): in màu xanh trong bản nháp.
+% Bản nộp: \bannoptrue ẩn toàn bộ ghi chú.
+\newif\ifbannop
+\bannoptrue
+\newcommand{\ghichu}[1]{\ifbannop\else\textcolor{blue}{[#1]}\fi}
 
 % ===================================================
 
@@ -153,9 +172,9 @@
 % ===================================================
 \pagestyle{empty} % Header và footer rỗng
 
-% \newpage
-% \pagenumbering{gobble}
-% \subfile{Chapter/0_2_Acknowledgment.tex} % tạm bỏ theo yêu cầu (28/10/2026)
+\newpage
+\pagenumbering{gobble}
+\subfile{Chapter/0_2_Acknowledgment.tex}
 
 \newpage
 \pagenumbering{gobble} % Xóa page numbering ở cuối trang
@@ -170,6 +189,7 @@
 \newpage
 \pagenumbering{gobble} % Xóa page numbering ở cuối trang
 \renewcommand*\contentsname{MỤC LỤC}
+\contentsmargin{2.5em} % Chừa chỗ cho số trang ba chữ số
 \titlecontents{chapter}
     [0.0cm]             % left margin
     {\bfseries\vspace{0.3cm}}                  % above code
@@ -218,6 +238,9 @@
 \renewcommand*{\descriptionname}{Ý nghĩa}
 \printnoidxglossaries
 
+\newpage
+\subfile{Chapter/0_5_Codes.tex}
+
 \renewcommand\appendixname{PHỤ LỤC}
 \renewcommand\appendixpagename{PHỤ LỤC}
 \renewcommand\appendixtocname{PHỤ LỤC}
@@ -238,40 +261,42 @@
 \subfile{Chapter/1_Introduction}
 
 \newpage
-\chapter{TỔNG QUAN NGHIÊN CỨU VÀ YÊU CẦU}
+\chapter{NỀN TẢNG LÝ THUYẾT}
 \label{chapter:Related_works}
 \subfile{Chapter/2_Literature_review}
 
 \newpage
-\chapter{PHƯƠNG PHÁP ĐỀ XUẤT}
-\label{chapter:Methodology}
-\subfile{Chapter/3_Methodology}
+% Phương pháp đề xuất chia thành hai chương (mẫu SoICT Research cho phép tách phương pháp
+% thành nhiều chương): sinh luật và thực thi luật. Chương 3, 4 chỉ trình bày ý tưởng; nút giao cụ thể
+% chỉ xuất hiện ở chương thực nghiệm. Chương PHÂN TÍCH LÝ THUYẾT của mẫu không bắt buộc và không dùng.
+\chapter{SINH LUẬT HÀNH VI}
+\label{chapter:RuleGeneration}
+\subfile{Chapter/3_Rule_generation}
 
 \newpage
-\chapter{CÀI ĐẶT VÀ THỰC NGHIỆM}
+\chapter{THỰC THI LUẬT HÀNH VI}
+\label{chapter:RuleExecution}
+\subfile{Chapter/4_Rule_execution}
+
+\newpage
+\chapter{THỰC NGHIỆM VÀ ĐÁNH GIÁ}
 \label{chapter:Experiment}
-\subfile{Chapter/4_Experiments}
-
-% Chương 5 thay vị trí chương "Theoretical analysis" (không bắt buộc) của mẫu
-\newpage
-\chapter{CÁC GIẢI PHÁP VÀ ĐÓNG GÓP NỔI BẬT}
-\label{chapter:SolutionAndContribution}
-\subfile{Chapter/5_Contributions}
+\subfile{Chapter/5_Experiments}
 
 \newpage
-\chapter{KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}
+\chapter{KẾT LUẬN}
 \label{chapter:conclusion}
 \subfile{Chapter/6_Conclusions}
 
 % ===================================================
 \newpage
 \renewcommand\bibname{TÀI LIỆU THAM KHẢO}
-\printbibliography
-\phantomsection\addcontentsline{toc}{chapter}{TÀI LIỆU THAM KHẢO}
+\printbibliography[heading=bibintoc] % bibintoc: mục lục ghi đúng trang đầu của danh mục
 
+\newpage
+\phantomsection\addappheadtotoc % Đặt trước \appendixpage để mục lục ghi đúng trang PHỤ LỤC
 \appendixpage
 \appendix
-\addappheadtotoc
 
 \titleformat{\chapter}[hang]{\centering\bfseries}{ \thechapter.\ }{0pt}{}[]
 \titlespacing*{\chapter}{0pt}{-20pt}{20pt}
@@ -283,11 +308,21 @@
     {}         % unnumbered format
     {\titlerule*[0.3pc]{.}\contentspage}
 
-\chapter{MIỀN THAM SỐ, BỘ LUẬT B1 VÀ KẾT QUẢ TỪNG ĐẶC TẢ}
+\chapter{MIỀN THAM SỐ VÀ BỘ LUẬT B1}
 \subfile{Chapter/Appendix_A}
 
 \newpage
 \chapter{LƯỢC ĐỒ DỮ LIỆU QUAN SÁT}
 \subfile{Chapter/Appendix_B}
+
+\newpage
+\chapter{QUÁ TRÌNH XÂY DỰNG KỊCH BẢN}
+\label{appendix:history}
+\subfile{Chapter/Appendix_C}
+
+\newpage
+\chapter{PHẦN MỀM VÀ TÁI LẬP}
+\label{appendix:software}
+\subfile{Chapter/Appendix_D}
 
 \end{document}

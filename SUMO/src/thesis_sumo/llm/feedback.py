@@ -103,7 +103,7 @@ def _ev(d: dict, key: str) -> str:
 
 
 def _site_text(site: Site) -> str:
-    lines = [f"{site['intersection']['name']} (Hanoi), signalised, AM peak. Site file source: {site.source}."]
+    lines = [f"{site['intersection']['name']} (Hanoi), signalised, peak hour. Site file source: {site.source}."]
     for a in site["approaches"]:
         widths = a.get("lane_widths_m")
         parts = [f"- Approach {a['id']}: {len(widths) if widths else '?'} lanes (index 0 = rightmost), widths "
@@ -121,6 +121,11 @@ def _site_text(site: Site) -> str:
             parts.append(f"lane 0 is a continuous right-turn lane (not signal controlled), separated by "
                          f"{a.get('right_lane_separator')} over the last {a.get('bollard_length_m')} m"
                          f"{_ev(a, 'bollard_length_m')}")
+        if a.get("right_turn_on_red"):
+            parts.append(f"no dedicated right-turn lane: the right turn follows the signal and may go on red after "
+                         f"stopping at the stop line{_ev(a, 'right_turn_on_red')}")
+        if a.get("u_turn_banned"):
+            parts.append(f"U-turn banned{_ev(a, 'u_turn_banned')}")
         if a.get("sidewalk_start_m") is not None:
             parts.append(f"rideable sidewalk from {a['sidewalk_start_m']} m before the stop line, "
                          f"{a.get('sidewalk_width_m')} m wide{_ev(a, 'sidewalk_start_m')}")

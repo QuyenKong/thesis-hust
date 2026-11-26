@@ -11,6 +11,7 @@ import warnings
 from pathlib import Path
 
 import pytest
+import yaml
 import sumolib
 from lxml import etree
 
@@ -120,6 +121,7 @@ def test_signal_matches_site(site_net, proxy):
     # every link shows the colour the site file asks for, by movement
     approach_of = {a["edge"]: a["id"] for a in proxy["approaches"]} | sidewalk_edges(site_net)
     continuous = {f"{a['id']}:r" for a in proxy["approaches"] if a["continuous_right_lane"]}
+    on_red = {f"{a['id']}:r" for a in proxy["approaches"] if a.get("right_turn_on_red")}  # NT: 'g' when red (D20)
     for k, (ph, spec) in enumerate(zip(phases, proxy["signal"]["phases"])):
         for conn in target_tls(site_net).getConnections():
             in_lane, _, idx = conn
@@ -133,7 +135,7 @@ def test_signal_matches_site(site_net, proxy):
             elif mv in spec["yellow_movements"]:
                 assert ch == "y", (k, mv, ch)
             else:
-                assert ch == "r", (k, mv, ch)
+                assert ch == ("g" if mv in on_red else "r"), (k, mv, ch)
 
 
 # --- further behaviour ---------------------------------------------------------------------------
@@ -196,7 +198,7 @@ def test_measured_site_edges_match_proxy():
     m, p = load_site(MEASURED), load_site(PROXY)
     for key in ("approaches", "exits"):
         assert [(a["id"], a["edge"]) for a in m[key]] == [(a["id"], a["edge"]) for a in p[key]], key
-    assert all(x["lane_widths_m"] is None for x in m["exits"])
+    assert [x["lane_widths_m"] for x in m["exits"]] == [x["lane_widths_m"] for x in p["exits"]]  # same geometry
 
 
 def test_lane_widths_from_site(site_net, proxy):
@@ -210,9 +212,11 @@ def test_exits_mapped_and_outbound(site_net, proxy):
     edges = [x["edge"] for x in proxy["exits"]]
     assert len(set(edges)) == 4 and set(edges) == outgoing
     assert exit_edges(site_net) == {x["id"]: x["edge"] for x in proxy["exits"]}
-    # an exit lies on the arm of the approach with the same prefix: the approach's turnaround leads into it
+    # an exit lies on the arm of the approach with the same prefix: the approach's turnaround leads into it (LVL; the
+    # U-turn is banned on HMG / NT and has no link there since 2026-11-26)
     approach = {a["id"]: a["edge"] for a in proxy["approaches"]}
-    for x in proxy["exits"]:
+    banned_u = {a["id"] for a in proxy["approaches"] if a["u_turn_banned"]}
+    for x in (x for x in proxy["exits"] if x["id"].removesuffix("_out") not in banned_u):
         turns = [c for c in _conns_from(site_net, approach[x["id"].removesuffix("_out")])
                  if movement_of(c.getDirection()) == "t"]
         assert {c.getTo().getID() for c in turns} == {x["edge"]}, x["id"]
@@ -256,20 +260,21 @@ def test_exit_widths_required_and_checked(built, proxy, tmp_path):
         assert not (tmp_path / "x.net.xml").exists()
 
 
-def test_unnamed_osm_way_is_hoang_dao_thuy(site_net):
-    """PLAN 1.2: OSM way 1071601648 has no name; its wikidata id is Hoang Dao Thuy's."""
-    tags = {}
-    with gzip.open(OSM) as f:
-        for _, el in etree.iterparse(f, tag="way"):
-            if el.get("id") in ("1071601648", "953158817", "37871458"):
-                tags[el.get("id")] = {t.get("k"): t.get("v") for t in el.findall("tag")}
-            el.clear()
-    assert "name" not in tags["1071601648"]
-    hdt = tags["37871458"]["name:etymology:wikidata"]
-    assert tags["1071601648"]["name:etymology:wikidata"] == hdt == tags["953158817"]["name:etymology:wikidata"]
-    assert tags["953158817"]["name"] == "Phố Hoàng Đạo Thúy"
-    # in the built net the HDT_N approach carries the HĐT name
-    assert site_net.getEdge(approach_edges(site_net)["HDT_N"]).getName() == "Phố Hoàng Đạo Thúy"
+def test_one_junction_arms_named(site_net):
+    """LVL x HMG x NT (2026-11-26): every arm is one edge per direction from its fringe to the only signalised junction
+    (the dual-carriageway -> two-way nodes of HMG and NT are merged away, build_net._merge_transitions), named after its
+    street; apart from that junction only the site patches' split nodes and the fringe dead ends remain."""
+    names = {"LVL_W": "Đường Lê Văn Lương", "LVL_E": "Đường Lê Văn Lương", "HMG": "Phố Hoàng Minh Giám",
+             "NT": "Đường Nguyễn Tuân"}
+    for app, edge in approach_edges(site_net).items():
+        assert site_net.getEdge(edge).getName() == names[app], app
+    assert {x: site_net.getEdge(e).getName() for x, e in exit_edges(site_net).items()} == \
+        {f"{a}_out": n for a, n in names.items()}
+    node = target_node(target_tls(site_net))
+    others = [n for n in site_net.getNodes() if n is not node and n.getType() != "dead_end"]
+    assert all(n.getID().endswith((".right_lane", ".sidewalk_start", ".bollard")) for n in others), \
+        [n.getID() for n in others]
+    assert [t.getID() for t in site_net.getTrafficLights()] == [target_tls(site_net).getID()]
 
 
 def test_edge_table_columns(built):
@@ -284,15 +289,22 @@ def test_edge_table_columns(built):
 def test_removed_nodes_reported(built):
     out_dir, _ = built
     text = (out_dir / "removed_nodes.csv").read_text(encoding="utf-8")
-    assert "cluster_2291072471_443393357" in text  # the signal on the HĐT north arm
+    assert "6677898108" in text and "set to priority" in text  # a pedestrian crossing signal on the LVL_E arm
 
 
-def test_measured_site_raises(built):
+def test_measured_site_raises(built, tmp_path):
+    """A measured site file with a required null (here the exit lane widths, TODO_MEASURE) stops the build; since
+    2026-11-26 config/site.yaml is filled, so the null is set on a copy."""
     out_dir, _ = built
+    data = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
+    for x in data["exits"]:
+        x["lane_widths_m"] = None
+    nulls = tmp_path / "site.nulls.yaml"
+    nulls.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
     with pytest.raises(MissingFieldDataError):
-        build_site_net(load_site(MEASURED), out_dir / "base.net.xml", out_dir / "site.net.xml")
+        build_site_net(load_site(nulls), out_dir / "base.net.xml", out_dir / "site.net.xml")
     assert not (out_dir / "site.net.xml").exists()
-    proc = _cli("--site", str(MEASURED), "--out-dir", str(out_dir / "measured"))
+    proc = _cli("--site", str(nulls), "--out-dir", str(out_dir / "measured"))
     assert proc.returncode != 0 and "TODO_MEASURE" in proc.stderr
     assert not (out_dir / "measured" / "site.net.xml").exists()
 
@@ -368,14 +380,15 @@ def test_illegal_left_mode_checked(built, proxy, tmp_path):
 
 def test_committed_outputs_match_build(built):
     """scenario/net/*.net.xml are exactly what the script produces (no hand edits); stopline_shift.csv logs how far
-    the sidewalk moved each stop line (F2-behaviours review: within 0.2 m on LVL_W / HDT_S, the junction is not
+    the sidewalk moved each stop line (F2-behaviours review: within 0.2 m on LVL_W / NT, the junction is not
     blown up by the sidewalk corner)."""
     out_dir, _ = built
     for name in ("base.net.xml", "site.proxy.net.xml"):
         assert _strip_header(COMMITTED / name) == _strip_header(out_dir / name), name
     import pandas as pd
     shift = pd.read_csv(out_dir / "stopline_shift.csv").set_index("approach")["shift_m"]
-    assert abs(shift["LVL_W"]) <= 0.2 and abs(shift["HDT_S"]) <= 0.2 and shift.abs().max() <= 2.0, shift
+    # LVL x HMG x NT (2026-11-26): the proxy sidewalks move the NT stop line by ~0.6 m (decision D14); still small
+    assert abs(shift["LVL_W"]) <= 0.2 and abs(shift["NT"]) <= 1.0 and shift.abs().max() <= 2.0, shift
     for name in ("edge_table.csv", "removed_nodes.csv", "stopline_shift.csv", "patches/site.proxy/signal.tll.xml",
                  "patches/site.proxy/turns.con.xml", "patches/site.proxy/lanes.edg.xml",
                  "patches/site.proxy/split.edg.xml",
@@ -397,7 +410,7 @@ def _states(net):
 
 def test_continuous_right_turn_never_red(site_net, proxy):
     """The right turn from the continuous right-turn lane is `g` (green, yield) in every phase: no right on red."""
-    assert len(_continuous(proxy)) == 4  # PLAN 0: every approach
+    assert {a["id"] for a in _continuous(proxy)} == {"LVL_W", "LVL_E", "HMG"}  # NT: right turn on red instead
     for a in _continuous(proxy):
         rights = [c.getTLLinkIndex() for c in _conns_from(site_net, a["edge"]) if movement_of(c.getDirection()) == "r"]
         assert rights, a["id"]
@@ -446,26 +459,32 @@ def test_right_lane_split_when_open(built, site_net, proxy):
     for a in proxy["approaches"]:
         segs = [e.getID() for e in approach_segments(site_net, a["edge"])]
         sw = a["id"] in proxy["f2_measured_approaches"]
+        if not a["continuous_right_lane"]:  # NT: no right-turn stretch, no split (2026-11-26)
+            assert segs == [a["edge"]], segs
+            continue
         assert segs == ([a["edge"], a["edge"] + ".mid", a["edge"] + ".up"] if sw else [a["edge"], a["edge"] + ".up"]), segs
         assert a["right_lane_length_m"] == 30
         assert abs(site_net.getEdge(a["edge"]).getLength() - a["right_lane_length_m"]) <= 0.2, a["id"]
         assert site_net.getEdge(segs[0]).getFromNode().getID() == a["edge"] + ".right_lane"
         assert not any(e.getFromNode().getID().endswith(".bollard") for e in map(site_net.getEdge, segs))
-        attrs = _lane_attrs(out_dir / "site.proxy.net.xml", {f"{e}_{k}" for e in segs for k in range(3)})
+        attrs = _lane_attrs(out_dir / "site.proxy.net.xml", {f"{e}_{k}" for e in segs for k in range(len(a["lane_widths_m"]))})
         assert not any(k in at for at in attrs.values() for k in ("changeLeft", "changeRight")), a["id"]
     assert not (out_dir / "patches" / "site.proxy" / "bollards.edg.xml").exists()
 
 
 def test_no_turn_links_from_lanes_0_and_1(site_net, proxy):
-    """Owner decision 2026-11-04: no left from lane 0 and no U-turn from lanes 0/1 (such links split the approach's
-    straights into one-lane internal edges, where sublane vehicles collided); the three straights of an approach share
-    one internal edge."""
+    """Owner decision 2026-11-04: lefts and U-turns only from the leftmost lane (other links split the approach's
+    straights into one-lane internal edges, where sublane vehicles collided); every lane has one straight and the
+    straights of an approach share one internal edge (LVL 4 lanes, HMG / NT 3 since 2026-11-26)."""
     for a in proxy["approaches"]:
         conns = _conns_from(site_net, a["edge"])
-        assert not [c for c in conns if movement_of(c.getDirection()) in ("l", "t") and c.getFromLane().getIndex() < 2]
+        n = len(a["lane_widths_m"])
+        assert not [c for c in conns if movement_of(c.getDirection()) in ("l", "t") and c.getFromLane().getIndex() < n - 1]
         straights = [c for c in conns if movement_of(c.getDirection()) == "s"]
-        assert len(straights) == 3, a["id"]
-        assert len({site_net.getLane(c.getViaLaneID()).getEdge().getID() for c in straights}) == 1, a["id"]
+        assert len(straights) == n, a["id"]
+        # NT turns right from lanes 0 and 1 (decision D21): its straights split into two internal edges there
+        n_right_lanes = sum("r" in m for m in a["lane_movements"])
+        assert len({site_net.getLane(c.getViaLaneID()).getEdge().getID() for c in straights}) ==             (1 if n_right_lanes <= 1 else 2), a["id"]
 
 
 def test_gui_highlight_on_every_continuous_lane(built, proxy):
@@ -554,7 +573,7 @@ def test_phase_states_uncontrolled_links():
     ("continuous_right_lane", None, MissingFieldDataError, r"approaches\.1\.continuous_right_lane"),
     ("right_lane_separator", None, MissingFieldDataError, r"approaches\.1\.right_lane_separator"),
     ("right_lane_separator", "cones", ValueError, "right_lane_separator"),
-    ("f2_measured_approaches", ["HDT_S"], MissingFieldDataError, r"approaches\.3\.sidewalk_width_m"),
+    ("f2_measured_approaches", ["NT"], MissingFieldDataError, r"approaches\.3\.sidewalk_width_m"),
     ("f2_measured_approaches", ["NOPE"], ValueError, "NOPE"),
     ("bollard_length_m", None, MissingFieldDataError, r"approaches\.1\.bollard_length_m"),
     ("bollard_length_m", -5, ValueError, r"approaches\.1\.bollard_length_m must be a positive number"),
@@ -604,7 +623,7 @@ def test_bollard_edge_bans_lane_change_0_1(bollard_net):
     assert sorted(p.name for p in (path.parent / "patches" / "site.proxy").iterdir()) == [
         "bollards.edg.xml", "box_pins.con.xml", "lanes.edg.xml", "sidewalk.con.xml", "sidewalk.edg.xml",
         "signal.tll.xml", "split.edg.xml", "turns.con.xml"]
-    for a in proxy["approaches"]:
+    for a in (a for a in proxy["approaches"] if a["continuous_right_lane"]):  # NT has none (2026-11-26): not split
         segs = [e.getID() for e in approach_segments(site_net, a["edge"])]
         assert segs[0] == a["edge"] and segs[-1] == a["edge"] + ".up", segs
         assert len(segs) == (3 if a["id"] in proxy["f2_measured_approaches"] else 2)
@@ -613,14 +632,15 @@ def test_bollard_edge_bans_lane_change_0_1(bollard_net):
             assert abs(ln.getLength() - a["bollard_length_m"]) <= 0.2, (a["id"], ln.getLength())
         for s in segs[1:]:
             assert [round(ln.getWidth(), 2) for ln in site_net.getEdge(s).getLanes()] == a["lane_widths_m"]
-        ids = {f"{e}_{k}" for e in segs for k in range(3)}
+        ids = {f"{e}_{k}" for e in segs for k in range(len(a["lane_widths_m"]))}
         attrs = _lane_attrs(path, ids)
         e = a["edge"]
         assert attrs[f"{e}_0"].get("changeLeft") == "emergency" and attrs[f"{e}_1"].get("changeRight") == "emergency"
         assert "changeRight" not in attrs[f"{e}_0"] and "changeLeft" not in attrs[f"{e}_1"]
         assert not any(k in attrs[f"{e}_2"] for k in ("changeLeft", "changeRight"))
         for s in segs[1:]:
-            assert not any(k in attrs[f"{s}_{i}"] for i in range(3) for k in ("changeLeft", "changeRight")), s
+            assert not any(k in attrs[f"{s}_{i}"] for i in range(len(a["lane_widths_m"]))
+                           for k in ("changeLeft", "changeRight")), s
 
 
 def test_sidewalk_edge_custom1_only_with_pinned_links(built, site_net, proxy):
@@ -646,7 +666,7 @@ def test_sidewalk_edge_custom1_only_with_pinned_links(built, site_net, proxy):
         assert abs(mid.getLanes()[0].getLength() - (app["sidewalk_start_m"] - app["right_lane_length_m"])) <= 0.5
         into_sw = [c for c in up.getOutgoing()[sw]]
         assert [(c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in into_sw] == [(0, 0)]
-        assert sorted((c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in up.getOutgoing()[mid]) ==             [(0, 0), (1, 1), (2, 2)]
+        assert sorted((c.getFromLane().getIndex(), c.getToLane().getIndex()) for c in up.getOutgoing()[mid]) ==             [(k, k) for k in range(len(app["lane_widths_m"]))]
         exits = {movement_of(c.getDirection()): (i, c.getTo().getID()) for i, (_, k) in enumerate(after[len(before):])
                  if k[0] == sw.getID() for c in sw.getOutgoing()[site_net.getEdge(k[2])]}
         conns = _conns_from(site_net, app["edge"])

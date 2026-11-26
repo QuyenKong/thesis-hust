@@ -19,6 +19,7 @@ from thesis_sumo.runtime.rules.base import LOG_COLUMNS
 from thesis_sumo.runtime.rules.swarm_red_running import SwarmRedRunning
 from thesis_sumo.sim import runner
 
+
 # as the runner: warnings stay on (R22), junction collisions are checked (R28)
 SUMO_OPTS = ["--step-length", "0.1", "--lateral-resolution", "0.4", "--no-step-log", "true",
              "--collision.check-junctions", "true"]
@@ -40,15 +41,15 @@ VTYPES = (  # SUMO vClass defaults except where a scenario needs otherwise
 
 def _cross(d: Path, lanes: int = 1, connections: str | None = None, radius: float | None = None) -> Path:
     """Signalised cross, arms 150 m, carrying the site street names (approaches LVL_W = WC, LVL_E = EC,
-    HDT_N = NC, HDT_S = SC); netconvert's default 2-phase program (see W_GREEN_ONSET)."""
+    HMG = NC, NT = SC); netconvert's default 2-phase program (see W_GREEN_ONSET)."""
     d.mkdir(parents=True, exist_ok=True)
     (d / "n.nod.xml").write_text(
         '<nodes><node id="C" x="0" y="0" type="traffic_light"/><node id="W" x="-150" y="0"/>'
         '<node id="E" x="150" y="0"/><node id="S" x="0" y="-150"/><node id="N" x="0" y="150"/></nodes>',
         encoding="utf-8")
     edges = [("WC", "W", "C", "Le Van Luong"), ("CE", "C", "E", "Le Van Luong"), ("EC", "E", "C", "Le Van Luong"),
-             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Dao Thuy"), ("CN", "C", "N", "Hoang Dao Thuy"),
-             ("NC", "N", "C", "Hoang Dao Thuy"), ("CS", "C", "S", "Hoang Dao Thuy")]
+             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Minh Giam"), ("CN", "C", "N", "Hoang Minh Giam"),
+             ("NC", "N", "C", "Hoang Minh Giam"), ("CS", "C", "S", "Hoang Minh Giam")]
     (d / "n.edg.xml").write_text("<edges>" + "".join(
         f'<edge id="{i}" from="{f}" to="{t}" name="{n}" numLanes="{lanes}" speed="13.9"/>' for i, f, t, n in edges)
         + "</edges>", encoding="utf-8")
@@ -64,7 +65,7 @@ def _cross(d: Path, lanes: int = 1, connections: str | None = None, radius: floa
 
 
 def _site(d: Path, lane_movements: dict | None = None, illegal: bool = False) -> Site:
-    edges = {"LVL_W": "WC", "LVL_E": "EC", "HDT_N": "NC", "HDT_S": "SC"}
+    edges = {"LVL_W": "WC", "LVL_E": "EC", "HMG": "NC", "NT": "SC"}
     data = {"site_source": "LITERATURE_PROXY",
             "approaches": [{"id": a, "edge": e, "lane_movements": (lane_movements or {}).get(a),
                             "left_turn_banned": illegal and a == "LVL_W"} for a, e in edges.items()],
@@ -410,8 +411,8 @@ def _f2_net(d: Path, sidewalk: bool = False) -> Path:
     return d / "f2.net.xml"
 
 
-F2_MARKS = {"LVL_W": [["r"], ["s"], ["s"]], "LVL_E": [["r", "s", "l", "u"]], "HDT_N": [["r", "s", "l", "u"]],
-            "HDT_S": [["r", "s", "l", "u"]]}
+F2_MARKS = {"LVL_W": [["r"], ["s"], ["s"]], "LVL_E": [["r", "s", "l", "u"]], "HMG": [["r", "s", "l", "u"]],
+            "NT": [["r", "s", "l", "u"]]}
 # a long straight queue (compliant cars, no speed gain: they never use lane 0) and straight custom1 rule riders
 F2_QUEUE = ('<flow id="q" type="car" begin="0" end="40" period="1.2" departLane="best" departSpeed="max">'
             '<route edges="{up} CE"/></flow>'
@@ -567,7 +568,7 @@ def test_queue_space_seeking_wrong_lane(tmp_path):
               '</vehicle><vehicle id="d_r" type="vio" depart="16" departLane="0" departSpeed="max">'
               '<route edges="WC CS"/></vehicle>')
     marks = {"LVL_W": [["r", "s"], ["l", "u"]], "LVL_E": [["r", "s"], ["s", "l", "u"]],
-             "HDT_N": [["r", "s"], ["s", "l", "u"]], "HDT_S": [["r", "s"], ["s", "l", "u"]]}
+             "HMG": [["r", "s"], ["s", "l", "u"]], "NT": [["r", "s"], ["s", "l", "u"]]}
     lanes = {}
     import libsumo
     ctl, rows = _simulate(libsumo, net, queue + riders, [_seek(q=30.0, p_wrong_lane=1.0)], _site(tmp_path, marks),
@@ -617,7 +618,7 @@ def test_queue_space_seeking_cut_back(tmp_path):
              '<route edges="WU WC CN"/></flow>')
     rider = '<vehicle id="d_l" type="vio" depart="66" departLane="2" departSpeed="max"><route edges="WU WC CN"/></vehicle>'
     marks = {"LVL_W": [["r", "s"], ["s"], ["s", "l"]], "LVL_E": [["r", "s", "l", "u"]],
-             "HDT_N": [["r", "s", "l", "u"]], "HDT_S": [["r", "s", "l", "u"]]}
+             "HMG": [["r", "s", "l", "u"]], "NT": [["r", "s", "l", "u"]]}
     site = _site(tmp_path, marks)
     site["violator_turn_lanes"] = {"l": [0], "u": [0, 1]}
     seen, modes = [], {}
@@ -666,27 +667,27 @@ def test_junction_info_on_proxy_net():
     finally:
         libsumo.close()
     # green check: the continuous right turn (g in every phase) does not count, the open lane-0 straight does
-    assert all(rule.signalled[a] == {0, 1, 2} for a in info.lanes), rule.signalled
-    x = "711526326#1"
+    assert all(rule.signalled[a] == set(range(len(info.lanes[a]))) for a in info.lanes), rule.signalled
+    x = "710360128#0"  # LVL_W on the LVL x HMG x NT net (2026-11-26)
     # split at the sidewalk start and at stop line - right_lane_length_m (`.mid` between them, 2026-10-29); no bollards
     assert info.segments["LVL_W"] == [x, x + ".mid", x + ".up"]
-    e = "37876499#0"  # split like LVL_W (sidewalk and right-turn lane)
+    e = "711526328#7"  # LVL_E, split like LVL_W (sidewalk and right-turn lane)
     assert info.segments["LVL_E"] == [e, e + ".mid", e + ".up"]
-    assert info.segments["HDT_N"] == ["953158817#2", "953158817#2.up"]  # right-turn lane split only (no sidewalk)
+    assert info.segments["HMG"] == ["1304254918", "1304254918.up"]  # right-turn lane split only (no sidewalk)
     # no bollard edge: the seeking zone is the whole approach, the stop-line edge included
     assert rule.bollard == set() and all(rule._in_zone(f"{x}{s}_1", "LVL_W") for s in ("", ".mid", ".up"))
     assert not rule._in_zone(x + ".sidewalk_0", "LVL_W")
     assert info.sidewalk == {"LVL_W": x + ".sidewalk_0", "LVL_E": e + ".sidewalk_0"}
     assert info.approach_lanes[e + ".sidewalk_0"] == "LVL_E" and e + ".sidewalk_0" in info.lane_approach
-    # the illegal lefts (site illegal_left.approaches) wait in the box of HDT_N and HDT_S, each against the other
-    assert set(info.hold_lanes) == {"HDT_N", "HDT_S"} and all(info.hold_lanes.values())
-    assert info.opposing["HDT_N"] == "HDT_S" and info.opposing["HDT_S"] == "HDT_N"
+    # the illegal lefts (site illegal_left.approaches) wait in the box of HMG and NT, each against the other
+    assert set(info.hold_lanes) == {"HMG", "NT"} and all(info.hold_lanes.values())
+    assert info.opposing["HMG"] == "NT" and info.opposing["NT"] == "HMG"
     # every link's internal lanes map to its TLS link index (the signal a crossing vehicle faces)
     for idx, conns in enumerate(info_links):
         for _in, _out, via in conns:
             assert info.link_of_internal[via] == idx
-    for lane in info.box_lanes["HDT_N"]:
-        assert info.link_of_internal[lane] == info.link_of_internal[info.box_lanes["HDT_N"][0]]
+    for lane in info.box_lanes["HMG"]:
+        assert info.link_of_internal[lane] == info.link_of_internal[info.box_lanes["HMG"][0]]
     assert x + ".sidewalk_0" in info.lane_approach and x + ".up_0" not in info.lane_approach
     assert info.approach_lanes[x + ".up_0"] == "LVL_W" and info.approach_lanes[x + ".sidewalk_0"] == "LVL_W"
     chain = info.chains["LVL_W"][1]
@@ -695,11 +696,11 @@ def test_junction_info_on_proxy_net():
     for ln in chain:  # offset = everything downstream of the lane, from sumolib
         assert info.lane_offset[ln] == pytest.approx(want), ln
         want += net.getLane(ln).getLength()
-    assert len(info.group_links["LVL_W"]) == 3  # the road's straight links only (not the sidewalk's)
-    # the lane-0 straight is open (lane 0 marked [r, s]): not a wrong lane; left and U-turn only from lane 2, so no
-    # class has a through dodge (owner decision 2026-11-04: no violator-only links). Cut-back dodges (site
-    # violator_turn_lanes): left from lane 0 on LVL (banned on HDT), U-turn from lanes 0 and 1 everywhere;
-    # runtime = validator (R27)
+    assert len(info.group_links["LVL_W"]) == 4  # the road's straight links only (not the sidewalk's): 4 lanes
+    # the lane-0 straight is open (lane 0 marked [r, s]): not a wrong lane; left and U-turn only from the leftmost lane
+    # (3 on LVL), so no class has a through dodge (owner decision 2026-11-04: no violator-only links). Cut-back dodges
+    # (site violator_turn_lanes): left from lane 0 on LVL (banned on HMG / NT), U-turn from lanes 0 and 1 on LVL only
+    # (U-turn banned on HMG / NT since 2026-11-26); runtime = validator (R27)
     from thesis_sumo.rules.validator import _compute_dodge_vclasses
     from thesis_sumo.runtime.wrong_lane import usable_dodges
     (open_s,) = [lk for lk in info.links[f"{x}_0"] if lk.direction == "s"]
@@ -707,11 +708,11 @@ def test_junction_info_on_proxy_net():
     links = {a: info.lane_links(a) for a in info.lanes}
     assert all(usable_dodges(links, info.lane_movements, v) == [] for v in ("custom1", "custom2", "motorcycle"))
     assert info.turn_lanes == {"l": [0], "u": [0, 1]}
-    assert info.banned == {"LVL_W": frozenset(), "LVL_E": frozenset(), "HDT_N": {"l"}, "HDT_S": {"l"}}
+    assert info.banned == {"LVL_W": frozenset(), "LVL_E": frozenset(), "HMG": {"l", "u"}, "NT": {"l", "u"}}
     cut = usable_dodges(links, info.lane_movements, "custom2", info.turn_lanes, info.banned)
     dirs = {(a, j, next(lk.direction for lk in links[a][i] if lk.to_edge == e)) for a, i, e, j in cut}
-    assert dirs == {(a, j, "t") for a in info.lanes for j in (0, 1)} | {(a, 0, "l") for a in ("LVL_W", "LVL_E")}
-    assert all(i == 2 for _a, i, _e, _j in cut)
+    assert dirs == {(a, j, d) for a in ("LVL_W", "LVL_E") for j, d in ((0, "t"), (1, "t"), (0, "l"))}
+    assert all(i == 3 for _a, i, _e, _j in cut)  # LVL: left / U-turn lane = lane 3 of 4
     assert _compute_dodge_vclasses(str(net_path), site) == {"passenger", "motorcycle", "custom1", "custom2"}
 
 
@@ -734,7 +735,7 @@ def box_net(tmp_path_factory):
     """One lane per arm; the W left (WC -> CN) is custom1-only and waits at an internal junction for the opposing
     E -> W through (the proxy net's illegal left in miniature). Junction radius 1 m: the waiting point is 0.25 m
     from the centreline of the N -> S through internal lane (sumolib geometry; 1.6 m with the default radius, 11.6 m
-    with 15 m), so a waiter standing there is inside the N-S stream, as on the proxy net (R25: 0.03 m from the HDT_N
+    with 15 m), so a waiter standing there is inside the N-S stream, as on the proxy net (R25: 0.03 m from the HMG
     lane-2 centreline)."""
     conns = ('<connection from="WC" to="CS" fromLane="0" toLane="0"/>'
              '<connection from="WC" to="CE" fromLane="0" toLane="0"/>'

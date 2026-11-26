@@ -26,9 +26,9 @@ META_SUFFIXES = ("_source", "_evidence", "_transfer_note")
 
 def test_required_null_raises():
     site = load_site(SITE)
-    with pytest.raises(MissingFieldDataError) as exc:
-        site.require("signal.cycle_s")
-    assert "signal.cycle_s" in str(exc.value)
+    with pytest.raises(MissingFieldDataError) as exc:  # still TODO_MEASURE in site.yaml (2026-11-26)
+        site.require("approaches.0.sidewalk_width_m")
+    assert "approaches.0.sidewalk_width_m" in str(exc.value)
 
 
 def test_proxy_site_marked():
@@ -39,7 +39,7 @@ def test_real_site_never_reads_proxy():
     site = load_site()  # default path must be the measured file, never the proxy
     assert site.path == SITE
     assert site.source == "MEASURED"
-    assert site["signal"]["cycle_s"] is None
+    assert site["signal"]["cycle_s"] == 160.0 != load_site(PROXY)["signal"]["cycle_s"]  # measured 25/11 (video)
 
 
 def test_require_returns_value_and_walks_lists():
@@ -47,8 +47,8 @@ def test_require_returns_value_and_walks_lists():
     assert site.require("signal.cycle_s") == site["signal"]["cycle_s"]
     assert site.require("approaches.0.id") == "LVL_W"
     with pytest.raises(MissingFieldDataError) as exc:
-        load_site(SITE).require("approaches.0.lane_widths_m")
-    assert "approaches.0.lane_widths_m" in str(exc.value)
+        load_site(SITE).require("approaches.0.hard_median_length_m")
+    assert "approaches.0.hard_median_length_m" in str(exc.value)
 
 
 def test_unknown_key_is_not_missing_field_data():
@@ -135,9 +135,10 @@ def test_experiment_evidence_only_for_allowed_keys():
 
 
 def test_illegal_left_mode_is_an_experiment_choice():
-    """Phase 3 decision: a modelling choice in the proxy file (evidence `experiment`), TODO_DECIDE in site.yaml."""
-    assert load_site(SITE)["illegal_left"]["mode"] is None
+    """Phase 3 decision: a modelling choice in the proxy file (evidence `experiment`); site.yaml takes the same
+    decision since 2026-11-26 (to be re-checked against the measured box counts)."""
     proxy = load_site(PROXY)["illegal_left"]
+    assert load_site(SITE)["illegal_left"]["mode"] == proxy["mode"]
     assert proxy["mode"] in ILLEGAL_LEFT_MODES
     assert proxy["mode_evidence"] == EXPERIMENT_EVIDENCE
     assert "experiments/phase3" in proxy["mode_source"]
@@ -160,18 +161,21 @@ def test_field_observation_evidence_only_on_continuous_right_lane():
 
 
 def test_continuous_right_lane_in_both_site_files():
-    """PLAN 0: every approach has a continuous right-turn lane (field-confirmed in site.yaml, field_observation in
-    the proxy); no separator (Viktor 2026-10-28), so in the proxy its lane 0 marks right and straight. The F2 geometry
-    stays TODO_MEASURE."""
+    """LVL x HMG x NT (owner 2026-11-26): LVL_W, LVL_E and HMG have a continuous right-turn lane (lane 0), NT has none
+    and turns right on red instead, in both site files (field_observation in the proxy); no separator (Viktor
+    2026-10-28), so lane 0 marks right and straight. The F2 geometry stays TODO_MEASURE."""
     measured, proxy = load_site(SITE), load_site(PROXY)
     for m, p in zip(measured["approaches"], proxy["approaches"]):
-        assert m["continuous_right_lane"] is True and p["continuous_right_lane"] is True
+        want = m["id"] != "NT"
+        assert m["continuous_right_lane"] is want and p["continuous_right_lane"] is want
+        assert bool(m.get("right_turn_on_red")) is (not want) and bool(p.get("right_turn_on_red")) is (not want)
         assert p["continuous_right_lane_evidence"] == FIELD_OBSERVATION_EVIDENCE
         assert p["continuous_right_lane_source"].strip()
         assert p["lane_movements"][0] == ["r", "s"] and all("s" in lane for lane in p["lane_movements"][1:])
-        assert m["right_lane_separator"] == p["right_lane_separator"] == "open"  # Viktor, 2026-10-28
         assert p["bollard_length_m"] is None  # no bollards: not read
-        assert p["right_lane_separator_evidence"] == FIELD_OBSERVATION_EVIDENCE
+        if want:
+            assert m["right_lane_separator"] == p["right_lane_separator"] == "open"  # Viktor, 2026-10-28
+            assert p["right_lane_separator_evidence"] == FIELD_OBSERVATION_EVIDENCE
         for key in ("sidewalk_width_m", "hard_median_length_m"):
             assert m[key] is None, key
     for f in (measured, proxy):

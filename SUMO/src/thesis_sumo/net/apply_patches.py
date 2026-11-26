@@ -62,7 +62,7 @@
 - `illegal_left.mode` (PLAN Phase 3 decision, `native | box_edge`): `native` = the illegal lefts wait at the
   internal junction netconvert builds on their link. The final netconvert pass places it for a vehicle as wide as the
   internal lane (`--internal-junctions.vehicle-width`, default 1.8 m = a centred car): the sublane model lets a waiter
-  stand anywhere across the 3.5 m lane, and at the default point the HDT_N / HDT_S waiters stood up to 0.8 m inside
+  stand anywhere across the 3.5 m lane, and at the default point the HMG / NT waiters stood up to 0.8 m inside
   the opposing through lane 2 (green at the same time) and were hit (D2 2026-10-28, B0 PROXY_D1 1800 s: 10-27 such
   collisions per seed, 0 after). `box_pins.con.xml` pins every other internal junction (compliant U-turns /
   turnarounds) at its default position with `contPos`: unpinned, the HDT U-turn waiting points moved too (B0 62
@@ -104,6 +104,13 @@ RIGHT_LANE_SEPARATORS = ("none", "paint", "bollards", "open")  # PLAN 0 site tem
 DIR_TO_MOVEMENT = {"s": "s", "r": "r", "R": "r", "l": "l", "L": "l", "t": "t"}  # SUMO connection dir codes
 PRIORITY_MOVEMENTS = ("s", "r")  # green = G; other movements yield (g)
 UNCONTROLLED_STATE = "g"  # continuous right turn: green in every phase, yields to foes (PLAN 1.4)
+# right turn on red (site `right_turn_on_red`, NT at LVL x HMG x NT, owner 2026-11-26): outside the approach's own
+# green / yellow the right-turn link is 'g' (green without priority: yields to every foe stream). SUMO's 's' ("green
+# right-turn arrow requires stopping", sumo.dlr.de/docs/Simulation/Traffic_Lights.html) made every rider stop and
+# halved the NT discharge (B0 on VIDEO_V2: 1411 of 2756 vehicles served in 1800 s); the riders in the video roll
+# through yielding, so 'g' (decision D20). Unlike a continuous right-turn lane the turn starts from lane 0 of the
+# approach, which straight vehicles waiting at red still block.
+RIGHT_ON_RED_STATE = "g"
 NO_CHANGE = "emergency"  # changeLeft/changeRight value: only vClass emergency (absent) may change (Phase 3A)
 SPLIT_TOL_M = 0.2  # realised bollard / sidewalk-start distance vs the site value
 SPLIT_PASSES = 5  # netconvert passes at most: moving a split node reshapes the junctions, so the lengths are coupled
@@ -113,7 +120,7 @@ SPLIT_PASSES = 5  # netconvert passes at most: moving a split node reshapes the 
 # the approach's own exit (>= 160 deg; the road U-turn then gets dir "r"); a bend that ended ~0.25 m from lane 0's end
 # overlapped lane 0 and the sidewalk links were no foes of the lane-0 right turn (junction collisions); 3-4 m moved the
 # LVL_W stop line 3.6 m. 1-2 m: links of the sidewalk and of lane 0 are foes (checked in _check_site_net), every road
-# link keeps its dir, stop lines within 0.1 m of the unpatched net for LVL_W / HDT_S (LVL_E -0.7 m, HDT_N +1.6 m:
+# link keeps its dir, stop lines within 0.1 m of the unpatched net for LVL_W / NT (LVL_E -0.7 m, HMG +1.6 m:
 # scenario/net/stopline_shift.csv written by thesis_sumo.net.build). With the second sidewalk on LVL_E (2026-10-28)
 # 2.0 m moved the LVL_E stop line +3.9 m; 1.0 and 1.5 m give -0.7 m there and leave the other three unchanged.
 SIDEWALK_JOG_M, SIDEWALK_JOG_LEN_M = 1.5, 6.0
@@ -154,7 +161,11 @@ def site_values(site: Site) -> dict:
             "left_turn_banned": site.require(f"approaches.{i}.left_turn_banned"),
             "u_turn_banned": site.require(f"approaches.{i}.u_turn_banned"),
             "continuous_right_lane": site.require(f"approaches.{i}.continuous_right_lane"),
+            "right_turn_on_red": bool(site.get("approaches", [])[i].get("right_turn_on_red") or False),
         })
+        if approaches[-1]["right_turn_on_red"] and approaches[-1]["continuous_right_lane"]:
+            raise ValueError(f"{site.path}: approaches.{i}: right_turn_on_red only applies without a continuous "
+                             f"right-turn lane (that right turn is never red)")
         approaches[-1]["bollard_length_m"] = approaches[-1]["sidewalk"] = approaches[-1]["right_lane_length_m"] = None
         if approaches[-1]["continuous_right_lane"]:
             sep = approaches[-1]["right_lane_separator"] = site.require(f"approaches.{i}.right_lane_separator")
@@ -223,9 +234,10 @@ def _parse_movement(mv: str) -> tuple[str, str]:
 
 
 def phase_states(links: list[tuple[str, str]], phases: list[dict], cycle_s: float,
-                 uncontrolled: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
+                 uncontrolled: frozenset[tuple[str, str]] = frozenset(),
+                 right_on_red: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
     """State string per phase; `links[i]` = (approach_id, movement) of tl link index i. Links in `uncontrolled`
-    (continuous right turns) are `g` in every phase."""
+    (continuous right turns) are `g` in every phase; links in `right_on_red` are `s` wherever they would be `r`."""
     total = sum(p["duration_s"] for p in phases)
     if not math.isclose(total, cycle_s):
         raise ValueError(f"signal phase durations sum to {total} s, signal.cycle_s is {cycle_s} s")
@@ -243,7 +255,8 @@ def phase_states(links: list[tuple[str, str]], phases: list[dict], cycle_s: floa
         states.append("".join(
             UNCONTROLLED_STATE if (app, code) in uncontrolled
             else ("G" if code in PRIORITY_MOVEMENTS else "g") if (app, code) in green
-            else "y" if (app, code) in yellow else "r"
+            else "y" if (app, code) in yellow
+            else RIGHT_ON_RED_STATE if (app, code) in right_on_red else "r"
             for app, code in links))
     return states
 
@@ -540,14 +553,24 @@ def build_site_net(site: Site, base: Path, out: Path) -> Path:
     links = _links(net, approach_of)
     sw_links = _sidewalk_patches(net, vals, target_node(tls).getID(), {})[2]
     continuous = frozenset((a["id"], "r") for a in vals["approaches"] if a["continuous_right_lane"])
+    on_red = frozenset((a["id"], "r") for a in vals["approaches"] if a["right_turn_on_red"])
     states = phase_states([(approach_of[c.getFrom().getID()], movement_of(c.getDirection())) for c in links]
-                          + [lk[:2] for lk in sw_links], vals["phases"], vals["cycle_s"], continuous)
+                          + [lk[:2] for lk in sw_links], vals["phases"], vals["cycle_s"], continuous, on_red)
     # the lane-0 straight of a sidewalk approach targets the exit lane of the sidewalk straight; SUMO warns on two G
     # links into one lane ("unsafe green"), so the road link is g (yield): closed (bollards, R37) nobody drives it; open
     # (2026-10-28) it yields to the riders leaving the sidewalk, as netconvert's foe matrix already has it
     sw_targets = {(to, tl) for _, mv, _, to, _, tl in sw_links if mv == "s"}
     merging = {i for i, c in enumerate(links) if (c.getTo().getID(), c.getToLane().getIndex()) in sw_targets}
     states = ["".join("g" if i in merging and ch == "G" else ch for i, ch in enumerate(s)) for s in states]
+    # more approach straight lanes than exit lanes (LVL x HMG x NT: HMG 3 lanes into NT's 2): two straight links end in
+    # one exit lane; SUMO warns on two G links into one lane ("unsafe green, use 'g'"), so in every phase only the link from
+    # the rightmost lane keeps G and the others yield (g)
+    target = {}
+    for i, c in enumerate(links):  # straights only: a right turn of another approach into the same lane is no merge
+        if movement_of(c.getDirection()) == "s":
+            target.setdefault((c.getTo().getID(), c.getToLane().getIndex()), []).append((c.getFromLane().getIndex(), i))
+    merge_yield = {i for group in target.values() if len(group) > 1 for _, i in sorted(group)[1:]}
+    states = ["".join("g" if i in merge_yield and ch == "G" else ch for i, ch in enumerate(s)) for s in states]
     all_links = [_key(c) for c in links] + [lk[2:] for lk in sw_links]
 
     patch_dir = out.parent / "patches" / out.name.removesuffix(".net.xml")

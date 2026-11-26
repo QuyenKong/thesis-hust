@@ -5,7 +5,7 @@ Conventions every producer of `data/observed/<day>/` and of `observed_schema/` f
 
 - Times `t`, `interval_*`, `t_green_onset`, `t_clear_*` are seconds from the start of the observed window
   (simulation seconds on the SUMO side).
-- `approach` is a site approach id (`LVL_W`, `LVL_E`, `HDT_N`, `HDT_S`). `approach_group` in
+- `approach` is a site approach id (`LVL_W`, `LVL_E`, `HMG`, `NT`). `approach_group` in
   `signal_events.csv` is the approach id as well: the state of the approach's main signal head, i.e. of
   its straight movement (`thesis_sumo.sim.outputs.signal_events` checks that all straight links agree). Movements on
   a head of their own (green in other phases, e.g. the LVL left / U-turn arrow of the three-stage proxy plan) have no

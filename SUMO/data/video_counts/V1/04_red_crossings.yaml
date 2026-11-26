@@ -1,0 +1,44 @@
+# Xe qua vạch dừng khi đèn của nhánh đang đỏ, và xe đầu tiên qua vạch sau khi xanh. Dùng cho M2
+# (xuất phát sớm) và M3 (vượt đèn đỏ). 1 lượt xem cho mỗi nhóm đèn, chỉ xem trong lúc nhóm đó đỏ.
+#
+# red_crossings: mỗi xe một dòng. Tính xe đầu xe vượt hẳn vạch dừng và đi tiếp vào nút trong lúc đèn
+#   đỏ (không tính xe chỉ nhích qua vạch rồi đứng lại: xe đó vào n_moto_past_stopline ở tệp 03).
+#   Không tính xe rẽ phải ở làn rẽ phải tự do. Không tính xe qua vạch lúc đèn vàng.
+#   Script tự phân loại: qua vạch trong 10 s cuối trước khi xanh = xuất phát sớm (M2), sớm hơn = vượt
+#   đỏ (M3). Vì vậy chỉ cần ghi đúng thời điểm.
+# movement: s | l | u | illegal_l
+# first_after_green: thời điểm xe đầu tiên qua vạch tính từ lúc đèn xanh (không tính xe đã chạy từ
+#   lúc đỏ). Mỗi nhánh mỗi chu kỳ một dòng.
+
+red_crossings:
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  - {t: null, approach: null, vclass: null, movement: null}
+  # thêm dòng nếu thiếu
+
+# Ví dụ:  - {t: "01:47.5", approach: HDT_N, vclass: moto, movement: s}
+
+first_after_green:
+  - {cycle: 1, approach: LVL_W, t: null, vclass: null}
+  - {cycle: 1, approach: LVL_E, t: null, vclass: null}
+  - {cycle: 1, approach: HDT_N, t: null, vclass: null}
+  - {cycle: 1, approach: HDT_S, t: null, vclass: null}
+  - {cycle: 2, approach: LVL_W, t: null, vclass: null}
+  - {cycle: 2, approach: LVL_E, t: null, vclass: null}
+  - {cycle: 2, approach: HDT_N, t: null, vclass: null}
+  - {cycle: 2, approach: HDT_S, t: null, vclass: null}
+  - {cycle: 3, approach: LVL_W, t: null, vclass: null}
+  - {cycle: 3, approach: LVL_E, t: null, vclass: null}
+  - {cycle: 3, approach: HDT_N, t: null, vclass: null}
+  - {cycle: 3, approach: HDT_S, t: null, vclass: null}
+
+# Nhóm đèn nào đã xem trọn lúc đỏ (để phân biệt "0 xe vượt" với "không xem"):
+red_watched: {LVL_straight: null, LVL_left: null, HDT: null}   # true / false
+notes: null

@@ -27,8 +27,8 @@ rules (sumo.dlr.de/docs/Simulation/Intersections.html) itself before it sends th
   way) stays set.
 
 REF_n29s5 B1, PROXY_D1 seed 4 (t = 287 s) and PROXY_D2 seed 1 (t = 1029 s): the lock starts when a runner enters
-while halted vehicles of another stream stand in its path (HDT_N stragglers on the LVL_W straight's path; LVL_E
-left-turners on the HDT_S straight's path) and each side then waits for the other. In these and in PROXY_D2 seed 4
+while halted vehicles of another stream stand in its path (HMG stragglers on the LVL_W straight's path; LVL_E
+left-turners on the NT straight's path) and each side then waits for the other. In these and in PROXY_D2 seed 4
 the exit lanes of the vehicles frozen in the junction were empty: the exit check alone would not have fired. Counting
 only halted foes left locks (with this run's PROXY_D1 seed 3, t = 1017 s: the runner entered while the foes were
 moving, one of them then stopped in its path, the runner crawled 7 m in 20 s inside the junction and was caught by

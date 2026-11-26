@@ -47,8 +47,8 @@ def _dodge_net(d, connections: str = "") -> tuple:
                                  '<node id="E" x="150" y="0"/><node id="S" x="0" y="-150"/><node id="N" x="0" y="150"/>'
                                  '</nodes>', encoding="utf-8")
     edges = [("WC", "W", "C", "Le Van Luong"), ("CE", "C", "E", "Le Van Luong"), ("EC", "E", "C", "Le Van Luong"),
-             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Dao Thuy"), ("CN", "C", "N", "Hoang Dao Thuy"),
-             ("NC", "N", "C", "Hoang Dao Thuy"), ("CS", "C", "S", "Hoang Dao Thuy")]
+             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Minh Giam"), ("CN", "C", "N", "Hoang Minh Giam"),
+             ("NC", "N", "C", "Hoang Minh Giam"), ("CS", "C", "S", "Hoang Minh Giam")]
     (d / "n.edg.xml").write_text("<edges>" + "".join(
         f'<edge id="{i}" from="{f}" to="{t}" name="{n}" numLanes="2" speed="13.9"/>' for i, f, t, n in edges)
         + "</edges>", encoding="utf-8")
@@ -59,7 +59,7 @@ def _dodge_net(d, connections: str = "") -> tuple:
         cmd += ["-x", str(d / "c.con.xml")]
     subprocess.run(cmd, check=True, capture_output=True)
     data = copy.deepcopy(dict(load_site(PROXY_SITE)))
-    edge = {"LVL_W": "WC", "LVL_E": "EC", "HDT_N": "NC", "HDT_S": "SC"}
+    edge = {"LVL_W": "WC", "LVL_E": "EC", "HMG": "NC", "NT": "SC"}
     for a in data["approaches"]:
         a["edge"], a["lane_widths_m"] = edge[a["id"]], [3.5, 3.5]
         a["lane_movements"] = [["r", "s"], ["l", "u"]] if a["id"] == "LVL_W" else [["r", "s"], ["s", "l", "u"]]
@@ -394,15 +394,19 @@ def test_minGapLat_wider_than_lane(spec, site):
     _arch(spec, "motorcycle")["params"]["minGapLat"] = 0.9
     issues = validate(spec, narrow_site)
     assert _codes(issues) == ["logic"]
-    assert "0.8" in issues[0]["message"] and "HDT_N" in issues[0]["message"]
+    assert "0.8" in issues[0]["message"] and "HMG" in issues[0]["message"]
     assert validate(spec, site) == []
 
 
-def test_minGapLat_needs_lane_widths(spec):
-    """The measured site file has lane widths `null # TODO_MEASURE`: no silent default."""
+def test_minGapLat_needs_lane_widths(spec, tmp_path):
+    """A site file with lane widths `null # TODO_MEASURE` raises: no silent default. (config/site.yaml has published
+    standard widths since 2026-11-26, so the null is set on a copy.)"""
     _arch(spec, "motorcycle")["params"]["minGapLat"] = 0.5
+    data = copy.deepcopy(dict(load_site()))
+    for a in data["approaches"]:
+        a["lane_widths_m"] = None
     with pytest.raises(MissingFieldDataError, match="lane_widths_m"):
-        validate(spec, load_site())
+        validate(spec, Site(data, tmp_path / "site.yaml"))
 
 
 def test_lcPushy_and_lcPushyGap(spec, site):

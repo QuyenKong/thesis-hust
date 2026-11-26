@@ -296,9 +296,9 @@ def test_invalid_spec_refused(tmp_path, site, b1):
 
 
 def test_measured_site_without_lane_widths_raises(tmp_path, b1):
-    """B1 sets minGapLat: against the measured site file (lane widths TODO_MEASURE) compiling raises."""
+    """B1 sets minGapLat: against a measured site file with lane widths TODO_MEASURE compiling raises."""
     with pytest.raises(MissingFieldDataError):
-        compile_spec(b1, tmp_path, site=load_site())
+        compile_spec(b1, tmp_path / "out", site=load_site(_site_with_null_widths(tmp_path)))
 
 
 def test_handwritten_B0_dir_protected(site):
@@ -353,7 +353,7 @@ def test_cli(tmp_path, capsys):
 
 
 def test_cli_measured_site_missing_lane_widths(tmp_path, capsys):
-    rc = compiler.main([str(B1), "--out", str(tmp_path / "out")])
+    rc = compiler.main([str(B1), "--site", str(_site_with_null_widths(tmp_path)), "--out", str(tmp_path / "out")])
     assert rc == 2
     assert "lane_widths_m" in capsys.readouterr().err
     assert not (tmp_path / "out").exists()
@@ -367,3 +367,16 @@ def test_cli_invalid(tmp_path, capsys, b1):
     assert rc == 1
     assert "out_of_bounds" in capsys.readouterr().out
     assert not (tmp_path / "out").exists()
+
+
+def _site_with_null_widths(tmp_path):
+    """config/site.yaml with every lane_widths_m set back to null (TODO_MEASURE): site.yaml has published standard
+    widths since 2026-11-26, so the no-silent-default check runs on a copy."""
+    import yaml
+    data = yaml.safe_load((REPO_ROOT / "config" / "site.yaml").read_text(encoding="utf-8"))
+    for key in ("approaches", "exits"):
+        for a in data[key]:
+            a["lane_widths_m"] = None
+    path = tmp_path / "site.null_widths.yaml"
+    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return path

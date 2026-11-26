@@ -1,0 +1,29 @@
+# Hàng chờ lúc đèn của nhánh chuyển xanh. 1 lượt xem: dừng hình đúng khung hình đèn chuyển G
+# (lấy t từ 01_signal.yaml) và đếm trên ảnh tĩnh. Dùng cho M4, M5, M9, M10.
+#
+# queue_back: xe cuối hàng chờ đứng ở đâu. Ghi tên mốc trong site_survey.yaml (landmarks) hoặc số m
+#   ước theo mốc gần nhất, ví dụ "cột điện thứ 2" hoặc 45. Hàng dài hơn tầm nhìn: "beyond".
+# n_car, n_moto: số xe đang đứng chờ ở các làn có đèn (tính cả xe đã vượt vạch dừng). Không tính xe rẽ
+#   phải đang đi trên làn rẽ phải tự do.
+# n_moto_past_stopline: số xe máy đang đứng vượt quá vạch dừng (M4 xe máy dừng vượt vạch).
+# n_straight_in_lane0: số xe đi thẳng đang đứng trên làn 0 trong đoạn 30 m cuối, chắn xe rẽ phải (M9).
+#   Không chắc xe đó đi thẳng: xem tiếp vài giây rồi quay lại.
+# n_moto_on_sidewalk: số xe máy đang ở trên vỉa hè cạnh hàng chờ (M10), chỉ ở nhánh F2.
+# Lúc chuyển xanh của LVL_straight đếm LVL_W, LVL_E; của HDT đếm HDT_N, HDT_S.
+# 5 phút có khoảng 2-3 chu kỳ; xóa khối thừa, thêm khối nếu thiếu.
+
+green_onsets:
+  - {cycle: 1, approach: LVL_W, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 1, approach: LVL_E, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 1, approach: HDT_N, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 1, approach: HDT_S, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 2, approach: LVL_W, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 2, approach: LVL_E, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 2, approach: HDT_N, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 2, approach: HDT_S, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 3, approach: LVL_W, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 3, approach: LVL_E, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 3, approach: HDT_N, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+  - {cycle: 3, approach: HDT_S, t_green: null, queue_back: null, n_car: null, n_moto: null, n_moto_past_stopline: null, n_straight_in_lane0: null, n_moto_on_sidewalk: null}
+
+notes: null

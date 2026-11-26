@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-11-26T04:31:29.840205+07:00 by Eclipse SUMO libsumo 1.27.0
+<libsumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/libsumoConfiguration.xsd">
+
+    <input>
+        <net-file value="D:\hust-master\Thesis\SUMO\scenario\net\site.net.xml"/>
+        <route-files value="D:\hust-master\Thesis\SUMO\scenario\demand\routes_VIDEO_V2.rou.xml"/>
+        <additional-files value="D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\compiled\B0\vtypes.add.xml,D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\runs\B0__VIDEO_V2\seed_02\outputs.add.xml"/>
+    </input>
+
+    <output>
+        <fcd-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\runs\B0__VIDEO_V2\seed_02\fcd.xml.gz"/>
+        <fcd-output.attributes value="x,y,angle,type,speed,pos,lane,posLat,speedLat,acceleration"/>
+        <fcd-output.filter-shapes value="fcd_zone"/>
+        <tripinfo-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\runs\B0__VIDEO_V2\seed_02\tripinfo.xml"/>
+        <lanechange-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\runs\B0__VIDEO_V2\seed_02\lanechange.xml"/>
+        <collision-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\runs\B0__VIDEO_V2\seed_02\collisions.xml"/>
+        <statistic-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\runs\B0__VIDEO_V2\seed_02\statistics.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="1800"/>
+        <step-length value="0.1"/>
+    </time>
+
+    <processing>
+        <lateral-resolution value="0.4"/>
+        <collision.check-junctions value="true"/>
+    </processing>
+
+    <routing>
+        <device.rerouting.probability value="0"/>
+    </routing>
+
+    <report>
+        <aggregate-warnings value="20"/>
+        <log value="D:\hust-master\Thesis\SUMO\experiments\campaigns\REF_v1126\runs\B0__VIDEO_V2\seed_02\sumo.log"/>
+        <no-step-log value="true"/>
+    </report>
+
+    <random_number>
+        <seed value="2"/>
+    </random_number>
+
+</libsumoConfiguration>
+-->
+
+<collisions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/collision_file.xsd">
+    <collision time="190.10" type="collision" lane="711526328#7.up_2" pos="170.68" collider="moto_0_583" victim="moto_0_576" colliderType="moto_B0" victimType="moto_B0" colliderSpeed="5.50" victimSpeed="1.38" colliderFront="250.71,280.32" colliderBack="252.50,281.60" victimFront="246.81,278.31" victimBack="248.60,279.59"/>
+    <collision time="211.20" type="side" lane="710360129#0_1" pos="156.68" collider="moto_0_453" victim="moto_0_426" colliderType="moto_B0" victimType="moto_B0" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="181.83,176.03" colliderBack="183.14,174.26" victimFront="182.52,176.53" victimBack="183.82,174.76"/>
+    <collision time="509.40" type="side" lane="710360129#0_1" pos="133.17" collider="moto_0_1045" victim="moto_0_1129" colliderType="moto_B0" victimType="moto_B0" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="196.39,157.56" colliderBack="197.68,155.77" victimFront="195.71,157.06" victimBack="197.00,155.28"/>
+    <collision time="591.70" type="junction" lane=":cluster_10538711449_10617504197_320101377_444501627_21_2" pos="14.66" collider="moto_0_1871" victim="car_0_203" colliderType="moto_B0" victimType="car_B0" colliderSpeed="13.31" victimSpeed="8.40" colliderFront="145.67,203.92" colliderBack="144.27,205.62" victimFront="148.35,200.01" victimBack="144.79,203.55"/>
+    <collision time="754.20" type="junction" lane=":cluster_10538711449_10617504197_320101377_444501627_9_0" pos="0.82" collider="moto_0_1740" victim="car_0_224" colliderType="moto_B0" victimType="car_B0" colliderSpeed="1.14" victimSpeed="1.54" colliderFront="175.93,187.58" colliderBack="176.91,185.98" victimFront="176.92,188.48" victimBack="179.89,184.30"/>
+    <collision time="837.20" type="side" lane="710360129#0_1" pos="144.47" collider="moto_0_2120" victim="moto_0_2086" colliderType="moto_B0" victimType="moto_B0" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="189.07,166.20" colliderBack="190.37,164.43" victimFront="189.75,166.70" victimBack="191.06,164.93"/>
+    <collision time="1571.50" type="side" lane=":cluster_10538711449_10617504197_320101377_444501627_24_0" pos="8.68" collider="moto_violator_900_58" victim="moto_900_2126" colliderType="moto_violator_B0" victimType="moto_B0" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="143.36,209.81" colliderBack="141.83,211.40" victimFront="142.60,209.14" victimBack="141.21,210.84"/>
+    <collision time="1576.20" type="side" lane=":cluster_10538711449_10617504197_320101377_444501627_24_0" pos="8.31" collider="moto_violator_900_56" victim="moto_900_2126" colliderType="moto_violator_B0" victimType="moto_B0" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="143.91,210.85" colliderBack="142.39,212.44" victimFront="143.44,209.83" victimBack="142.05,211.53"/>
+    <collision time="1595.50" type="side" lane=":cluster_10538711449_10617504197_320101377_444501627_24_0" pos="8.68" collider="moto_violator_900_61" victim="moto_900_2126" colliderType="moto_violator_B0" victimType="moto_B0" colliderSpeed="0.00" victimSpeed="0.00" colliderFront="144.01,210.44" colliderBack="142.48,212.02" victimFront="143.29,209.70" victimBack="141.89,211.40"/>
+</collisions>

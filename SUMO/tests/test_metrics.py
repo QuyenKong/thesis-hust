@@ -35,28 +35,28 @@ CYCLE = 120.0
 
 
 def _signal(n_cycles: int = 10) -> pd.DataFrame:
-    """LVL_W/LVL_E: G [0,64) y [64,68) r [68,120); HDT_N/HDT_S: r [0,70) G [70,114) y [114,118) r [118,120).
+    """LVL_W/LVL_E: G [0,64) y [64,68) r [68,120); HMG/NT: r [0,70) G [70,114) y [114,118) r [118,120).
     Green onsets (the first record is not one): LVL 120, 240, ...; HDT 70, 190, 310, ..."""
-    rows = [(0.0, a, "r") for a in ("HDT_N", "HDT_S")]
+    rows = [(0.0, a, "r") for a in ("HMG", "NT")]
     for c in range(n_cycles):
         b = c * CYCLE
         for a in ("LVL_W", "LVL_E"):
             rows += [(b, a, "G"), (b + 64, a, "y"), (b + 68, a, "r")]
-        for a in ("HDT_N", "HDT_S"):
+        for a in ("HMG", "NT"):
             rows += [(b + 70, a, "G"), (b + 114, a, "y"), (b + 118, a, "r")]
     return pd.DataFrame(rows, columns=TABLES["signal_events"]).sort_values(["t", "approach_group"], kind="stable")
 
 
 def _signal3(n_cycles: int = 10) -> pd.DataFrame:
     """Three stages as site.proxy.yaml (straight heads only, schema_observed): LVL_W/LVL_E G [0,42) y [42,46) r [46,120)
-    (their left arrow is G [48,64)); HDT_N/HDT_S r [0,70) G [70,114) y [114,118) r [118,120).
+    (their left arrow is G [48,64)); HMG/NT r [0,70) G [70,114) y [114,118) r [118,120).
     Green onsets: LVL 120, 240, ...; HDT 70, 190, 310, ..."""
-    rows = [(0.0, a, "r") for a in ("HDT_N", "HDT_S")]
+    rows = [(0.0, a, "r") for a in ("HMG", "NT")]
     for c in range(n_cycles):
         b = c * CYCLE
         for a in ("LVL_W", "LVL_E"):
             rows += [(b, a, "G"), (b + 42, a, "y"), (b + 46, a, "r")]
-        for a in ("HDT_N", "HDT_S"):
+        for a in ("HMG", "NT"):
             rows += [(b + 70, a, "G"), (b + 114, a, "y"), (b + 118, a, "r")]
     return pd.DataFrame(rows, columns=TABLES["signal_events"]).sort_values(["t", "approach_group"], kind="stable")
 
@@ -99,14 +99,14 @@ def _site(continuous: bool = False, sidewalk=None, three_phase: bool = False) ->
     """Two stages (every movement of an approach with its straight, as `_signal`) or the three stages of
     site.proxy.yaml (LVL left and U-turn on their own arrow, as `_signal3`)."""
     lanes = [["r", "s"], ["s"], ["s", "l", "u"]]
-    mv = {a: [f"{a}:{d}" for d in "rslt"] for a in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")}
+    mv = {a: [f"{a}:{d}" for d in "rslt"] for a in ("LVL_W", "LVL_E", "HMG", "NT")}
     phases = ([{"green_movements": [m for a in ("LVL_W", "LVL_E") for m in mv[a] if m[-1] in "rs"]},
                {"green_movements": [m for a in ("LVL_W", "LVL_E") for m in mv[a] if m[-1] in "lt"]},
-               {"green_movements": mv["HDT_N"] + mv["HDT_S"]}] if three_phase else
-              [{"green_movements": mv["LVL_W"] + mv["LVL_E"]}, {"green_movements": mv["HDT_N"] + mv["HDT_S"]}])
+               {"green_movements": mv["HMG"] + mv["NT"]}] if three_phase else
+              [{"green_movements": mv["LVL_W"] + mv["LVL_E"]}, {"green_movements": mv["HMG"] + mv["NT"]}])
     return Site({"site_source": "LITERATURE_PROXY", "f2_measured_approaches": sidewalk, "signal": {"phases": phases},
                  "approaches": [{"id": a, "lane_widths_m": [3.5, 3.5, 3.5], "lane_movements": lanes,
-                                 "continuous_right_lane": continuous} for a in ("LVL_W", "LVL_E", "HDT_N", "HDT_S")]},
+                                 "continuous_right_lane": continuous} for a in ("LVL_W", "LVL_E", "HMG", "NT")]},
                 PROXY_SITE)
 
 
@@ -149,20 +149,20 @@ def test_m1_headway_known():
 
 
 def _red_tables():
-    # HDT_N red: [118 + 120c, 190 + 120c); onsets 70, 190, 310, 430, 550 (< 600)
-    veh = [V(f"r{n}", "HDT_N", "moto", "s", t) for n, t in enumerate([120, 185, 240, 241, 250, 500, 545, 599])]
-    veh += [V(f"g{n}", "HDT_N", "moto", "s", t) for n, t in enumerate([80, 90, 200, 320, 440])]
-    veh += [V("c0", "HDT_N", "car", "s", 85.0)]
+    # HMG red: [118 + 120c, 190 + 120c); onsets 70, 190, 310, 430, 550 (< 600)
+    veh = [V(f"r{n}", "HMG", "moto", "s", t) for n, t in enumerate([120, 185, 240, 241, 250, 500, 545, 599])]
+    veh += [V(f"g{n}", "HMG", "moto", "s", t) for n, t in enumerate([80, 90, 200, 320, 440])]
+    veh += [V("c0", "HMG", "car", "s", 85.0)]
     return _tables(veh)
 
 
 def test_m3_violations_per_cycle():
     out = m3_red_running.compute(_red_tables(), _ctx(window=(0.0, 600.0)))
     # complete cycles in [0, 600) with the next onset < 600: HDT 70, 190, 310, 430 (4 each), LVL 120, 240, 360 (3 each)
-    # HDT_N red runners (not within 10 s of the next onset): 120 | 240, 241, 250 | - | 500  -> [1, 3, 0, 1]
+    # HMG red runners (not within 10 s of the next onset): 120 | 240, 241, 250 | - | 500  -> [1, 3, 0, 1]
     # 185 and 545 are early starts; 599 cannot be classified (next onset 670 is outside the window)
     assert sorted(out["M3/per_cycle"].values) == [0] * 11 + [1, 1, 3]   # 14 approach-cycles
-    # var/mean per approach with a non-zero mean: HDT_N mean 1.25, var 4.75/3 -> 1.26667
+    # var/mean per approach with a non-zero mean: HMG mean 1.25, var 4.75/3 -> 1.26667
     assert out["M3/var_to_mean"].values == pytest.approx(4.75 / 3 / 1.25)
     # share: classifiable crossings t < 550 (last onset): 12 moto (7 red + 5 green), 1 car; 5 red runners
     assert out["M3/share/moto"].values == pytest.approx(5 / 12)
@@ -176,17 +176,17 @@ def test_m2_early_start_and_first_delay():
     assert out["M2/early/moto"].values == pytest.approx(2 / 12)  # 185 and 545
     assert out["M2/early/car"].values == 0.0
     # first crossing at/after each onset in the window, before that cycle's red onset, any approach:
-    # HDT_N onsets 70 -> 80 (10), 190 -> 200 (10), 310 -> 320 (10), 430 -> 440 (10), 550 -> none before 598
+    # HMG onsets 70 -> 80 (10), 190 -> 200 (10), 310 -> 320 (10), 430 -> 440 (10), 550 -> none before 598
     assert sorted(out["M2/first_delay"].values) == pytest.approx([10.0] * 4)
 
 
 @pytest.mark.parametrize("continuous", [True, False])
 def test_continuous_right_turns_not_violations(continuous):
-    """PLAN 0: with continuous_right_lane true a right turn on red is no violation. HDT_N (onsets 70, 190):
+    """PLAN 0: with continuous_right_lane true a right turn on red is no violation. HMG (onsets 70, 190):
     s in red at 20 (red runner), r in red at 25 and in the last 10 s of red at 65, r at 80 and s at 85 in green."""
-    veh = [V("s1", "HDT_N", "moto", "s", 20.0), V("r1", "HDT_N", "moto", "r", 25.0),
-           V("r2", "HDT_N", "moto", "r", 65.0), V("r3", "HDT_N", "moto", "r", 80.0),
-           V("s2", "HDT_N", "moto", "s", 85.0)]
+    veh = [V("s1", "HMG", "moto", "s", 20.0), V("r1", "HMG", "moto", "r", 25.0),
+           V("r2", "HMG", "moto", "r", 65.0), V("r3", "HMG", "moto", "r", 80.0),
+           V("s2", "HMG", "moto", "s", 85.0)]
     tables, ctx = _tables(veh, n_cycles=2), _ctx(window=(0.0, 240.0), continuous=continuous)
     m2, m3 = m2_early_start.compute(tables, ctx), m3_red_running.compute(tables, ctx)
     if continuous:  # only s1, s2 are classifiable; first crossing after 70 is s2
@@ -205,7 +205,7 @@ def test_continuous_right_lane_flag_required():
     for a in site["approaches"]:
         del a["continuous_right_lane"]
     with pytest.raises(KeyError, match="continuous_right_lane"):
-        m3_red_running.compute(_tables([V("s1", "HDT_N", "moto", "s", 20.0)], n_cycles=2),
+        m3_red_running.compute(_tables([V("s1", "HMG", "moto", "s", 20.0)], n_cycles=2),
                                MetricContext(window=(0.0, 240.0), queue_range_m=80.0, site=site))
 
 
@@ -250,7 +250,7 @@ def test_m4_lateral_and_overshoot():
 
 def test_m5_queue_and_censoring():
     q = [(0, 120.0, "LVL_W", 10.0, 1, 5, 105.0), (1, 240.0, "LVL_W", 80.0, 4, 40, 840.0),
-         (0, 190.0, "HDT_N", 0.0, 0, 0, 0.0), (9, 1200.0, "HDT_N", 50.0, 1, 1, 525.0)]  # last: outside window
+         (0, 190.0, "HMG", 0.0, 0, 0, 0.0), (9, 1200.0, "HMG", 50.0, 1, 1, 525.0)]  # last: outside window
     out = m5_queue.compute(_tables(queue=q), _ctx())
     assert sorted(out["M5/length"].values) == pytest.approx([0.0, 10.0, 80.0])
     assert sorted(out["M5/moto_density"].values) == pytest.approx([5 / 105, 40 / 840])  # area 0 has no density
@@ -261,7 +261,7 @@ def test_m5_queue_and_censoring():
 def test_m6_traversal_times():
     veh = [V("a", "LVL_W", "moto", "s", 100.0, t_exit=105.0, t_range=80.0),
            V("b", "LVL_W", "moto", "s", 200.0, t_exit=208.0, t_range=np.nan),
-           V("c", "HDT_N", "car", "r", 300.0, t_exit=302.5, t_range=270.0),
+           V("c", "HMG", "car", "r", 300.0, t_exit=302.5, t_range=270.0),
            V("d", "LVL_W", "moto", "illegal_l", 400.0, t_exit=np.nan, t_range=390.0),
            V("e", "LVL_W", "moto", "s", 1200.0, t_exit=1205.0, t_range=1180.0)]  # outside window
     out = m6_traversal.compute(_tables(veh), _ctx())
@@ -275,10 +275,10 @@ def test_m6_traversal_times():
 
 def test_m8_wrong_lane_share():
     # lanes [0, 3.5) r,s | [3.5, 7) s | [7, 10.5) s,l,u ; lat beyond the roadway falls in the outer lane
-    veh = [V("a", "HDT_N", "moto", "r", 100.0, lat=1.0), V("b", "HDT_N", "moto", "r", 101.0, lat=5.0),
-           V("c", "HDT_N", "moto", "l", 102.0, lat=2.0), V("d", "HDT_N", "moto", "u", 103.0, lat=12.0),
-           V("e", "HDT_N", "moto", "s", 104.0, lat=5.0), V("f", "LVL_W", "moto", "illegal_l", 105.0, lat=1.0),
-           V("g", "HDT_N", "car", "l", 106.0, lat=9.0), V("h", "HDT_N", "moto", "l", 107.0, lat=np.nan)]
+    veh = [V("a", "HMG", "moto", "r", 100.0, lat=1.0), V("b", "HMG", "moto", "r", 101.0, lat=5.0),
+           V("c", "HMG", "moto", "l", 102.0, lat=2.0), V("d", "HMG", "moto", "u", 103.0, lat=12.0),
+           V("e", "HMG", "moto", "s", 104.0, lat=5.0), V("f", "LVL_W", "moto", "illegal_l", 105.0, lat=1.0),
+           V("g", "HMG", "car", "l", 106.0, lat=9.0), V("h", "HMG", "moto", "l", 107.0, lat=np.nan)]
     out = m8_wrong_lane.compute(_tables(veh), _ctx())
     assert out["M8/moto"].values == pytest.approx(2 / 4)  # b (r in lane 1), c (l in lane 0)
     assert out["M8/car"].values == 0.0
@@ -288,8 +288,8 @@ def test_m8_reads_lane_at_right_lane_start():
     """Owner decision 2C (2026-11-08): a left-turner in lane 0 at the start of the right-turn stretch that cuts back
     into lane 2 before the stop line is wrong-lane; one in lane 2 at the stretch start but drifting right at the stop
     line is not; a NaN lane there (first seen inside the stretch) is dropped."""
-    veh = [V("a", "HDT_N", "moto", "l", 100.0, lat=9.0) + (1.0,), V("b", "HDT_N", "moto", "l", 101.0, lat=2.0) + (9.0,),
-           V("c", "HDT_N", "moto", "l", 102.0, lat=9.0) + (np.nan,)]
+    veh = [V("a", "HMG", "moto", "l", 100.0, lat=9.0) + (1.0,), V("b", "HMG", "moto", "l", 101.0, lat=2.0) + (9.0,),
+           V("c", "HMG", "moto", "l", 102.0, lat=9.0) + (np.nan,)]
     out = m8_wrong_lane.compute(_tables(veh), _ctx())
     assert out["M8/moto"].values == pytest.approx(1 / 2)
     t = _tables(veh)
@@ -300,9 +300,9 @@ def test_m8_reads_lane_at_right_lane_start():
 
 def test_m8_needs_site_lanes(tmp_path):
     p = tmp_path / "site.yaml"
-    p.write_text("site_source: MEASURED\napproaches:\n  - id: HDT_N\n    lane_widths_m: null\n"
+    p.write_text("site_source: MEASURED\napproaches:\n  - id: HMG\n    lane_widths_m: null\n"
                  "    lane_movements: null\n", encoding="utf-8")
-    veh = [V("a", "HDT_N", "moto", "r", 100.0)]
+    veh = [V("a", "HMG", "moto", "r", 100.0)]
     from thesis_sumo.config import MissingFieldDataError
     with pytest.raises(MissingFieldDataError, match="lane_widths_m"):
         m8_wrong_lane.compute(_tables(veh), MetricContext(window=(0, 1000), queue_range_m=80, site=load_site(p)))
@@ -323,8 +323,8 @@ def _box_tables():
         V("o1", "LVL_E", "moto", "s", 183.0), V("o2", "LVL_E", "moto", "s", 186.5), V("o3", "LVL_E", "moto", "s", 195.0),
         V("o4", "LVL_E", "moto", "s", 300.0), V("o5", "LVL_E", "moto", "r", 303.0),  # o5 not straight
         # crossing road: first crossing after its onsets 190 / 310
-        V("n1", "HDT_N", "moto", "s", 192.0), V("n2", "HDT_N", "moto", "s", 311.5),
-        V("s1", "HDT_S", "moto", "s", 192.3), V("s2", "HDT_S", "moto", "s", 311.4),
+        V("n1", "HMG", "moto", "s", 192.0), V("n2", "HMG", "moto", "s", 311.5),
+        V("s1", "NT", "moto", "s", 192.3), V("s2", "NT", "moto", "s", 311.4),
     ]
     box = [(-1, 64.0, "LVL_W", 4, 30.0, 70.0), (0, 184.0, "LVL_W", 2, 150.0, 190.6), (1, 304.0, "LVL_W", 1, 310.0, 310.0)]
     return _tables(veh, box=box)
@@ -343,20 +343,20 @@ def test_m7_box_count():
 
 
 def test_m7_two_illegal_left_approaches():
-    """site.proxy.yaml since 2026-10-28: illegal lefts from HDT_N and HDT_S, each the other's opposing approach (same
+    """site.proxy.yaml since 2026-10-28: illegal lefts from HMG and NT, each the other's opposing approach (same
     road, green together); one box_queue row per approach at the HDT green end 114 (+120 k). Crossing road = LVL_W,
     LVL_E (onsets 120, 240); M7c pairs each onset with the waiters of BOTH boxes at the last box time (5, then 1)."""
-    veh = [V("n1", "HDT_N", "moto", "illegal_l", 80.0, t_exit=116.0), V("n2", "HDT_N", "moto", "illegal_l", 90.0, t_exit=120.0),
-           V("s1", "HDT_S", "moto", "illegal_l", 85.0, t_exit=117.0),
-           V("os", "HDT_S", "moto", "s", 112.0), V("on", "HDT_N", "moto", "s", 113.0),   # opposing straights
+    veh = [V("n1", "HMG", "moto", "illegal_l", 80.0, t_exit=116.0), V("n2", "HMG", "moto", "illegal_l", 90.0, t_exit=120.0),
+           V("s1", "NT", "moto", "illegal_l", 85.0, t_exit=117.0),
+           V("os", "NT", "moto", "s", 112.0), V("on", "HMG", "moto", "s", 113.0),   # opposing straights
            V("w1", "LVL_W", "moto", "s", 122.0), V("e1", "LVL_E", "moto", "s", 123.0),
            V("w2", "LVL_W", "moto", "s", 241.0), V("e2", "LVL_E", "moto", "s", 241.5)]
-    box = [(0, 114.0, "HDT_N", 3, 116.0, 120.0), (0, 114.0, "HDT_S", 2, 117.0, 117.0),
-           (1, 234.0, "HDT_N", 1, np.nan, np.nan), (1, 234.0, "HDT_S", 0, np.nan, np.nan)]
+    box = [(0, 114.0, "HMG", 3, 116.0, 120.0), (0, 114.0, "NT", 2, 117.0, 117.0),
+           (1, 234.0, "HMG", 1, np.nan, np.nan), (1, 234.0, "NT", 0, np.nan, np.nan)]
     out = m7_illegal_left.compute(_tables(veh, box=box, three_phase=True), _ctx(three_phase=True))
     assert sorted(out["M7a/n_waiting"].values) == [0, 1, 2, 3]
     assert sorted(out["M7a/release_time"].values) == pytest.approx([2.0, 3.0, 6.0])
-    # HDT_N: 116 - max(114, 112 HDT_S straight); HDT_S: 117 - max(114, 113 HDT_N straight)
+    # HMG: 116 - max(114, 112 NT straight); NT: 117 - max(114, 113 HMG straight)
     assert sorted(out["M7b/clear_lag"].values) == pytest.approx([2.0, 3.0])
     # x = [5, 5, 1, 1], delays [2, 3, 1, 1.5] -> slope 5 / 16
     assert out["M7c/slope"].values == pytest.approx(5 / 16)
@@ -404,8 +404,8 @@ def test_geh_gate():
     sim = _counts([(0, "LVL_W", "s", "moto", 100), (0, "LVL_W", "r", "moto", 150), (900, "LVL_W", "s", "moto", 160),
                    (1800, "LVL_W", "s", "moto", 1000)])  # 1800: outside [0, 1800)
     obs = _counts([(0, "LVL_W", "s", "moto", 100), (0, "LVL_W", "r", "moto", 100), (900, "LVL_W", "s", "moto", 100),
-                   (900, "HDT_N", "s", "car", 0), (1800, "LVL_W", "s", "moto", 10)])
-    # cells: GEH 0, 4.47, 5.26 (fail), 0 (0 vs 0; HDT_N missing on the sim side = 0) -> 3/4 below 5
+                   (900, "HMG", "s", "car", 0), (1800, "LVL_W", "s", "moto", 10)])
+    # cells: GEH 0, 4.47, 5.26 (fail), 0 (0 vs 0; HMG missing on the sim side = 0) -> 3/4 below 5
     ok, share = g0_geh.gate({"turn_counts": sim}, {"turn_counts": obs}, threshold=5, min_share=0.85, window=(0, 1800))
     assert share == pytest.approx(0.75) and ok is False
     ok, share = g0_geh.gate({"turn_counts": sim}, {"turn_counts": obs}, threshold=5, min_share=0.75, window=(0, 1800))
@@ -475,9 +475,9 @@ def test_split_weights_hierarchical():
 
 def _rich_obs(shift: float = 0.0):
     """Tables with events for every metric (red runner, early start, box waiters, queue)."""
-    veh = [V("r1", "HDT_N", "moto", "s", 130.0 + shift), V("e1", "HDT_N", "moto", "s", 185.0),
-           V("g1", "HDT_N", "moto", "r", 200.0, lat=5.0, t_exit=203.0, t_range=180.0),
-           V("g2", "HDT_N", "car", "l", 201.0, lat=9.0, t_exit=208.0, t_range=170.0)]
+    veh = [V("r1", "HMG", "moto", "s", 130.0 + shift), V("e1", "HMG", "moto", "s", 185.0),
+           V("g1", "HMG", "moto", "r", 200.0, lat=5.0, t_exit=203.0, t_range=180.0),
+           V("g2", "HMG", "car", "l", 201.0, lat=9.0, t_exit=208.0, t_range=170.0)]
     t = _box_tables()
     extra = _tables(veh)
     for name in ("traversals", "stopline_crossings"):
@@ -539,21 +539,21 @@ def test_same_generator_gives_R_near_one():
 def _f2_tables():
     """window [0, 1000): LVL onsets 120..960 -> complete cycles 0..6; HDT onsets 70..910 -> 0..6 (7 per approach)."""
     events = [(130.0, 0, "LVL_W", "a", "moto", "right_lane", 10.0), (135.0, 0, "LVL_W", "b", "car", "right_lane", 30.0),
-              (500.0, 3, "LVL_W", "c", "moto", "right_lane", 50.0), (200.0, 1, "HDT_N", "d", "moto", "right_lane", 20.0),
+              (500.0, 3, "LVL_W", "c", "moto", "right_lane", 50.0), (200.0, 1, "HMG", "d", "moto", "right_lane", 20.0),
               (1200.0, 9, "LVL_W", "e", "moto", "right_lane", 70.0),     # outside the window and the cycles
               (140.0, 0, "LVL_W", "f", "moto", "sidewalk", 15.0), (150.0, 0, "LVL_W", "g", "moto", "sidewalk", 25.0),
               (380.0, 2, "LVL_W", "h", "moto", "sidewalk", 35.0),
               (150.0, 0, "LVL_E", "i", "moto", "sidewalk", 5.0),         # LVL_E has no sidewalk: ignored
               (160.0, 0, "LVL_W", "j", "moto", "wrong_lane", 5.0)]
     rtd = [("r1", "LVL_W", "moto", 100.0, 110.0, False), ("r2", "LVL_W", "moto", 200.0, 230.0, True),
-           ("r3", "HDT_N", "car", np.nan, 300.0, True),                   # no range entry: dropped
+           ("r3", "HMG", "car", np.nan, 300.0, True),                   # no range entry: dropped
            ("r4", "LVL_W", "moto", 1100.0, 1110.0, True)]                 # exit outside the window
     return _tables(events=events, rtd=rtd)
 
 
 def test_m9_right_lane_known():
     out = m9_right_lane.compute(_f2_tables(), _ctx(continuous=True))
-    # LVL_W cycles 0..6: [1+1, 0, 0, 1, 0, 0, 0]; HDT_N [0, 1, 0, ...]; LVL_E, HDT_S all 0 -> 28 values, sum 4
+    # LVL_W cycles 0..6: [1+1, 0, 0, 1, 0, 0, 0]; HMG [0, 1, 0, ...]; LVL_E, NT all 0 -> 28 values, sum 4
     pc = out["M9a/per_cycle"].values
     assert len(pc) == 28 and sorted(pc)[-3:] == [1.0, 1.0, 2.0] and pc.sum() == 4
     assert list(out["M9b/delay_blocked"].values) == [30.0]

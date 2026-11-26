@@ -364,7 +364,8 @@ def _legal_rates(ap: Approach, p: Params, cyc: Cycles) -> dict[tuple[str, str], 
     """(vclass, movement) -> arrivals per second (before the 15-min profile) of legal movements."""
     vol = p("G0_counts.approach_volume_veh_h")[ap.id]
     ms = min(p("G0_counts.moto_share"), 1.0)
-    split = p("G0_counts.movement_split")["banned_left" if "l" not in ap.movements else "legal"]
+    splits = p("G0_counts.movement_split")  # per approach id if given (video targets), else the two shared splits
+    split = splits.get(ap.id) or splits["banned_left" if "l" not in ap.movements else "legal"]
     legal = [m for m in ap.movements if m != "illegal_l"]
     if set(split) != set(legal):
         raise ValueError(f"{ap.id}: movement_split {sorted(split)} does not match movements {sorted(legal)}")
@@ -768,11 +769,8 @@ def _git_commit() -> str | None:
 
 
 def _opposing(site: Site, approach: str, approaches) -> str:
-    same = [o for o in approaches if o != approach and o.split("_")[0] == approach.split("_")[0]]
-    if len(same) != 1:
-        raise ValueError(f"illegal-left approach {approach}: no unique opposing approach (same road prefix) "
-                         f"in {list(approaches)}")
-    return same[0]
+    from thesis_sumo.net.build_net import opposing_arm
+    return opposing_arm(approach, approaches)
 
 
 def generate_day(targets: dict, site: Site, day_id: str, seed: int, out_dir: Path,

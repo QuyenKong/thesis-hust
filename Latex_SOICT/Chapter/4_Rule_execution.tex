@@ -1,0 +1,150 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+
+% Chương này chỉ trình bày ý tưởng; hiện thực trên SUMO, giá trị cụ thể (cửa sổ đo, ngưỡng, ngân sách) và kết quả
+% nằm ở Chương 5. Nguồn: src/thesis_sumo/rules/{validator,compiler}.py, src/thesis_sumo/runtime/*, src/thesis_sumo/metrics/*,
+% src/thesis_sumo/evaluate.py.
+
+Chương~\ref{chapter:RuleGeneration} kết thúc ở một đặc tả luật do LLM, người viết hoặc bộ tối ưu số sinh ra. Chương này trình bày phần \emph{thực thi luật}: mọi bước do mã tất định làm để biến đặc tả thành hành vi của xe trong mô phỏng và đo kết quả. Phần thực thi phải giải quyết một mâu thuẫn. Hành vi vi phạm đòi hỏi gỡ bỏ một số ràng buộc của mô hình chuẩn, như ràng buộc dừng khi đèn đỏ; nhưng các ràng buộc khác, như nhường đường và tránh va chạm, phải được giữ nguyên, nếu không mô phỏng sẽ cho ra những va chạm và chồng lấn mà giao thông thật không có.
+
+Các bước đi theo thứ tự của Hình~\ref{fig:1.1}. Mục~\ref{section:3.4} trình bày bước kiểm tra hợp lệ trước khi chạy. Mục~\ref{section:ex_layers} mô tả hai lớp thực thi mà đặc tả được biên dịch thành. Mục~\ref{section:ex_space} mô tả không gian riêng cho xe vi phạm. Mục~\ref{section:3.5} nêu các nguyên tắc can thiệp an toàn, và Mục~\ref{section:ex_log} mô tả cách ghi nhận can thiệp. Ba mục tiếp theo trình bày cách đo kết quả một lần chạy: lược đồ dữ liệu chung (Mục~\ref{section:ev_schema}), hệ thống chỉ số và điểm (Mục~\ref{section:3.7}) và tiêu chí chấp nhận (Mục~\ref{section:ev_eligibility}). Mục~\ref{section:3.8} trình bày cách so sánh các nguồn sinh đặc tả.
+
+\section{Kiểm tra hợp lệ trước khi chạy}
+\label{section:3.4}
+
+Bộ kiểm tra hợp lệ chạy bốn nhóm kiểm tra. Nhóm (i) đối chiếu đặc tả với lược đồ. Nhóm (ii) kiểm tra tên tham số có trong tệp miền giá trị, giá trị nằm trong khoảng cho phép, tổng tỷ trọng theo từng phân phối, và tham số của từng loại luật. Nhóm (iii) tìm mâu thuẫn logic: khoảng cách ngang tối thiểu lớn hơn bề rộng làn nhỏ nhất của nút; khai báo đồng thời hai tham số mà trình mô phỏng chỉ dùng một; $p_0 > p_{\max}$; luật áp dụng cho loại phương tiện không phù hợp; lựa chọn đi sai làn trên nhánh không có làn tương ứng. Nhóm (iv) chỉ chạy ở chế độ chỉ tham số và yêu cầu cấu trúc khớp bộ luật gốc.
+
+Các kiểm tra ở nhóm (iii) phụ thuộc nút giao được đọc từ mô tả nút và mạng đã dựng, nên LLM nhận phản hồi ``luật này không áp dụng được tại nút này'' thay vì tốn một lần chạy cho một luật vô tác dụng. Kết quả kiểm tra là \emph{cả danh sách lỗi}, không dừng ở lỗi đầu tiên; mỗi lỗi có đường dẫn tới phần tử sai, một mã lỗi và thông điệp nêu rõ khoảng hoặc tên được phép. Danh sách này được gửi nguyên văn cho LLM khi yêu cầu sửa (Mục~\ref{section:ev_feedback}). Tỷ lệ đặc tả hợp lệ được ghi cho từng câu trả lời và báo cáo như một chỉ số của vòng lặp LLM.
+
+\section{Hai lớp thực thi}
+\label{section:ex_layers}
+
+Đặc tả hợp lệ được biên dịch thành hai lớp, tương ứng hai cách biểu diễn hành vi ở Mục~\ref{section:rg_mechanisms}.
+
+Lớp \emph{tham số tĩnh} chứa các nguyên mẫu tài xế. Mỗi loại phương tiện có một phân phối gồm các nguyên mẫu với tỷ trọng tương ứng; khi một xe được sinh ra, trình mô phỏng rút nguyên mẫu cho xe theo tỷ trọng và nạp tham số tĩnh của nguyên mẫu đó một lần. Từ đó xe hành xử theo mô hình bám xe, chuyển làn và nhường đường của trình mô phỏng với các tham số này. Tên các phân phối cố định, nên mọi đặc tả dùng chung một tệp nhu cầu: đổi đặc tả không đổi số xe hay hướng đi, chỉ đổi cách các xe đó hành xử.
+
+Lớp \emph{luật có điều kiện} do một \emph{bộ điều khiển} thực hiện. Ở mỗi bước mô phỏng, bộ điều khiển đọc trạng thái các xe trong vùng nút giao, đánh giá điều kiện kích hoạt của từng luật và ra lệnh cho những xe thỏa điều kiện thông qua giao diện điều khiển lúc chạy của trình mô phỏng. Mỗi loại luật là một đơn vị riêng, nên thêm một loại luật không động tới các luật khác.
+
+Bộ biên dịch ghi mọi tham số tường minh, kể cả tham số bằng giá trị mặc định, và nạp thử tệp tham số với kiểm tra lược đồ của trình mô phỏng. Lý do là trình mô phỏng có thể bỏ qua âm thầm một tên tham số sai hoặc một tổ hợp tham số nó không dùng; khi đó lần chạy vẫn hợp lệ về cú pháp nhưng không phản ánh đặc tả.
+
+\section{Không gian riêng cho xe vi phạm}
+\label{section:ex_space}
+
+Một số hành vi cần không gian mà xe tuân thủ không được dùng: hướng rẽ trái ở nhánh cấm rẽ, làn vỉa hè, điểm dừng chờ trong nút. Phương pháp tạo các không gian này bằng \emph{bản vá mạng tĩnh}, mỗi bản vá chỉ mở cho lớp vi phạm (Mục~\ref{section:rg_mechanisms}). Bản vá được dựng từ mô tả nút giao bằng script, cùng lúc với mạng, và không thay đổi trong suốt quá trình hiệu chỉnh; LLM không sinh hay sửa bản vá.
+
+Cách làm này tách hai câu hỏi. Câu hỏi ``không gian này có tồn tại không'' được trả lời một lần, bằng khảo sát hiện trường và thí nghiệm khả thi. Câu hỏi ``bao nhiêu người dùng không gian này và khi nào'' được trả lời bằng tỷ trọng nguyên mẫu và tham số luật, tức thuộc phần sinh luật. Trước khi một hành vi cần không gian riêng được đưa vào mô hình, nó được thử trên một kịch bản nhỏ để trả lời bốn câu hỏi: trình mô phỏng có tự tạo ra hành vi không; cấu trúc mạng nào cho phép nó; xe tuân thủ chịu chi phí gì; và trình mô phỏng còn tính xung đột giữa xe vi phạm và dòng xe thật không. Một hành vi không qua được câu hỏi cuối thì nằm ngoài phạm vi mô hình, vì khi đó mô phỏng có khả năng thông hành và mức an toàn ảo.
+
+\section{Nguyên tắc can thiệp an toàn}
+\label{section:3.5}
+
+Bộ điều khiển tuân theo năm nguyên tắc.
+
+\textbf{Chỉ gỡ đúng ràng buộc cần gỡ.} Mô hình chuẩn của trình mô phỏng gồm nhiều ràng buộc an toàn độc lập: không vượt đèn đỏ, nhường xe xung đột khi vào nút, giữ khoảng cách an toàn với xe trước, giới hạn gia tốc. Luật vượt đèn đỏ chỉ gỡ ràng buộc ``không vượt đèn đỏ''; mọi ràng buộc khác, kể cả nhường xe xung đột, được giữ. Ràng buộc nào cần gỡ được xác định bằng thí nghiệm trên một nút nhỏ, không suy từ tài liệu. Nếu gỡ hết các ràng buộc, xe chắc chắn làm được hành vi, nhưng cũng lao vào dòng xe cắt ngang; một bộ luật như vậy có thể ``khớp'' dữ liệu nhờ va chạm và chồng lấn vật lý, và vòng tối ưu sẽ khai thác lỗ hổng đó.
+
+\textbf{Chỉ giữ, không đẩy.} Luật được phép làm xe đi chậm hơn hoặc chờ lâu hơn so với mô hình chuẩn; luật không được ép xe đi qua một dòng xung đột vào thời điểm định trước, và không được cho xe khác bỏ qua xe đó. Với hành vi rẽ trái chờ giữa nút, nguyên tắc này giới hạn luật ở việc kéo dài thời gian giữ xe (Mục~\ref{section:rg_mechanisms}).
+
+\textbf{Mỗi xe một can thiệp.} Một xe đang chịu một luật bị các luật khác bỏ qua cho tới khi can thiệp kết thúc, để các lệnh ghi đè không chồng lên nhau và mỗi hành vi quan sát được có đúng một nguyên nhân.
+
+\textbf{Khôi phục và kiểm tra lại.} Mọi thay đổi trạng thái của xe được hoàn tác khi can thiệp kết thúc. Sau mỗi lần đặt và mỗi lần khôi phục, bộ điều khiển đọc lại giá trị từ trình mô phỏng và dừng lần chạy nếu giá trị không khớp. Bộ điều khiển không đổi thuộc tính của nguyên mẫu trong lúc chạy, vì việc đó có thể tách xe khỏi nguyên mẫu ban đầu và làm hỏng việc đối chiếu xe với đặc tả.
+
+\textbf{Chỉ xét vùng nút.} Bộ điều khiển chỉ xử lý xe trong một bán kính quanh nút giao đủ phủ các không gian vi phạm, và đọc trạng thái xe theo cơ chế đăng ký nhận dữ liệu thay vì hỏi từng xe, để chi phí mỗi bước không tăng theo kích thước mạng. Trạng thái đèn của mỗi xe được lấy theo đúng luồng mà xe sẽ đi, để xe rẽ trong pha mũi tên riêng không bị coi là vượt đèn đỏ.
+
+\section{Ghi nhận can thiệp}
+\label{section:ex_log}
+
+Một luật có thể ra lệnh mà trình mô phỏng không thi hành, ví dụ vì thời gian đỏ hết trước khi xe tới vạch. Nếu không ghi lại điều này, không phân biệt được một luật vô tác dụng với một luật chưa bao giờ được kích hoạt. Vì vậy mỗi can thiệp được ghi thành một bản ghi gồm bảy trường: thời điểm phát lệnh, mã xe, loại luật, hành động, cờ thực thi (phản ứng quan sát được của trình mô phỏng, định nghĩa riêng cho từng luật), lý do không thực thi, và thời điểm xác định kết quả.
+
+Mỗi can thiệp mở một \emph{cửa sổ can thiệp} cho xe. Cửa sổ không đóng ở vạch dừng mà kéo dài tới khi xe ra khỏi nút. Một va chạm được tính là liên quan can thiệp nếu ít nhất một trong hai xe đang ở trong cửa sổ. Lý do: xe vượt đèn đỏ thường va chạm bên trong nút, sau khi đã qua vạch; nếu cửa sổ đóng ở vạch, các va chạm đó bị tính nhầm là không liên quan tới luật. Số va chạm liên quan can thiệp là một điều kiện để một lần chạy được chấp nhận (Mục~\ref{section:ev_eligibility}).
+
+Mỗi luật có bộ sinh số ngẫu nhiên riêng, khởi tạo từ seed của lần chạy, và xe được duyệt theo thứ tự mã. Cùng đặc tả, cùng nhu cầu và cùng seed vì vậy cho cùng chuỗi quyết định và cùng nhật ký can thiệp, bất kể giao diện nào được dùng để điều khiển trình mô phỏng.
+
+\section{Lược đồ dữ liệu quan sát chung}
+\label{section:ev_schema}
+
+Dữ liệu quan sát của một kịch bản là dữ liệu trích từ video quay tại nút trong nhiều ngày của cùng khung giờ. Phương pháp định nghĩa một lược đồ dữ liệu quan sát gồm mười bảng: số đếm rẽ theo 15 phút, sự kiện đèn, lượt qua vạch dừng, ảnh chụp hàng chờ, vị trí ngang, hàng chờ giữa nút, lượt đi qua nút, và ba bảng cho nhóm tìm khoảng trống (chuỗi thời gian hàng chờ, sự kiện tìm khoảng trống, độ trễ của xe rẽ phải). Định nghĩa đầy đủ nằm ở Phụ lục~\ref{section:appendix_schema}.
+
+Đầu ra mô phỏng được chuyển về đúng lược đồ này. Nhờ vậy một bộ hàm chỉ số tính được cho cả hai nguồn, và một sai lệch giữa mô phỏng và quan sát không thể đến từ việc hai bên tính chỉ số khác nhau. Các bảng của nhóm tìm khoảng trống chỉ suy từ quỹ đạo, vị trí và tuyến của xe, không đọc nhật ký can thiệp, để cùng định nghĩa áp dụng được cho dữ liệu video, nơi không có nhật ký can thiệp.
+
+\section{Hệ thống chỉ số và điểm}
+\label{section:3.7}
+
+\subsection{Các chỉ số}
+
+Mỗi chỉ số là một hàm trên dữ liệu theo lược đồ chung, trả về một phân phối hoặc một giá trị vô hướng. Bảng~\ref{table:3.3} định nghĩa các chỉ số bằng các ký hiệu chung; giá trị cụ thể của một nút (cửa sổ đo, chiều dài đoạn làn rẽ phải, phạm vi quan sát hàng chờ) nằm ở Chương~\ref{chapter:Experiment}. Các chỉ số được tính trong cùng một cửa sổ thời gian $[t_0, t_1)$ ở cả phía mô phỏng và phía quan sát, bỏ qua giai đoạn khởi động đầu lần chạy. Một \emph{chu kỳ} của một nhánh là khoảng giữa hai lần bắt đầu xanh liên tiếp của nhánh đó. M1--M3 chỉ xét các hướng đi theo đèn đi thẳng của nhánh: rẽ phải trên làn rẽ phải liên tục và các hướng có đèn mũi tên riêng không được phân loại là vi phạm hay không.
+
+M2 và M3 phân loại các lượt qua vạch dừng trong thời gian đỏ, gồm cả đỏ toàn phần, bằng một ngưỡng $T$: lượt qua vạch cách lần bắt đầu xanh kế tiếp của nhánh không quá $T$ giây là xuất phát sớm, các lượt khác trong thời gian đỏ là vượt đèn đỏ. Hai chỉ số vì vậy không chồng lấn. Lượt qua vạch khi đèn vàng không thuộc chỉ số nào. Luận văn dùng $T = 10$~s.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Các chỉ số đánh giá.}
+\label{table:3.3}
+\begin{tabular}{|p{1.0cm}|>{\raggedright\arraybackslash}p{9.2cm}|>{\raggedright\arraybackslash}p{3.0cm}|}
+\hline
+\textbf{Mã} & \textbf{Định nghĩa} & \textbf{Đơn vị / dạng} \\ \hline
+G0 & Cổng lọc lưu lượng: GEH $=\sqrt{2(m-c)^2/(m+c)}$ của số đếm rẽ theo ô 15 phút $\times$ nhánh $\times$ hướng $\times$ loại phương tiện ($m$: mô phỏng, $c$: quan sát). Lần chạy qua cổng khi tỷ lệ ô có GEH $<5$ không nhỏ hơn 0,85. Không tính vào điểm & Tỷ lệ ô đạt \\ \hline
+M1 & Giãn cách xả hàng: ở mỗi lần bắt đầu xanh, các xe đang chờ chưa qua vạch được xếp theo thứ tự qua vạch; giãn cách của xe thứ $n \ge 2$ là khoảng thời gian từ lượt qua vạch trước đó, theo loại phương tiện & s; phân phối \\ \hline
+M2 & Xuất phát sớm: tỷ lệ lượt qua vạch trong $T$ giây cuối của thời gian đỏ; độ trễ từ lúc bắt đầu xanh đến lượt qua vạch đầu tiên & Tỷ lệ; s \\ \hline
+M3 & Vượt đèn đỏ: số lượt mỗi chu kỳ, tỷ số phương sai trên trung bình của số lượt mỗi chu kỳ, tỷ lệ trên số lượt qua vạch & xe/chu kỳ; tỷ lệ \\ \hline
+M4 & Vị trí dừng của xe máy đang chờ lúc bắt đầu xanh: vị trí ngang tính từ mép phải; tỷ lệ và độ sâu dừng quá vạch dừng & m; phân phối \\ \hline
+M5 & Hàng chờ lúc bắt đầu xanh trong phạm vi quan sát phía trước vạch dừng: chiều dài, và mật độ xe máy (số xe máy chia diện tích hàng chờ) & m; xe/m\textsuperscript{2} \\ \hline
+M6 & Thời gian đi qua nhánh vào (từ khi vào phạm vi quan sát tới vạch dừng, gồm thời gian chờ) và qua nút (từ vạch dừng tới làn ra), theo hướng $\times$ loại phương tiện & s; phân phối \\ \hline
+M7 & Rẽ trái trái phép chờ giữa nút, đo ở mỗi lần kết thúc xanh đi thẳng của dòng đối diện. M7a: số xe đang dừng chờ trong nút và thời điểm xả của từng xe. M7b: độ trễ giải phóng vùng chờ, tức thời gian từ khi dòng đối diện ngừng qua vạch tới khi xe chờ đầu tiên rời nút. M7c: độ dốc hồi quy của độ trễ khởi động của hướng giao cắt theo số xe còn chờ trong nút & xe; s; s/xe \\ \hline
+M8 & Đi sai làn: tỷ lệ xe rẽ qua vạch dừng ở làn không có hướng ra của nó & Tỷ lệ \\ \hline
+M9 & Chặn làn rẽ phải liên tục. M9a: số xe không rẽ phải đứng chờ đèn đỏ trên làn rẽ phải liên tục, mỗi chu kỳ. M9b: độ trễ và tỷ lệ xe rẽ phải bị chặn. M9c: chiều dài hàng chờ lúc xe đó đứng vào làn (chỉ báo cáo) & xe/chu kỳ; s; tỷ lệ; m \\ \hline
+M10 & Đi trên vỉa hè. M10a: số xe máy trên vỉa hè mỗi chu kỳ. M10b: chiều dài hàng chờ lúc xe chọn vỉa hè (chỉ báo cáo) & xe/chu kỳ; m \\ \hline
+\end{tabular}
+\end{table}
+
+Mỗi chỉ số đo ít nhất một hành vi ở Bảng~\ref{table:1.1}. M2 đo xuất phát sớm (hành vi 3); M3 đo vượt đèn đỏ, trong đó tỷ số phương sai trên trung bình đo mức dồn theo đợt của hiệu ứng bầy đàn (hành vi 1, 2); M4 và M5 đo cách xe máy chiếm không gian khi dừng (hành vi 4); M7 đo rẽ trái chờ giữa nút và tác động của nó lên hướng giao cắt (hành vi 10); M8, M9, M10 đo ba lựa chọn của nhóm tìm khoảng trống (hành vi 5, 6, 7). Hành vi 9 (chấp nhận khoảng trống nhỏ) và hành vi 11 (đi chậm giữa làn) không có chỉ số riêng. M1, M5 và M6 gần với ba đại lượng quen thuộc khi đánh giá nút có đèn: giãn cách xả hàng là nghịch đảo của lưu lượng bão hòa, chiều dài hàng chờ, và thời gian đi qua nhánh vào gồm cả độ trễ do chờ đèn. Ba chỉ số này chịu ảnh hưởng của mọi hành vi, nên là nơi lộ ra sai lệch nếu danh mục hành vi thiếu một hành vi quan trọng (Mục~\ref{section:rg_behaviours}). M8 đọc làn tại vạch dừng, nên xe đi sai làn đã cắt về làn đúng trước vạch dừng không được ghi nhận.
+
+PET (thời gian sau xâm phạm) đo trên từng cặp xe xung đột. Không chỉ số nào ở Bảng~\ref{table:3.3} đo PET; M7b là thời gian giải phóng vùng chờ, một đại lượng khác.
+
+\subsection{Hàm khoảng cách và điểm tổng}
+
+Với một khóa chỉ số $k$ (một chỉ số con, có thể tách theo loại xe hay hướng), gọi $x$ là mẫu mô phỏng và $y$ là mẫu quan sát của một ngày. Khoảng cách được định nghĩa là
+\begin{equation}
+\delta_k(x, y) =
+\begin{cases}
+\min\left( W_1(x, y) / s(y),\ D_{\text{empty}} \right) & \text{nếu khóa là phân phối,}\\
+\min\left( |x - y| / |y|,\ D_{\text{empty}} \right) & \text{nếu khóa là vô hướng,}
+\end{cases}
+\label{eq:distance}
+\end{equation}
+trong đó $W_1$ là khoảng cách Wasserstein bậc 1, $s(y)$ là khoảng tứ phân vị của $y$ (nếu bằng 0 thì lùi lần lượt về độ lệch chuẩn, trị tuyệt đối của trung bình, rồi 1), và $D_{\text{empty}} = 2$. Khi đúng một phía không có sự kiện nào, $\delta_k = D_{\text{empty}}$; khi cả hai phía không có sự kiện, $\delta_k = 0$. Với $I$ lần chạy mô phỏng và $J$ ngày quan sát, khoảng cách của khóa là trung bình trên mọi cặp, và sàn nhiễu là trung bình trên mọi cặp ngày quan sát khác nhau:
+\begin{equation}
+d_k = \frac{1}{IJ} \sum_{i=1}^{I} \sum_{j=1}^{J} \delta_k(x_i, y_j), \qquad
+d_k^{\text{day}} = \frac{1}{J(J-1)} \sum_{a \ne b} \delta_k(y_a, y_b).
+\label{eq:dk}
+\end{equation}
+Tỷ số $R_k = d_k / d_k^{\text{day}}$ (với $d_k^{\text{day}}$ thay bằng 0,05 khi nó bằng 0) cho biết mô phỏng lệch khỏi quan sát nhiều hơn hai ngày quan sát lệch nhau bao nhiêu lần. Điểm tổng là
+\begin{equation}
+S = \sum_{k} w_k\, d_k, \qquad
+w_k = \frac{1}{|G|} \cdot \frac{1}{|C_g|} \cdot \frac{1}{|K_c|},
+\label{eq:score}
+\end{equation}
+trong đó $G$ là tập các nhóm M1--M10 có khóa được tính điểm, $C_g$ là tập chỉ số con của nhóm $g$ chứa khóa $k$ (ví dụ M7a, M7b, M7c), và $K_c$ là tập khóa của chỉ số con $c$. Cách chia này giữ cho một nhóm có nhiều khóa không lấn át nhóm khác. $S$ tách thành hai phần cộng lại bằng $S$: $S_{\text{sourced}}$ từ các khóa có giá trị mục tiêu có nguồn, và $S_{\text{assumed}}$ từ các khóa có giá trị mục tiêu giả định.
+
+Chặn trên $D_{\text{empty}}$ là một biến đệm: nếu thiếu nó, một hành vi hiếm có thể cho khoảng cách nhỏ hơn khi bị triệt tiêu hoàn toàn so với khi xảy ra sai mức, và bộ tối ưu sẽ hạ điểm bằng cách xóa hành vi khỏi mô phỏng. Quy tắc chưa xử lý hết trường hợp tỷ lệ nhỏ: với khóa vô hướng, khoảng cách khi mô phỏng bằng 0 là 1, còn khi mô phỏng gấp hơn hai lần quan sát là 2, nên ép một hành vi hiếm về 0 vẫn rẻ hơn làm nó xảy ra quá mức. Luận văn giữ nguyên hàm khoảng cách và nêu điều này như một hạn chế (Mục~\ref{section:limitations}).
+
+\section{Tiêu chí chấp nhận}
+\label{section:ev_eligibility}
+
+Điểm $S$ thấp chưa đủ để chấp nhận một đặc tả: một lần chạy có thể có $S$ thấp vì xe bị loại khỏi mô phỏng do kẹt, hoặc vì các xe vi phạm va chạm với nhau. Một lần chạy \emph{đạt tiêu chí chấp nhận} khi thỏa cả năm điều kiện: (i) không có xe nào bị trình mô phỏng loại khỏi mạng vì kẹt; (ii) không còn xe chờ vào mạng khi lần chạy kết thúc; (iii) qua cổng G0; (iv) số va chạm trên làn và số va chạm trong nút không vượt ngưỡng; và (v) có tối đa một va chạm liên quan đến xe đang chịu can thiệp (Mục~\ref{section:ex_log}). Ở đây ``va chạm'' là sự kiện của trình mô phỏng khi hai xe quá gần hoặc chồng lấn hình học, không phải chỉ số an toàn giao thông.
+
+Hai ngưỡng va chạm được suy từ mô hình mặc định và đóng băng trước vòng hiệu chỉnh đầu tiên. Ý tưởng là một bộ luật không được làm mô phỏng có nhiều va chạm hơn chính mô hình chuẩn, vốn đã có va chạm do cách trình mô phỏng xử lý các luồng cắt nhau trong nút. Một đặc tả đạt tiêu chí chấp nhận khi mọi lần chạy của nó đạt. Nếu trong một chiến dịch không có đặc tả nào đạt, đặc tả tốt nhất được chọn theo số xe kẹt trung bình mỗi giờ, rồi theo $S$.
+
+Cổng G0 dùng ngưỡng GEH $<5$ cho ít nhất 85\% số ô, lấy từ hướng dẫn TAG Unit M3.1 của Bộ Giao thông Anh~\cite{dft2026tagm31}. Hướng dẫn này áp ngưỡng cho lưu lượng giờ. G0 tính GEH trên số đếm 15 phút; vì GEH tăng theo căn bậc hai của số đếm, ngưỡng 5 trên số đếm 15 phút tương đương khoảng 10 trên lưu lượng giờ, và các ô tách theo loại xe và hướng thường chỉ có vài xe. G0 vì vậy lỏng hơn tiêu chí của TAG và chỉ loại các lần chạy lệch lưu lượng nặng.
+
+\section{Thiết kế so sánh}
+\label{section:3.8}
+
+Phương pháp được đánh giá bằng cách so sánh các nguồn sinh đặc tả trong cùng điều kiện. Có năm loại phương án: mô hình chuẩn của trình mô phỏng, không có luật có điều kiện; một bộ luật viết tay từ tài liệu; một bộ tối ưu số chỉnh tham số trên cấu trúc của bộ luật viết tay; LLM ở chế độ chỉ tham số trên cùng cấu trúc; và LLM ở chế độ đầy đủ. Mọi phương án đi qua cùng bộ kiểm tra hợp lệ, cùng bộ thực thi, cùng hàm đánh giá, cùng quy tắc chọn đặc tả và cùng ngân sách số lần chạy (Mục~\ref{section:ev_feedback}). Hai phép so sánh trả lời hai câu hỏi khác nhau. So LLM chế độ chỉ tham số với bộ tối ưu số đánh giá LLM như một bộ tối ưu tham số, vì hai bên tìm trên cùng một tập. So LLM chế độ đầy đủ với hai phương án trên đánh giá giá trị của cấu trúc luật do LLM đề xuất.
+
+Ngoài điểm $S$, phương pháp so sánh ba nguồn theo cách người đọc kiểm tra được bằng mắt: dữ liệu quan sát tại nút, mô phỏng với mô hình chuẩn, và mô phỏng với bộ luật. Phần quỹ đạo đặt cạnh nhau đường đi của các xe trong cùng một chu kỳ đèn. Phần số đếm so các đại lượng đếm được trực tiếp: tỷ lệ vượt đèn đỏ, tỷ lệ xuất phát sớm, số xe chờ giữa nút, số xe đi trên vỉa hè và số lượt qua vạch dừng mỗi giờ. Kỳ vọng là mô phỏng với bộ luật có các hành vi vi phạm mà mô hình chuẩn không có, ở mức gần với số đếm quan sát hơn mô hình chuẩn.
+
+\medskip
+
+Chương này đã trình bày phần thực thi luật: kiểm tra hợp lệ, hai lớp tham số tĩnh và luật có điều kiện, không gian riêng cho xe vi phạm, năm nguyên tắc can thiệp an toàn, cách ghi nhận can thiệp, cách đo một lần chạy so với dữ liệu quan sát, và cách so sánh các nguồn sinh đặc tả. Các bước này áp dụng như nhau cho mọi đặc tả, bất kể do người, LLM hay bộ tối ưu sinh ra. Chương~\ref{chapter:Experiment} hiện thực cả hai phần của phương pháp trên SUMO cho một nút giao cụ thể và đánh giá chúng.
+
+\end{document}

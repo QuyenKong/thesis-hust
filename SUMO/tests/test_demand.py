@@ -31,13 +31,13 @@ INTERVAL_S = 900
 SMALL_COUNTS = [
     # interval_start, interval_end, approach, movement, vclass, count
     (0, 900, "LVL_W", "s", "moto", 40), (0, 900, "LVL_W", "s", "car", 12),
-    (0, 900, "LVL_W", "r", "moto", 9), (0, 900, "HDT_N", "illegal_l", "moto", 5),
+    (0, 900, "LVL_W", "r", "moto", 9), (0, 900, "HMG", "illegal_l", "moto", 5),
     (0, 900, "LVL_W", "u", "moto", 2), (0, 900, "LVL_E", "l", "car", 3),
     (0, 900, "LVL_E", "s", "moto", 30), (0, 900, "LVL_W", "l", "moto", 6),
-    (0, 900, "HDT_S", "r", "car", 4), (0, 900, "HDT_S", "illegal_l", "moto", 3),
-    (900, 1800, "LVL_W", "s", "moto", 55), (900, 1800, "HDT_N", "illegal_l", "moto", 8),
-    (900, 1800, "LVL_E", "s", "car", 10), (900, 1800, "HDT_N", "s", "moto", 20),
-    (900, 1800, "HDT_S", "u", "car", 1),
+    (0, 900, "NT", "r", "car", 4), (0, 900, "NT", "illegal_l", "moto", 3),
+    (900, 1800, "LVL_W", "s", "moto", 55), (900, 1800, "HMG", "illegal_l", "moto", 8),
+    (900, 1800, "LVL_E", "s", "car", 10), (900, 1800, "HMG", "s", "moto", 20),
+    (900, 1800, "LVL_E", "u", "car", 1),  # U-turns only on LVL since 2026-11-26
 ]
 
 
@@ -81,7 +81,7 @@ def test_candidate_routes_cover_all_movements(net, candidates):
     routes = etree.parse(str(candidates)).getroot().findall("route")
     pairs = [tuple(r.get("edges").split()[-2:]) for r in routes]
     assert Counter(pairs) == Counter(expected)  # each once, nothing else
-    assert len(expected) == 16  # 4 arms x (r, s, l, u)
+    assert len(expected) == 14  # LVL_W, LVL_E x (r, s, l, u); HMG, NT x (r, s, illegal l): no U-turn there (2026-11-26)
     assert not any(".sidewalk" in r.get("edges") for r in routes)
 
     cands = read_candidates(candidates)
@@ -89,14 +89,14 @@ def test_candidate_routes_cover_all_movements(net, candidates):
     for (app, mv), edges in cands.items():
         assert approach_of[edges[-2]] == app
         assert list(edges[:-1]) == [e.getID() for e in reversed(approach_segments(net, edges[-2]))]
-        # every approach is split at the end of its 30 m right-turn stretch (open lane 0, Viktor 2026-10-29), LVL_W /
-        # LVL_E also at the sidewalk start
-        assert len(edges) == (4 if app in ("LVL_W", "LVL_E") else 3)
+        # every approach with a continuous right-turn lane is split at the end of its 30 m stretch (open lane 0, Viktor
+        # 2026-10-29), LVL_W / LVL_E also at the sidewalk start; NT (right turn on red, no such lane) is one edge
+        assert len(edges) == {"LVL_W": 4, "LVL_E": 4, "HMG": 3, "NT": 2}[app]
         assert mv in MOVEMENTS
-    # HDT_N / HDT_S lefts are banned and re-added for custom1 only (site illegal_left, 2026-10-28) -> illegal_l;
-    # the LVL lefts are legal (protected arrow)
-    for app in ("HDT_N", "HDT_S"):
-        assert {(app, m) for m in ("illegal_l", "s", "r", "u")} <= set(cands) and (app, "l") not in cands
+    # HMG / NT lefts are banned and re-added for custom1 only (site illegal_left, 2026-10-28) -> illegal_l; no U-turn
+    # there (owner 2026-11-26); the LVL lefts are legal (protected arrow)
+    for app in ("HMG", "NT"):
+        assert {(app, m) for m in ("illegal_l", "s", "r")} <= set(cands) and not {(app, "l"), (app, "u")} & set(cands)
     for app in ("LVL_W", "LVL_E"):
         assert {(app, m) for m in ("l", "s", "r", "u")} <= set(cands) and (app, "illegal_l") not in cands
 
@@ -137,15 +137,15 @@ def test_violator_type_mapping(sampled, candidates):
 # --- further behaviour ---------------------------------------------------------------------------
 
 def test_car_illegal_left_rejected(tmp_path, candidates):
-    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "HDT_N", "illegal_l", "car", 1)])
+    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "HMG", "illegal_l", "car", 1)])
     with pytest.raises(ValueError, match="illegal_l"):
         build_demand(counts, candidates, tmp_path / "r.rou.xml", seed=1)
 
 
 def test_banned_movement_rejected(tmp_path, candidates):
     """A legal `l` count on the banned approach has no route; it must fail, not be dropped."""
-    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "HDT_S", "l", "moto", 1)])
-    with pytest.raises(ValueError, match="HDT_S"):
+    counts = _write_counts(tmp_path / "c.csv", [(0, 900, "NT", "l", "moto", 1)])
+    with pytest.raises(ValueError, match="NT"):
         build_demand(counts, candidates, tmp_path / "r.rou.xml", seed=1)
 
 

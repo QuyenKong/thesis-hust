@@ -264,27 +264,28 @@ def test_context_lists_only_bounds_attrs(site, base):
     assert "DEFAULT_" in system_prompt()
 
 
-def test_v003_context_describes_28_10_scenario(site, base):
-    """Scenario of 2026-10-28 (site.proxy.yaml): banned lefts at HDT_N / HDT_S, legal protected LVL lefts and
-    U-turns, 3 signal stages, sidewalks on LVL_W and LVL_E, continuous right lane on every approach; v003 adds
-    rule uturn_bypass (owner decision D2, 2026-11-04)."""
+def test_v006_context_describes_lvl_hmg_nt(site, base):
+    """LVL x HMG x NT (site.proxy.yaml since 2026-11-26): banned lefts at HMG / NT, legal protected LVL lefts and
+    U-turns, 3 signal stages, sidewalks on LVL_W and LVL_E, continuous right lane on LVL_W, LVL_E, HMG (NT: right
+    on red); prompt v006 (v003 added rule uturn_bypass, owner decision D2, 2026-11-04)."""
     targets = {"M1/moto": {"label": "discharge headway", "unit": "s", "obs_mean": 0.25, "evidence": "literature"}}
-    text = build_context("full", None, site, load_bounds(), targets, schema=llm_schema("full"), prompt_version="v003")
+    text = build_context("full", None, site, load_bounds(), targets, schema=llm_schema("full"), prompt_version="v006")
     site_part = text.split("## Intersection")[1].split("## Behaviours")[0]
-    assert "from HDT_N, HDT_S" in site_part
+    assert "from HMG, NT" in site_part
     assert "LVL_straight 42 s (green LVL_W:s, LVL_E:s)" in site_part
     assert "LVL_left 16 s (green LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t)" in site_part
-    assert "HDT_N:l (banned, custom1 only)" in site_part and "LVL_W:r" not in site_part
-    assert site_part.count("rideable sidewalk") == 2 and site_part.count("continuous right-turn lane") == 4
+    assert "HMG:l (banned, custom1 only)" in site_part and "LVL_W:r" not in site_part
+    assert "may go on red after stopping" in site_part and site_part.count("U-turn banned") == 2  # NT; HMG, NT
+    assert site_part.count("rideable sidewalk") == 2 and site_part.count("continuous right-turn lane") == 3
     # 2026-10-28 round 2: no bollards, straight from lane 0 legal on green, no right_lane option on this net
-    assert "bollard" not in site_part and site_part.count("straight from it legal on the approach's straight green") == 4
+    assert "bollard" not in site_part and site_part.count("straight from it legal on the approach's straight green") == 3
     behaviours = text.split("## Behaviours")[1].split("## Parameter dictionary")[0]
     assert "bollard" not in behaviours and "`p_right_lane` does not exist on this site" in behaviours
-    assert "HDT_N and HDT_S" in behaviours and "LVL_W and LVL_E" in behaviours and "LVL_left" in behaviours
+    assert "HMG and NT" in behaviours and "LVL_W and LVL_E" in behaviours and "LVL_left" in behaviours
     assert "`uturn_bypass`" in behaviours and "uturn_bypass" in text.split("## Parameter dictionary")[1]
     assert "LVL_green" not in text and "PROXY_D" not in text
     old = build_context("full", None, site, load_bounds(), targets, schema={}, prompt_version="v001")
-    assert "HDT_N and HDT_S" not in old.split("## Behaviours")[1] and system_prompt("v001")   # v001 still loads
+    assert "HMG and NT" not in old.split("## Behaviours")[1] and system_prompt("v001")   # v001 still loads
 
 
 def test_v004_context_describes_cut_back_wrong_lane(site):
@@ -301,7 +302,7 @@ def test_v004_context_describes_cut_back_wrong_lane(site):
 
 def test_feedback_lists_every_per_approach_metric(base):
     """Feedback passes every metric of the report through (no approach filter)."""
-    keys = ["M7/HDT_N", "M7/HDT_S", "M10/LVL_W", "M10/LVL_E"]
+    keys = ["M7/HMG", "M7/NT", "M10/LVL_W", "M10/LVL_E"]
     ms = {k: MetricReport(key=k, label=k, unit="-", kind="scalar", target=None, evidence="assumed", d=0.1,
                           d_day_day=0.1, R=1.0, direction="sim>obs", scored=True, sim_mean=1.0, obs_mean=0.9,
                           weight=0.25) for k in keys}

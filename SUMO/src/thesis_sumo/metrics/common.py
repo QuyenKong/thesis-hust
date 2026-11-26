@@ -227,12 +227,10 @@ def crossings(tables: dict) -> pd.DataFrame:
 
 
 def opposing(approach: str, all_approaches) -> str:
-    """The opposing approach: the only other approach on the same road (`<ROAD>_<side>`), as in sim.outputs and the
-    proxy generator."""
-    same = [a for a in all_approaches if a != approach and a.split("_")[0] == approach.split("_")[0]]
-    if len(same) != 1:
-        raise ValueError(f"approach {approach}: no unique opposing approach (same road prefix) in {list(all_approaches)}")
-    return same[0]
+    """The opposing approach (across the junction: LVL_W <-> LVL_E, HMG <-> NT), the same rule as sim.outputs and the
+    proxy generator (`build_net.opposing_arm`)."""
+    from thesis_sumo.net.build_net import opposing_arm
+    return opposing_arm(approach, all_approaches)
 
 
 def cycle_of(tables: dict, approach: str, t, ctx: MetricContext) -> np.ndarray:

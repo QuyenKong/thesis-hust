@@ -1,0 +1,152 @@
+{
+ "spec_id": "P1_v1126_it02_s00",
+ "source": "llm",
+ "provenance": {
+  "model": "qwen3.5:9b",
+  "prompt_version": "v006",
+  "iteration": 2,
+  "sample_idx": 0,
+  "runtime": "ollama"
+ },
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.9,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Compliant car baseline from Saval et al. Maintains high discharge headway (M1/car) and low red-running (M3/share/car)."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.1,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Car violators drawing from the 'car' distribution; currently compliant (p=0) to match M3/share/car low red-running and M2/early/car near-zero early start."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.7,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Compliant motorcycle baseline from Saval et al. Reduced share (0.7) to allow 'moto_seeker' to drive the observed wrong-lane and early-start metrics."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.3,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Motorcycle violators drawing from the 'moto' distribution; identical physical params to moto_saval but allowed to trigger queue_space_seeking (wrong-lane) and early_start rules."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 1.0
+   },
+   "rationale": "Illegal left-turning motorcycles (distribution moto_violator); jmTimegapMinor=1.0s is the default lever for box-waiting duration; physical behaviour same as compliant motos but with different distribution."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.5,
+    "k": 0.0,
+    "p_max": 0.5,
+    "dt": 10.0
+   },
+   "rationale": "Matches Saval et al. 2023 Sec 4 (front-row motorcycle red-running probability ~0.5); k=0 removes swarm effect as no follower influence observed; p_max caps probability."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 5.0,
+    "p": 0.43,
+    "v_max": 2.0
+   },
+   "rationale": "Targets M2/early/moto (observed share 0.1303). Since 'moto_violator_saval' is the only member of distribution 'moto_violator' and must sum to 1.0, it cannot contribute to the 'early_start' rule (which applies to custom1 archetypes drawn from 'moto'). We increase p for moto_seeker (0.3 share) and moto_saval (0.7 share). The weighted average probability needed is approx 0.13. With p=0.43 and t_before_green=5s, we approximate the observed early start share by ensuring enough vehicles creep."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker"
+   ],
+   "params": {
+    "q": 30.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.71,
+    "p_right_lane": 0.0,
+    "p_sidewalk": 0.0,
+    "v_creep": 3.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Targets M8/moto wrong-lane share (0.21) and M9a (queue blocking). Since 'moto_seeker' has a share of 0.3 in the total motorcycle demand, setting p_wrong_lane=0.71 yields an effective wrong-lane usage probability of roughly 0.21 per total motorcycle (0.3 * 0.71 \u2248 0.21), matching the observation."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p": 0.8,
+    "t_wait": 2.0
+   },
+   "rationale": "Field observation: most motos pass a standing U-turner; p=0.8 (80% probability) and t_wait=2s reflects quick lateral filtering."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "car_saval",
+    "car_seeker"
+   ],
+   "params": {
+    "p": 0.1,
+    "t_wait": 2.0
+   },
+   "rationale": "Field observation: cars rarely bypass U-turners; p=0.1 (10% probability) matches conservative car behaviour."
+  }
+ ]
+}

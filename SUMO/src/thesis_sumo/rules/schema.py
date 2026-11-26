@@ -166,7 +166,7 @@ TRACI_RULE_PARAMS: dict[str, dict[str, RuleParam]] = {
 
 # Ruling R19: early start and red running are observed for cars too (targets M2/M3 have car values), so these rules
 # apply to passenger and motorcycle archetypes; custom1 (moto_violator, the illegal-left riders) keeps early_start
-# and swarm_red_running (they queue at the HDT_N / HDT_S stop lines like other motorcycles). queue_space_seeking (PLAN 4.5,
+# and swarm_red_running (they queue at the HMG / NT stop lines like other motorcycles). queue_space_seeking (PLAN 4.5,
 # which replaces the former wrong_lane_dodge) is a violator behaviour: custom1 (all three options) and custom2
 # (wrong_lane, right_lane; the sidewalk is custom1 only), PLAN 0 violator_classes; such archetypes reach the demand's
 # legal movements through `distribution` moto / car. The slow-rider rule is a motorcycle behaviour (PLAN 0, I_slow);

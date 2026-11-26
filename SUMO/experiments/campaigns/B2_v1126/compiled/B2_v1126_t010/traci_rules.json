@@ -1,0 +1,125 @@
+{
+  "spec_id": "B2_v1126_t010",
+  "archetypes": {
+    "car_saval": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_saval",
+      "share": 0.005228212895250217
+    },
+    "car_seeker": {
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "vtype_id": "car_seeker",
+      "share": 0.9947717871047498
+    },
+    "moto_saval": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_saval",
+      "share": 0.6416385197579138
+    },
+    "moto_seeker": {
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "vtype_id": "moto_seeker",
+      "share": 0.35836148024208625
+    },
+    "moto_violator_saval": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_violator_saval",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "vtype_ids": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.2661127660692353,
+        "k": 0.10196743126022367,
+        "p_max": 0.4608326509394036,
+        "dt": 14.958536016559078
+      }
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "vtype_ids": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 8.049966097369678,
+        "p": 0.8360846329739807,
+        "v_max": 3.7029659352533377
+      }
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "vtype_ids": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 22.235356057513364,
+        "t_g_s": 5.499213059824887,
+        "est_noise": 0.8151813870554788,
+        "p_wrong_lane": 0.3437076359681943,
+        "p_right_lane": 0.08059785951819166,
+        "p_sidewalk": 0.03445581410109998,
+        "v_creep": 4.6208794678476925,
+        "merge_zone_m": 8.983995750704143
+      }
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "vtype_ids": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p": 0.38652824623547904,
+        "t_wait": 7.623920322797362
+      }
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "car_saval",
+        "car_seeker"
+      ],
+      "vtype_ids": [
+        "car_saval",
+        "car_seeker"
+      ],
+      "params": {
+        "p": 0.7518457696632854,
+        "t_wait": 0.7064823636980673
+      }
+    }
+  ]
+}

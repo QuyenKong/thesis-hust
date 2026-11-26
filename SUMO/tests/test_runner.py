@@ -16,6 +16,7 @@ from thesis_sumo.schema_observed import TABLES, cycle_id_at, cycle_table, green_
 from thesis_sumo.sim import outputs, runner
 from thesis_sumo.sim.sumocfg import violator_ids
 
+
 PROXY_SITE = REPO_ROOT / "config" / "site.proxy.yaml"
 PROXY_NET = REPO_ROOT / "scenario" / "net" / "site.proxy.net.xml"
 SHORT_END_S = 300
@@ -74,8 +75,8 @@ def _tiny_cross(d: Path) -> Path:
         '<node id="E" x="150" y="0"/><node id="S" x="0" y="-150"/><node id="N" x="0" y="150"/></nodes>',
         encoding="utf-8")
     edges = [("WC", "W", "C", "Le Van Luong"), ("CE", "C", "E", "Le Van Luong"), ("EC", "E", "C", "Le Van Luong"),
-             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Dao Thuy"), ("CN", "C", "N", "Hoang Dao Thuy"),
-             ("NC", "N", "C", "Hoang Dao Thuy"), ("CS", "C", "S", "Hoang Dao Thuy")]
+             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Minh Giam"), ("CN", "C", "N", "Hoang Minh Giam"),
+             ("NC", "N", "C", "Hoang Minh Giam"), ("CS", "C", "S", "Hoang Minh Giam")]
     (d / "n.edg.xml").write_text("<edges>" + "".join(
         f'<edge id="{i}" from="{f}" to="{t}" name="{n}" numLanes="1" speed="13.9"/>' for i, f, t, n in edges)
         + "</edges>", encoding="utf-8")
@@ -171,9 +172,9 @@ def test_signal_events_follow_program(observed):
     ev = observed["signal_events"]
     lvl = ev[ev["approach_group"] == "LVL_W"][["t", "state"]].values.tolist()  # the LVL straight head (3 stages)
     assert lvl == [[0, "G"], [42, "y"], [46, "r"], [120, "G"], [162, "y"], [166, "r"], [240, "G"], [282, "y"], [286, "r"]]
-    hdt = ev[ev["approach_group"] == "HDT_N"][["t", "state"]].values.tolist()
+    hdt = ev[ev["approach_group"] == "HMG"][["t", "state"]].values.tolist()
     assert hdt == [[0, "r"], [70, "G"], [114, "y"], [118, "r"], [190, "G"], [234, "y"], [238, "r"]]
-    assert sorted(ev["approach_group"].unique()) == ["HDT_N", "HDT_S", "LVL_E", "LVL_W"]
+    assert sorted(ev["approach_group"].unique()) == ["HMG", "LVL_E", "LVL_W", "NT"]
     assert list(green_onsets(ev, "LVL_W")) == [120, 240]  # t=0 is the start of the record, not an onset
 
 
@@ -193,7 +194,8 @@ def test_snapshots_at_green_onsets(observed):
     q, lat = observed["queue_snapshots"], observed["lateral_snapshots"]
     lvl = q[q["approach"] == "LVL_W"]
     assert lvl["t_green_onset"].tolist() == [120, 240] and lvl["cycle_id"].tolist() == [0, 1]
-    assert (q["queue_length_m"] >= 0).all() and (q["area_m2"] == q["queue_length_m"] * 10.5).all()
+    widths = {a["id"]: sum(a["lane_widths_m"]) for a in load_site(PROXY_SITE)["approaches"]}  # LVL 14 m, HMG/NT 10.5 m
+    assert (q["queue_length_m"] >= 0).all() and (q["area_m2"] == q["queue_length_m"] * q["approach"].map(widths)).all()
     assert (q["n_car"] + q["n_moto"] > 0).any()
     rng = load_experiment()["observation"]["queue_range_m"]
     assert (q["queue_length_m"] <= rng).all()
@@ -202,8 +204,8 @@ def test_snapshots_at_green_onsets(observed):
 
 def test_box_queue_rows(observed):
     b = observed["box_queue"]
-    # illegal lefts on HDT_N and HDT_S; the opposing (HDT_S / HDT_N) straight green ends at 114 s and 234 s
-    assert sorted(b["approach"].unique()) == ["HDT_N", "HDT_S"]
+    # illegal lefts on HMG and NT; the opposing (NT / HMG) straight green ends at 114 s and 234 s
+    assert sorted(b["approach"].unique()) == ["HMG", "NT"]
     for _, rows in b.groupby("approach"):
         assert rows["t"].tolist() == [114, 234] and rows["cycle_id"].tolist() == [0, 1]
     assert (b["n_waiting_in_box"] >= 0).all()
@@ -213,10 +215,10 @@ def test_box_queue_rows(observed):
 
 
 def test_shared_green_check_needs_both_greens():
-    """A record shorter than the first HDT green (70 s on the proxy program) cannot tell whether HDT_N and HDT_S
+    """A record shorter than the first HDT green (70 s on the proxy program) cannot tell whether HMG and NT
     share a green: no error (and no box_queue row)."""
-    ev = pd.DataFrame([(0, "HDT_N", "r"), (0, "HDT_S", "r"), (0, "LVL_W", "G")], columns=["t", "approach_group", "state"])
-    outputs.check_shared_green(ev, "HDT_N", "HDT_S")
+    ev = pd.DataFrame([(0, "HMG", "r"), (0, "NT", "r"), (0, "LVL_W", "G")], columns=["t", "approach_group", "state"])
+    outputs.check_shared_green(ev, "HMG", "NT")
 
 
 def test_crossing_state_is_own_link():
@@ -227,11 +229,12 @@ def test_crossing_state_is_own_link():
     (prog,) = sumolib.net.readNet(str(PROXY_NET), withPrograms=True).getTrafficLights()[0].getPrograms().values()
     starts = np.cumsum([0] + [p.duration for p in prog.getPhases()])[:-1]
     tls = pd.DataFrame({"t": starts, "state": [p.state for p in prog.getPhases()]})
-    w, n, e = "711526326#1", "953158817#2", "37876499#0"
-    cr = pd.DataFrame([(50, f"{w}_2", "LVL_W", "408823207#0"), (50, f"{w}_2", "LVL_W", "37877893#0"),
-                       (80, f"{n}_2", "HDT_N", "37877893#0"), (50, f"{n}_2", "HDT_N", "37877893#0"),
-                       (50, f"{w}_0", "LVL_W", "37871458#0"), (10, f"{e}.sidewalk_0", "LVL_E", "711526328#0"),
-                       (50, f"{e}.sidewalk_0", "LVL_E", "711526328#0")], columns=["t", "lane", "approach", "exit_edge"])
+    w, n, e = "710360128#0", "1304254918", "711526328#7"  # LVL_W, HMG, LVL_E on the LVL x HMG x NT net (2026-11-26)
+    hmg_out, lvl_e_out, nt_out, lvl_w_out = "1130829742#0", "710360127#0", "1130838748#0", "710360126"
+    cr = pd.DataFrame([(50, f"{w}_3", "LVL_W", hmg_out), (50, f"{w}_2", "LVL_W", lvl_e_out),
+                       (80, f"{n}_2", "HMG", lvl_e_out), (50, f"{n}_2", "HMG", lvl_e_out),
+                       (50, f"{w}_0", "LVL_W", nt_out), (10, f"{e}.sidewalk_0", "LVL_E", lvl_w_out),
+                       (50, f"{e}.sidewalk_0", "LVL_E", lvl_w_out)], columns=["t", "lane", "approach", "exit_edge"])
     assert list(outputs.crossing_states(cr, tls, geo)) == ["G", "r", "G", "r", "G", "G", "r"]
 
 

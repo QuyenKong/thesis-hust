@@ -1,0 +1,27 @@
+# Xe rẽ đứng sai làn (M8). Làn được đọc khi đầu xe đi qua mốc 30 m trước vạch dừng (đầu làn rẽ phải
+# liên tục), không đọc ở vạch dừng (quyết định 2C, 08/11). Chỉ làm ở nhánh thấy mốc 30 m
+# (00_video.yaml visibility.mark_30m: true). 1 lượt xem mỗi nhánh.
+#
+# Đúng/sai làn so với mũi tên sơn ghi ở site_survey.yaml lane_movements. Ví dụ xe rẽ trái đi qua mốc
+# 30 m ở làn 0 trong khi làn 0 chỉ cho r, s thì là sai làn.
+# Mỗi ô: [tổng số xe rẽ hướng đó đi qua mốc 30 m, số xe trong đó đứng sai làn].
+# Bỏ qua xe không thấy rõ làn ở mốc 30 m (không tính vào tổng).
+
+counts:
+  LVL_W:
+    car:  {r: null, l: null, u: null}
+    moto: {r: null, l: null, u: null}
+  LVL_E:
+    car:  {r: null, l: null, u: null}
+    moto: {r: null, l: null, u: null}
+  HDT_N:
+    car:  {r: null, illegal_l: null, u: null}
+    moto: {r: null, illegal_l: null, u: null}
+  HDT_S:
+    car:  {r: null, illegal_l: null, u: null}
+    moto: {r: null, illegal_l: null, u: null}
+
+# Ví dụ:  moto: {r: [35, 4], l: [18, 7], u: [5, 2]}
+
+cut_back_seen: null        # số xe sai làn ở mốc 30 m rồi cắt về làn đúng trước vạch dừng (nếu đếm được)
+notes: null

@@ -50,7 +50,7 @@ Definitions (R = `observation.queue_range_m` from experiment.yaml, a modelling c
   the front within R upstream of the stop line, or anywhere past it on the approach's internal lanes
   (stop-line overshoot, red runners, box waiters).
 - **box_queue**: see `schema_observed` (binding). Box = the internal-lane chain of the approach's
-  `illegal_l` link(s) (proxy net: the custom1-only lefts of HDT_N and HDT_S, opposing each other); exits = first fcd row off the
+  `illegal_l` link(s) (proxy net: the custom1-only lefts of HMG and NT, opposing each other); exits = first fcd row off the
   box lanes. A vehicle that **disappears while in the box** (absent from the next fcd step before the
   record ends: collision teleport, removal) has no box exit: it still counts in `n_waiting_in_box` when it
   was halting at `t`, but it is left out of `t_clear_start` / `t_clear_end` and does not make `t_clear_end`
@@ -88,7 +88,8 @@ from lxml import etree
 
 from thesis_sumo.demand.build_demand import movement_table
 from thesis_sumo.net.apply_patches import movement_of
-from thesis_sumo.net.build_net import approach_edges, approach_segments, sidewalk_edges, target_node, target_tls
+from thesis_sumo.net.build_net import (approach_edges, approach_segments, opposing_arm, sidewalk_edges, target_node,
+                                       target_tls)
 from thesis_sumo.schema_observed import (
     INTERVAL_S,
     QUEUE_TS_STEP_S,
@@ -154,9 +155,8 @@ class Geometry:
         try:
             return self.opposing[approach]
         except KeyError:
-            raise ValueError(f"approach {approach!r} has no opposing approach: the opposing approach is the only "
-                             f"other approach with the same road prefix ('<ROAD>_<side>', e.g. LVL_W <-> LVL_E); "
-                             f"approaches are {sorted(self.inbound)}") from None
+            raise ValueError(f"approach {approach!r} has no opposing approach (build_net.opposing_arm: bearing + 180 "
+                             f"deg, LVL_W <-> LVL_E, HMG <-> NT); approaches are {sorted(self.inbound)}") from None
 
 
 def _via_chain(net, via_id: str) -> list:
@@ -255,9 +255,10 @@ def junction_geometry(net_path: Path) -> Geometry:
                             if c.allows("passenger") or c.allows("motorcycle")} for ln in lanes]
     opposing = {}
     for app in inbound:
-        same_road = [o for o in inbound if o != app and o.split("_")[0] == app.split("_")[0]]
-        if len(same_road) == 1:
-            opposing[app] = same_road[0]
+        try:
+            opposing[app] = opposing_arm(app, inbound)
+        except ValueError:
+            pass
     return Geometry(inbound, lane_info, internal, road_width, {a: sorted(v) for a, v in group_links.items()},
                     box_lanes, opposing, movements, _exit_arms(net, node, inbound), stop_dist,
                     frozenset(ln.getID() for sw in sidewalks for ln in net.getEdge(sw).getLanes()),

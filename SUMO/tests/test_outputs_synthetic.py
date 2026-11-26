@@ -15,12 +15,14 @@ import sumolib
 from thesis_sumo.schema_observed import TABLES
 from thesis_sumo.sim import outputs
 
+
 RANGE_M = 30.0  # observation.queue_range_m of the fixture
 WIDTH_M = 3.0   # every lane
 NAN = float("nan")
-# approach of each inbound edge of the tiny net (W/E arms named Le Van Luong, N/S Hoang Dao Thuy)
-EDGE_APPROACH = {"WC": "LVL_W", "EC": "LVL_E", "NC": "HDT_N", "SC": "HDT_S"}
-# (t, state of LVL_W/LVL_E, state of HDT_N/HDT_S); t=5 repeats a state (must not create an event)
+# approach of each inbound edge of the tiny net (W/E arms named Le Van Luong, N/S the cross street; build_net
+# maps an axis-aligned cross W -> LVL_W, N -> HMG, E -> LVL_E, S -> NT)
+EDGE_APPROACH = {"WC": "LVL_W", "EC": "LVL_E", "NC": "HMG", "SC": "NT"}
+# (t, state of LVL_W/LVL_E, state of HMG/NT); t=5 repeats a state (must not create an event)
 PROGRAM = [(0, "G", "r"), (5, "G", "r"), (10, "y", "r"), (12, "r", "G"), (18, "r", "y"), (20, "G", "r"),
            (30, "y", "r"), (32, "r", "G"), (40, "G", "r")]
 END_S = 45.0
@@ -34,8 +36,8 @@ def _build_net(d: Path) -> Path:
         '<node id="E" x="150" y="0"/><node id="S" x="0" y="-150"/><node id="N" x="0" y="150"/></nodes>',
         encoding="utf-8")
     edges = [("WC", "W", "C", "Le Van Luong"), ("CE", "C", "E", "Le Van Luong"), ("EC", "E", "C", "Le Van Luong"),
-             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Dao Thuy"), ("CN", "C", "N", "Hoang Dao Thuy"),
-             ("NC", "N", "C", "Hoang Dao Thuy"), ("CS", "C", "S", "Hoang Dao Thuy")]
+             ("CW", "C", "W", "Le Van Luong"), ("SC", "S", "C", "Hoang Minh Giam"), ("CN", "C", "N", "Hoang Minh Giam"),
+             ("NC", "N", "C", "Hoang Minh Giam"), ("CS", "C", "S", "Hoang Minh Giam")]
     (d / "n.edg.xml").write_text("<edges>" + "".join(
         f'<edge id="{i}" from="{f}" to="{t}" name="{n}" numLanes="2" speed="13.9" width="{WIDTH_M}"/>'
         for i, f, t, n in edges) + "</edges>", encoding="utf-8")
@@ -132,7 +134,7 @@ def case(tmp_path_factory):
         for t in TIMESTEPS:
             f.write(f'  <timestep time="{t:.2f}">\n')
             for vid, typ, lane, pos, plat, sp in rows[t]:
-                f.write(f'    <vehicle id="{vid}" x="0" y="0" angle="0" type="{typ}" speed="{sp:.2f}" pos="{pos:.2f}" '
+                f.write(f'    <vehicle id="{vid}" x="0.00" y="0.00" angle="0" type="{typ}" speed="{sp:.2f}" pos="{pos:.2f}" '
                         f'lane="{lane}" posLat="{plat:.2f}"/>\n')
             f.write("  </timestep>\n")
         f.write("</fcd-export>\n")
@@ -179,7 +181,7 @@ def test_signal_events_truth(case):
     for g in ("LVL_W", "LVL_E"):
         assert ev[ev["approach_group"] == g][["t", "state"]].values.tolist() == \
             [[0, "G"], [10, "y"], [12, "r"], [20, "G"], [30, "y"], [32, "r"], [40, "G"]]
-    for g in ("HDT_N", "HDT_S"):
+    for g in ("HMG", "NT"):
         assert ev[ev["approach_group"] == g][["t", "state"]].values.tolist() == \
             [[0, "r"], [12, "G"], [18, "y"], [20, "r"], [32, "G"], [40, "r"]]
 
@@ -189,7 +191,7 @@ def test_crossings_truth(case):
     assert _records(cr) == [
         [5.03, "LVL_W", pytest.approx(4.5 + 0.4), "moto", "m1", "G"],   # duplicate enter at 5.05 ignored
         [13.5, "LVL_W", pytest.approx(1.5 - 0.2), "car", "c1", "r"],    # signal_events: LVL_W red from 12
-        [14.0, "HDT_N", pytest.approx(1.5), "car", "c2", "G"],
+        [14.0, "HMG", pytest.approx(1.5), "car", "c2", "G"],
         [21.0, "LVL_W", pytest.approx(4.5), "moto", "v1", "G"],
     ]
 
@@ -197,7 +199,7 @@ def test_crossings_truth(case):
 def test_turn_counts_truth(case):
     tc = case["tables"]["turn_counts"]
     nonzero = tc[tc["count"] > 0][["approach", "movement", "vclass", "count"]].values.tolist()
-    assert sorted(nonzero) == [["HDT_N", "s", "car", 1], ["LVL_W", "illegal_l", "moto", 1], ["LVL_W", "s", "car", 1],
+    assert sorted(nonzero) == [["HMG", "s", "car", 1], ["LVL_W", "illegal_l", "moto", 1], ["LVL_W", "s", "car", 1],
                                ["LVL_W", "s", "moto", 1]]
     assert (tc["interval_start"] == 0).all() and (tc["interval_end"] == 900).all()
     assert len(tc) == 15 * 2 - 1  # 15 movements x 2 vclasses, no car illegal_l
@@ -210,7 +212,7 @@ def test_queue_snapshots_truth(case):
     # rear 31.0) -> tail 31.0 capped at the 30 m range (censored); q6 outside the range; o1 past the stop line
     assert _records(w) == [[0, 20.0, "LVL_W", 30.0, 2, 2, 30.0 * 2 * WIDTH_M], [1, 40.0, "LVL_W", 0.0, 0, 0, 0.0]]
     assert (q.loc[q["approach"] != "LVL_W", ["queue_length_m", "n_car", "n_moto"]] == 0).all().all()
-    assert q[q["approach"] == "HDT_N"]["t_green_onset"].tolist() == [12.0, 32.0]
+    assert q[q["approach"] == "HMG"]["t_green_onset"].tolist() == [12.0, 32.0]
 
 
 def test_lateral_snapshots_truth(case):
@@ -240,9 +242,9 @@ def test_traversals_truth(case):
         ["m1", "moto", "LVL_W", "s", "LVL_E", pytest.approx(4.9), pytest.approx(4.9),  # unsplit: stop-line lat
          pytest.approx(3.0 + 4 / 8 * 0.5), 5.03, 7.0],
         ["c1", "car", "LVL_W", "s", "LVL_E", pytest.approx(1.3), pytest.approx(1.3), None, 13.5, None],  # inside range
-        ["c2", "car", "HDT_N", "s", "HDT_S", pytest.approx(1.5), pytest.approx(1.5), pytest.approx(13.0 + 1 / 2 * 0.5),
+        ["c2", "car", "HMG", "s", "NT", pytest.approx(1.5), pytest.approx(1.5), pytest.approx(13.0 + 1 / 2 * 0.5),
          14.0, 16.0],
-        ["v1", "moto", "LVL_W", "illegal_l", "HDT_N", pytest.approx(4.5), pytest.approx(4.5),
+        ["v1", "moto", "LVL_W", "illegal_l", "HMG", pytest.approx(4.5), pytest.approx(4.5),
          pytest.approx(19.0 + 10 / 30), 21.0, 33.05],
     ]
 
@@ -299,8 +301,8 @@ def _split_run(d: Path, f2: bool) -> dict:
         '<node id="E" x="150" y="0"/><node id="S" x="0" y="-150"/><node id="N" x="0" y="150"/></nodes>', encoding="utf-8")
     edges = [("WU", "W", "D", "Le Van Luong"), ("WM", "D", "B", "Le Van Luong"), ("WC", "B", "C", "Le Van Luong"),
              ("CE", "C", "E", "Le Van Luong"), ("EC", "E", "C", "Le Van Luong"), ("CW", "C", "W", "Le Van Luong"),
-             ("SC", "S", "C", "Hoang Dao Thuy"), ("CN", "C", "N", "Hoang Dao Thuy"), ("NC", "N", "C", "Hoang Dao Thuy"),
-             ("CS", "C", "S", "Hoang Dao Thuy")]
+             ("SC", "S", "C", "Hoang Minh Giam"), ("CN", "C", "N", "Hoang Minh Giam"), ("NC", "N", "C", "Hoang Minh Giam"),
+             ("CS", "C", "S", "Hoang Minh Giam")]
     (d / "n.edg.xml").write_text("<edges>" + "".join(
         f'<edge id="{i}" from="{f}" to="{t}" name="{n}" numLanes="2" speed="13.9" width="{WIDTH_M}"/>'
         for i, f, t, n in edges) + f'<edge id="WS" from="D" to="C" numLanes="1" width="{SW_WIDTH_M}" speed="5" '
@@ -369,7 +371,7 @@ def _split_run(d: Path, f2: bool) -> dict:
         f.write("<fcd-export>\n")
         for t, rs in rows.items():
             f.write(f'  <timestep time="{t:.2f}">\n' + "".join(
-                f'    <vehicle id="{v}" x="0" y="0" angle="0" type="{ty}" speed="{sp:.2f}" pos="{pos:.3f}" lane="{ln}" '
+                f'    <vehicle id="{v}" x="0.00" y="0.00" angle="0" type="{ty}" speed="{sp:.2f}" pos="{pos:.3f}" lane="{ln}" '
                 f'posLat="{pl:.2f}"/>\n' for v, ty, ln, pos, pl, sp in rs) + "  </timestep>\n")
         f.write("</fcd-export>\n")
     tls = net.getTrafficLights()[0]
@@ -407,7 +409,7 @@ def test_f2_queue_timeseries(f2_case):
     q = f2_case["tables"]["queue_timeseries"]
     grid = [2.0 * k for k in range(int(END_S / 2) + 1) if 2.0 * k < END_S]
     assert list(q["t"]) == [t for t in grid for _ in range(4)]
-    assert list(q["approach"].iloc[:4]) == ["HDT_N", "HDT_S", "LVL_E", "LVL_W"]
+    assert list(q["approach"].iloc[:4]) == ["HMG", "LVL_E", "LVL_W", "NT"]
     tail = f2_case["dists"]["a5"][1] + 2.2
     w = q[q["approach"] == "LVL_W"].set_index("t")
     assert _records(w.loc[[20.0]]) == [["LVL_W", pytest.approx(tail), 2, 3]]

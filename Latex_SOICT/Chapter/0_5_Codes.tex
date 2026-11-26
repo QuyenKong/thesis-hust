@@ -1,0 +1,61 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+
+\begin{center}
+    \textbf{BẢNG TRA MÃ VÀ KÝ HIỆU}
+\end{center}
+\addcontentsline{toc}{chapter}{BẢNG TRA MÃ VÀ KÝ HIỆU}
+
+\begingroup\small
+\begin{longtable}{|>{\raggedright\arraybackslash}p{3.0cm}|>{\raggedright\arraybackslash}p{11.0cm}|}
+\hline
+\textbf{Mã, ký hiệu} & \textbf{Ý nghĩa} \\ \hline
+\endfirsthead
+\hline
+\textbf{Mã, ký hiệu} & \textbf{Ý nghĩa} \\ \hline
+\endhead
+\multicolumn{2}{|l|}{\textit{Phương án đối sánh (Mục~\ref{section:3.8}, Bảng~\ref{table:3.4})}} \\ \hline
+B0 & vType mặc định của SUMO, không có luật TraCI, trên cùng mạng có bản vá và cùng nhu cầu như mọi phương án \\ \hline
+B1 & Bộ luật viết tay, tham số chuyển giao từ Saval và cộng sự \\ \hline
+B2 & Optuna chỉnh tham số trên cấu trúc của B1 \\ \hline
+P1 & LLM chỉnh tham số trên cấu trúc của B1 (chế độ \texttt{params\_only}) \\ \hline
+P2 & LLM sinh cả cấu trúc lẫn tham số (chế độ \texttt{full}) \\ \hline
+\multicolumn{2}{|l|}{\textit{Chỉ số (Bảng~\ref{table:3.3})}} \\ \hline
+G0 & Cổng lọc lưu lượng theo thống kê GEH; không tính vào điểm \\ \hline
+M1 & Giãn cách xả hàng sau khi đèn xanh \\ \hline
+M2 & Xuất phát sớm trước khi đèn xanh \\ \hline
+M3 & Vượt đèn đỏ \\ \hline
+M4 & Vị trí dừng của xe máy: vị trí ngang, dừng quá vạch dừng \\ \hline
+M5 & Hàng chờ: chiều dài và mật độ xe máy khi đèn chuyển xanh \\ \hline
+M6 & Thời gian đi qua nút và qua nhánh vào \\ \hline
+M7 & Rẽ trái trái phép chờ giữa nút (M7a số xe chờ và thời điểm xả, M7b độ trễ giải phóng vùng chờ, M7c tổn thất khởi động của hướng giao cắt) \\ \hline
+M8 & Đi sai làn \\ \hline
+M9 & Chặn làn rẽ phải liên tục (M9a số xe chặn, M9b độ trễ xe rẽ phải bị chặn, M9c hàng chờ lúc xe đứng vào làn) \\ \hline
+M10 & Đi trên vỉa hè (M10a số xe trên vỉa hè, M10b hàng chờ lúc xe chọn vỉa hè) \\ \hline
+\multicolumn{2}{|l|}{\textit{Ký hiệu của điểm (Mục~\ref{section:3.7})}} \\ \hline
+$d$ & Khoảng cách giữa mô phỏng và quan sát của một khóa chỉ số \\ \hline
+$d_{\text{day-day}}$ & Sàn nhiễu: khoảng cách giữa các ngày quan sát với nhau \\ \hline
+$R$ & Tỷ số $d / d_{\text{day-day}}$ \\ \hline
+$S$ & Điểm tổng, trung bình có trọng số của $d$; $S_{\text{sourced}}$ và $S_{\text{assumed}}$ là phần từ khóa có mục tiêu có nguồn và có mục tiêu giả định \\ \hline
+$D_{\text{empty}}$ & Chặn trên của khoảng cách, bằng 2 \\ \hline
+\multicolumn{2}{|l|}{\textit{Dữ liệu, mạng và chiến dịch (Chương~\ref{chapter:Experiment})}} \\ \hline
+VIDEO\_V2, VIDEO\_V1 & Hai ngày quan sát sinh từ số đo video: VIDEO\_V2 hiệu chỉnh, VIDEO\_V1 kiểm định (Mục~\ref{section:3.6}) \\ \hline
+PROXY\_D1--D5 & Năm ngày dữ liệu thay thế, dùng trong kiểm thử và trên mạng N1--N6 \\ \hline
+N1--N7 & Các phiên bản mạng mô phỏng; N1--N6 ở nút dựng giai đoạn đầu, N7 ở nút nghiên cứu (Bảng~\ref{table:4.nets}) \\ \hline
+\texttt{REF\_v1126} & Chiến dịch tham chiếu B0, B1 trên N7 với 5 seed \\ \hline
+B2, P1, P2, P2b & Các chiến dịch trên N7 (tên đầy đủ có hậu tố \texttt{\_v1126}); P2b là P2 chạy lại với prompt \texttt{v007} \\ \hline
+\texttt{it02\_s01}, \texttt{t003} & Mã đặc tả trong chiến dịch: vòng 2, mẫu 1 (LLM); thử nghiệm 3 (Optuna) \\ \hline
+làn 0, 1, 2 & Chỉ số làn theo SUMO, từ lề phải vào; làn 0 sát lề phải \\ \hline
+\multicolumn{2}{|l|}{\textit{Tham số luật (Bảng~\ref{table:3.2})}} \\ \hline
+$p_0$, $k$, $p_{\max}$, $\Delta t$ & Vượt đèn đỏ: xác suất nền, mức tăng mỗi xe vừa vượt, trần, cửa sổ đếm \\ \hline
+$p$ & Xác suất của luật đang xét (xuất phát sớm, lách xe quay đầu) \\ \hline
+$\varepsilon$ & Sai số nhân khi xe ước lượng thời gian qua vạch (luật tìm khoảng trống) \\ \hline
+\texttt{sigma} & Tham số dao động của tài xế trong mô hình Krauss của SUMO \\ \hline
+\multicolumn{2}{|l|}{\textit{Seed}} \\ \hline
+seed mô phỏng & Seed của một lần chạy SUMO (1--3 trong chiến dịch, 1--5 ở chiến dịch tham chiếu, 1--20 ở benchmark) \\ \hline
+seed lấy mẫu & Seed của LLM khi sinh một mẫu (42 cộng chỉ số mẫu) \\ \hline
+seed Optuna & Seed của bộ lấy mẫu TPE (0) \\ \hline
+\end{longtable}
+\endgroup
+
+\end{document}

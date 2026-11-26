@@ -1,0 +1,431 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+
+% Thực nghiệm trên các phiên bản mạng N1--N6, chuyển từ Chương 5. Nguồn: experiments/operator/task4b/b0_table.csv,
+% experiments/campaigns/{REF,B2,REF_n28,REF_n28b,B2_n28,B2_n28b,REF_n29,REF_n29s5,AB3_*,AB_*}, report/2026-10-27/data/campaign_specs.csv.
+
+Phụ lục này ghi lại các thực nghiệm trên sáu phiên bản mạng N1--N6 (Bảng~\ref{table:4.nets}). Các mạng này dựng cho nút xác định ở giai đoạn đầu, cách nút nghiên cứu khoảng 570~m, trước khi có video và trước mạng N7 mà Chương~\ref{chapter:Experiment} dùng. Các kết quả giải thích vì sao luật, bộ kiểm tra và tiêu chí có dạng như hiện tại; chúng không mô tả nút nghiên cứu. Số liệu giữa các mạng không so sánh trực tiếp được, vì đèn, nhu cầu và cấu hình đổi cùng lúc; mọi số tính trên dữ liệu thay thế.
+
+\section{B0 trên dữ liệu thay thế, mạng N1}
+\label{subsection:b0_proxy}
+
+\textbf{Thiết lập.} Sau khi sửa bề rộng làn ra (Mục~\ref{subsection:exit_width}), B0 chạy trên ba ngày hiệu chỉnh PROXY\_D1--PROXY\_D3, mỗi ngày 3 seed, mỗi lần 1800~s, tắt SSM. Các lần chạy này diễn ra trước khi luận văn bật kiểm tra va chạm trong nút cho mọi lần chạy, nên số va chạm không gồm va chạm giữa các làn nội bộ cắt nhau. Bảng~\ref{table:4.b0} dùng tỷ lệ ô có GEH $<5$ của cổng G0 tính trên 62 ô theo 15 phút $\times$ nhánh $\times$ hướng $\times$ loại xe, và tỷ lệ tương ứng khi gộp loại xe; cờ \texttt{valid\_strict} nghĩa là không có teleport và va chạm nào.
+
+\begin{table}[!htbp]
+\centering
+\small\setlength{\tabcolsep}{3pt}
+\caption{B0 trên PROXY\_D1--PROXY\_D3, mạng N1 (1800~s, chưa bật kiểm tra va chạm trong nút, tắt SSM).} \label{table:4.b0}
+\begin{tabular}{|p{1.3cm}|p{0.9cm}|p{1.5cm}|p{1.6cm}|p{1.8cm}|p{1.8cm}|p{1.6cm}|p{1.7cm}|}
+\hline
+\textbf{Ngày} & \textbf{Seed} & \textbf{Va chạm/h} & \textbf{Teleport kẹt} & \textbf{Xe chờ vào mạng cuối} & \textbf{valid\_\allowbreak strict} & \textbf{GEH$<$5 (ô)} & \textbf{GEH$<$5 (nhánh $\times$ hướng)} \\ \hline
+D1 & 1 & 2 & 14 & 161 & Không & 0,919 & 0,844 \\ \hline
+D1 & 2 & 0 & 22 & 0 & Không & 0,952 & 0,875 \\ \hline
+D1 & 3 & 2 & 10 & 0 & Không & 1,000 & 0,969 \\ \hline
+D2 & 1 & 2 & 22 & 0 & Không & 1,000 & 1,000 \\ \hline
+D2 & 2 & 6 & 23 & 0 & Không & 1,000 & 0,969 \\ \hline
+D2 & 3 & 0 & 2 & 0 & Không & 1,000 & 1,000 \\ \hline
+D3 & 1 & 0 & 0 & 0 & Có & 1,000 & 1,000 \\ \hline
+D3 & 2 & 2 & 11 & 0 & Không & 0,984 & 0,906 \\ \hline
+D3 & 3 & 0 & 0 & 0 & Có & 1,000 & 1,000 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát.} Va chạm/h của 9 lần chạy là 2, 0, 2, 2, 6, 0, 0, 2, 0 (trung bình 1,56), so với 46--62 trên mạng làn ra 3,2~m. 7/9 lần chạy có teleport kẹt; lần PROXY\_D1 seed 1 kết thúc với 161 xe chờ vào mạng. Mọi teleport kẹt đều là xe máy, xảy ra thành cụm; lần đầu hầu như luôn ở vạch dừng làn 2 của nhánh Lê Văn Lương phía tây, rồi lan sang các liên kết làn 2 trong nút. PROXY\_D1 có nhu cầu cao hơn PROXY\_D2 và PROXY\_D3 khoảng 20\% (4556, 3765 và 3857 xe trong 1800~s). Trên PROXY\_D1 với 3 seed, bỏ 217 xe rẽ trái trái phép (2,4\% số xe) làm tổng số teleport còn 0, 0 và 3; giảm \texttt{minGap} xuống 1,5~m làm kết quả xấu hơn (68 và 103 teleport ở seed 1 và 2).
+
+\textbf{Diễn giải.} Trên N1, kẹt của B0 chủ yếu đến từ xe máy rẽ trái trái phép chờ giữa nút với vType mặc định, làm tắc làn 2 của nhánh có xe vi phạm. Mạng không được vá thêm cho điều này. GEH cao chỉ cho thấy nút phục vụ được nhu cầu thay thế: số ``quan sát'' và tệp tuyến cùng sinh từ một bộ sinh, nên G0 ở đây không chứng minh độ thực tế. Ngưỡng va chạm từng được đặt từ 9 lần chạy này đã bị hủy khi luận văn bật kiểm tra va chạm trong nút, vì khi tắt, va chạm giữa xe chờ giữa nút và dòng cắt ngang không được đếm.
+
+\section{Kiểm tra chức năng bộ luật B1}
+\label{subsection:b1_check}
+
+Đặc tả B1 (luật vượt đèn đỏ theo đoàn với $p_0 = p_{\max} = 0{,}5$, $k = 0$; luật xuất phát sớm với $p = 0$) chạy một lần 600~s trên PROXY\_D1, seed 1, bật kiểm tra va chạm trong nút. Lần chạy này kiểm tra bộ điều khiển hoạt động đúng trong trình chạy; nó không phải một đánh giá. Khi chỉ dùng vType B1, và khi dùng thêm bộ điều khiển với các luật không bao giờ kích hoạt, hai lần chạy cho quỹ đạo giống hệt nhau (628 bản ghi chuyến đi, không có khác biệt). Với đầy đủ B1, luật vượt đỏ theo đoàn đưa ra 80 quyết định; 53 được SUMO thực thi, 27 không thực thi vì thời gian đỏ đã hết trước khi xe qua vạch. Luật xuất phát sớm với $p = 0$ không tạo can thiệp nào qua 69 lần rút ngẫu nhiên. Lần chạy có 13 va chạm trong nút, 1 liên quan xe đang chịu can thiệp. Bộ điều khiển tốn 3--7~s cho mỗi 600~s mô phỏng.
+
+\section{Ngưỡng va chạm trên mạng N2}
+\label{subsection:r28_f2}
+
+\textbf{Thiết lập.} Trước vòng LLM đầu tiên, B0 chạy trên mạng N2 với PROXY\_D1--PROXY\_D3, mỗi ngày 3 seed, 1800~s, bật kiểm tra va chạm trong nút, tắt SSM. Hai ngưỡng được tính bằng $\max(2, \lceil p_{90} \rceil)$ của 9 tỷ lệ va chạm mỗi giờ, đóng băng trong cấu hình thí nghiệm và không đổi sau khi thấy kết quả các vòng tối ưu (Bảng~\ref{table:4.r28}).
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{B0 trên mạng N2, PROXY\_D1--PROXY\_D3 (1800~s mỗi lần, bật kiểm tra va chạm trong nút); số va chạm là số đếm trong một lần chạy.} \label{table:4.r28}
+\begin{tabular}{|p{1.6cm}|p{1.8cm}|p{2.0cm}|p{3.4cm}|p{2.2cm}|}
+\hline
+\textbf{Ngày / seed} & \textbf{Va chạm trên làn} & \textbf{Va chạm trong nút} & \textbf{Teleport (tổng / không do va chạm)} & \textbf{Xe chờ vào mạng cuối} \\ \hline
+D1 / 1 & 2 & 41 & 59 / 16 & 339 \\ \hline
+D1 / 2 & 0 & 53 & 79 / 26 & 101 \\ \hline
+D1 / 3 & 2 & 54 & 56 / 0 & 0 \\ \hline
+D2 / 1 & 0 & 47 & 47 / 0 & 0 \\ \hline
+D2 / 2 & 0 & 69 & 69 / 0 & 0 \\ \hline
+D2 / 3 & 1 & 63 & 91 / 27 & 51 \\ \hline
+D3 / 1 & 1 & 78 & 79 / 0 & 0 \\ \hline
+D3 / 2 & 0 & 63 & 78 / 15 & 0 \\ \hline
+D3 / 3 & 0 & 53 & 60 / 7 & 0 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát.} Quy về mỗi giờ, va chạm trên làn là 4, 0, 4, 0, 0, 2, 2, 0, 0 (trung bình 1,333; $p_{90} = 4{,}0$), còn va chạm trong nút nằm trong 82--156 ($p_{90} = 141{,}6$). Các ngưỡng đóng băng là \tamthoi{4} va chạm trên làn/h và \tamthoi{142} va chạm trong nút/h. Không lần chạy B0 nào đạt tiêu chí chấp nhận: các lần bị loại vì teleport không do va chạm, xe chờ vào mạng khi kết thúc, hoặc va chạm trong nút.
+
+\textbf{Diễn giải.} Với hai làn đi thẳng mỗi nhánh, mạng N2 quá tải ở mức nhu cầu thay thế 8180 xe/h. Luận văn giữ nguyên nhu cầu và yêu cầu không còn xe chờ vào mạng khi kết thúc, không sửa mạng để giảm tải. Ngưỡng 142 va chạm trong nút/h gần như không loại lần chạy nào; nó chủ yếu ghi nhận rằng va chạm trong nút của mô hình làn con rất phổ biến ngay ở cấu hình mặc định. Hai ngưỡng được suy từ B0 trên dữ liệu thay thế của N2 và chưa được tính lại cho N3--N6.
+
+\section{Chiến dịch B2 trên mạng N2}
+\label{subsection:interim}
+
+\textbf{Thiết lập.} B2 (Optuna trên cấu trúc B1) dùng hết 36 lần chạy, tức 12 thử nghiệm. B0 và B1 được chấm theo cùng cách. Mỗi đặc tả được đánh giá bằng 3 lần chạy 1800~s (PROXY\_D1, D2, D3, seed 1). Các tỷ lệ mỗi giờ là trung bình của 3 lần chạy; vì mỗi lần dài 0,5~h, một sự kiện tương ứng 2 sự kiện/h. Bảng~\ref{table:4.interim_summary} tóm tắt theo chiến dịch; Bảng~\ref{table:4.interim_specs} liệt kê từng đặc tả.
+
+\begin{table}[!htbp]
+\centering
+\small\setlength{\tabcolsep}{3pt}
+\caption{Tóm tắt trên mạng N2 (PROXY\_D1--D3, seed 1, 1800~s). Mọi đặc tả đều không đạt tiêu chí chấp nhận. ``Teleport kẹt/h'' gồm teleport do kẹt và do kẹt khi nhường đường. ``Tốt nhất'' theo quy tắc dự phòng: ít teleport kẹt/h nhất, rồi $S$ nhỏ nhất.} \label{table:4.interim_summary}
+\begin{tabular}{|p{1.5cm}|p{1.5cm}|p{2.6cm}|p{1.5cm}|p{1.7cm}|p{1.5cm}|>{\raggedright\arraybackslash}p{2.6cm}|}
+\hline
+\textbf{Chiến dịch} & \textbf{Đặc tả (lần chạy)} & \textbf{$S$ nhỏ nhất / trung vị / lớn nhất} & \textbf{Va chạm trên làn/h} & \textbf{Va chạm tổng/h} & \textbf{Teleport kẹt/h} & \textbf{Tốt nhất (quy tắc dự phòng)} \\ \hline
+B2 & 12 (36) & 1,182 / 1,329 / 1,523 & 2,0--46,0 & 90,7--168,0 & 12,0--76,7 & \texttt{B2\_\allowbreak t010}: 12,0/h; $S$ 1,374 \\ \hline
+B0 & 1 (3) & 1,181 & 2,0 & 112,7 & 10,7 & -- \\ \hline
+B1 & 1 (3) & 1,216 & 0,0 & 107,3 & 45,3 & -- \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\footnotesize\setlength{\tabcolsep}{3pt}
+\caption{Từng đặc tả đã đánh giá trên mạng N2 (va chạm/h, teleport/h).}
+\label{table:4.interim_specs}
+\label{section:appendix_specs}
+\begin{tabular}{|p{1.2cm}|p{2.6cm}|p{1.5cm}|p{1.6cm}|p{1.6cm}|p{1.3cm}|p{1.6cm}|p{1.6cm}|}
+\hline
+\textbf{Chiến dịch} & \textbf{Đặc tả} & \textbf{Va chạm trên làn} & \textbf{Va chạm tổng} & \textbf{Teleport kẹt} & \textbf{$S$} & \textbf{$S_{\text{sourced}}$} & \textbf{$S_{\text{assumed}}$} \\ \hline
+B2 & \texttt{B2\_t000} & 29,3 & 168,0 & 27,3 & 1,302 & 0,547 & 0,754 \\ \hline
+B2 & \texttt{B2\_t001} & 7,3 & 128,0 & 60,0 & 1,356 & 0,531 & 0,825 \\ \hline
+B2 & \texttt{B2\_t002} & 9,3 & 113,3 & 43,3 & 1,286 & 0,519 & 0,768 \\ \hline
+B2 & \texttt{B2\_t003} & 2,0 & 96,7 & 20,0 & 1,233 & 0,511 & 0,722 \\ \hline
+B2 & \texttt{B2\_t004} & 14,0 & 115,3 & 43,3 & 1,523 & 0,522 & 1,002 \\ \hline
+B2 & \texttt{B2\_t005} & 7,3 & 112,0 & 13,3 & 1,228 & 0,513 & 0,715 \\ \hline
+B2 & \texttt{B2\_t006} & 12,7 & 110,0 & 50,0 & 1,428 & 0,526 & 0,902 \\ \hline
+B2 & \texttt{B2\_t007} & 2,7 & 93,3 & 38,0 & 1,182 & 0,490 & 0,692 \\ \hline
+B2 & \texttt{B2\_t008} & 21,3 & 120,0 & 49,3 & 1,450 & 0,502 & 0,948 \\ \hline
+B2 & \texttt{B2\_t009} & 9,3 & 100,0 & 31,3 & 1,361 & 0,516 & 0,844 \\ \hline
+B2 & \texttt{B2\_t010} & 46,0 & 166,0 & 12,0 & 1,374 & 0,526 & 0,848 \\ \hline
+B2 & \texttt{B2\_t011} & 3,3 & 90,7 & 76,7 & 1,262 & 0,533 & 0,729 \\ \hline
+Tham chiếu & \texttt{B0} & 2,0 & 112,7 & 10,7 & 1,181 & 0,501 & 0,680 \\ \hline
+Tham chiếu & \texttt{B1\_manual} & 0,0 & 107,3 & 45,3 & 1,216 & 0,525 & 0,691 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát.} Không đặc tả nào của B2 đạt tiêu chí chấp nhận: mọi đặc tả có teleport kẹt (ít nhất 12,0/h), trong khi tiêu chí yêu cầu 0. Đặc tả tốt nhất theo quy tắc dự phòng là \texttt{B2\_t010} (12,0 teleport kẹt/h), dù nó có va chạm trên làn cao nhất chiến dịch (46,0/h) và $S$ (1,374) cao hơn đặc tả có $S$ nhỏ nhất (\texttt{B2\_t007}, 1,182); quy tắc dự phòng không áp mức trần va chạm. $S$ tốt nhất của B2 giảm từ 1,302 ở thử nghiệm đầu xuống 1,182 ở thử nghiệm thứ 8 và không giảm thêm. Không đặc tả B2 nào có $S$ nhỏ hơn B0 ($S = 1{,}181$) hay ít teleport kẹt hơn B0. So với B1: 1/12 đặc tả có $S$ nhỏ hơn, 8/12 có ít teleport kẹt hơn. Ở mọi đặc tả, các khóa có mục tiêu giả định chiếm hơn một nửa $S$.
+
+\textbf{Diễn giải.} Trên mạng quá tải, quy tắc chọn dự phòng ưu tiên giảm ùn tắc hơn độ tương đồng, nên ``đặc tả tốt nhất'' có thể có $S$ cao hơn hoặc va chạm nhiều hơn các đặc tả khác cùng chiến dịch. Trong ngân sách 36 lần chạy, Optuna không tìm được bộ tham số nào trên cấu trúc B1 tốt hơn B0 theo $S$ hay theo số teleport kẹt.
+
+\section{Cập nhật kịch bản và kết quả trên mạng N3, N4}
+\label{subsection:scenario_update}
+
+\textbf{Bối cảnh.} Khảo sát hiện trường sau N2 cho thấy bốn điểm khác: (i) đèn có ba pha, rẽ trái từ Lê Văn Lương có mũi tên riêng; (ii) chỉ hai nhánh phụ cấm rẽ trái; (iii) xe máy đi vỉa hè ở cả hai nhánh Lê Văn Lương; và (iv) không có cọc, và đi thẳng từ làn 0 khi đèn xanh là đúng luật. Ba điểm đầu vào N3, điểm cuối vào N4. Mạng, nhu cầu, năm ngày dữ liệu thay thế và prompt (\texttt{v002}) được dựng lại. Bộ điều khiển và bộ chuyển đầu ra đổi sang xét đèn theo liên kết của từng xe, vì cách cũ tính xe rẽ trái Lê Văn Lương trong pha mũi tên là vượt đỏ.
+
+\textbf{Hai lỗi mạng phát hiện khi chạy thử.} Lỗi thứ nhất: xe chờ giữa nút ở nhánh phụ bị xe đi thẳng đối diện đâm, vì \texttt{netconvert} đặt điểm chờ với giả định xe rộng 1,8~m, trong khi xe máy chờ sát mép làn nội bộ lấn sang dòng đi thẳng đang xanh cùng pha. Sửa bằng lượt \texttt{netconvert} cuối (Bảng~\ref{table:3.0}); trên PROXY\_D1, seed 1, 2, 3, số va chạm của B0 từ 32, 22, 48 còn 11, 29, 17. Tác dụng phụ: rẽ trái nhánh Lê Văn Lương phía đông nay nhường rẽ trái nhánh phía tây, và độ trễ tương ứng chưa đo. Lỗi thứ hai: kẹt cứng ở cửa ra vỉa hè, khi dòng rẽ phải từ vỉa hè và dòng đi thẳng của nhánh phụ nhường nhau cả hai chiều. Sửa bằng một \texttt{prohibition} chỉ giữ chiều xe vỉa hè nhường.
+
+\textbf{Thiết lập.} B0 và B1 chấm cùng cách với Mục~\ref{subsection:interim} (PROXY\_D1--D3, seed 1, 1800~s). B2 dùng 24 lần chạy (8 thử nghiệm) trên mỗi mạng. Bảng~\ref{table:4.nets_results} đặt các số này cạnh N2 và N5.
+
+\begin{table}[!htbp]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\caption{B0, B1 và đặc tả B2 tốt nhất theo quy tắc dự phòng trên mạng N2--N5 (PROXY\_D1--D3, 1800~s). Mọi dòng đều không đạt tiêu chí chấp nhận.} \label{table:4.nets_results}
+\begin{tabular}{|p{1.2cm}|>{\raggedright\arraybackslash}p{3.5cm}|p{1.2cm}|p{1.1cm}|p{1.6cm}|p{1.8cm}|p{1.6cm}|}
+\hline
+\textbf{Mạng} & \textbf{Cấu hình} & \textbf{Số lần chạy} & \textbf{$S$} & \textbf{Va chạm/h} & \textbf{Trên làn/h} & \textbf{Teleport kẹt/h} \\ \hline
+N2 & B0 & 3 & 1,181 & 112,7 & 2,0 & 10,7 \\ \hline
+N2 & B1 & 3 & 1,216 & 107,3 & 0,0 & 45,3 \\ \hline
+N2 & B2 (\texttt{B2\_t010}) & 3 & 1,374 & 166,0 & 46,0 & 12,0 \\ \hline
+N3 & B0 & 3 & 1,124 & 34,7 & 2,7 & 0,0 \\ \hline
+N3 & B1 & 3 & 1,198 & 41,3 & 0,0 & 24,0 \\ \hline
+N3 & B2 (\texttt{B2\_n28\_t000}) & 3 & 1,160 & 104,7 & 51,3 & 0,0 \\ \hline
+N4 & B0 & 3 & 1,212 & 38,7 & 1,3 & 7,3 \\ \hline
+N4 & B1 & 3 & 1,254 & 21,3 & 0,0 & 3,3 \\ \hline
+N4 & B2 (\texttt{B2\_n28b\_t007}) & 3 & 1,282 & 32,7 & 9,3 & 0,0 \\ \hline
+N5 & B0 & 15 & 1,225 & 50,3 & 18,5 & 1,6 \\ \hline
+N5 & B1 & 15 & 1,279 & 53,1 & 3,9 & 51,7 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát.} Không đặc tả nào đạt tiêu chí chấp nhận trên N3 và N4 (8/8 đặc tả B2 của mỗi mạng bị loại; B0 và B1 cũng bị loại). Đặc tả B2 chọn theo quy tắc dự phòng hết teleport kẹt ở cả hai mạng, nhưng va chạm trên làn là 51,3 và 9,3/h, so với 2,7 và 1,3/h của B0. Theo $S$, 1/8 đặc tả B2 trên N3 và 2/8 đặc tả trên N4 có $S$ nhỏ hơn B0; giá trị nhỏ nhất là 1,091 và 1,103. Trên N4, B1 có va chạm thấp nhất bảng nhưng trung bình 394 xe chờ vào mạng mỗi lần chạy, và cả ba lần chạy không qua G0 (GEH 0,767--0,800). Mỗi ngày chỉ có một seed, nên các số trên 3 lần chạy chỉ là chỉ báo. Va chạm thấp đi cùng nhiều xe chờ vào mạng không phải là dấu hiệu cấu hình tốt hơn.
+
+\section{B0 và B1 trên mạng N5}
+\label{subsection:ref_n29}
+
+\textbf{Thiết lập.} Trên N5, làn rẽ phải được giới hạn ở 30~m cuối và có thêm các kết nối chỉ cho xe vi phạm: rẽ trái từ làn 0 ở hai nhánh Lê Văn Lương, quay đầu từ làn 0 và làn 1 ở cả bốn nhánh, theo đèn rẽ trái. B0 và B1 chạy với PROXY\_D1--D3, seed 1--5, mỗi lần 1800~s, bật kiểm tra va chạm trong nút, tắt SSM: mỗi cấu hình 15 lần chạy (Bảng~\ref{table:4.ref_n29}). B1 ở seed 1 có 1 xe rẽ trái từ làn 0 mỗi ngày ở PROXY\_D1 và D2, và 6--14 xe quay đầu từ làn 0, 1 mỗi ngày; B0 không có xe nào đi các kết nối mới.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{B0 và B1 trên mạng N5 (PROXY\_D1--D3 $\times$ seed 1--5, 15 lần chạy mỗi cấu hình, 1800~s). Các tỷ lệ mỗi giờ ghi trung bình $\pm$ độ lệch chuẩn giữa các lần chạy. Giá trị trong ngoặc ở ba dòng M9 là trung bình của dữ liệu thay thế.} \label{table:4.ref_n29}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{5.5cm}|p{4.0cm}|p{4.0cm}|}
+\hline
+\textbf{Đại lượng} & \textbf{B0} & \textbf{B1} \\ \hline
+Va chạm/h & 50,27 $\pm$ 9,13 & 53,07 $\pm$ 9,00 \\ \hline
+Va chạm trên làn/h & 18,53 $\pm$ 6,61 & 3,87 $\pm$ 3,34 \\ \hline
+Va chạm trong nút/h & 31,73 $\pm$ 9,00 & 49,20 $\pm$ 8,44 \\ \hline
+Teleport kẹt/h & 1,60 $\pm$ 4,22 & 51,73 $\pm$ 48,08 \\ \hline
+Xe chờ vào mạng cuối lần chạy (trung bình; nhỏ nhất--lớn nhất) & 1; 0--15 & 564; 352--1089 \\ \hline
+Tỷ lệ ô GEH $<5$ (nhỏ nhất--lớn nhất) & 0,933--1,000 & 0,600--0,800 \\ \hline
+Số lần chạy qua cổng G0 & 15/15 & 0/15 \\ \hline
+Số lần chạy đạt tiêu chí chấp nhận & 0/15 & 0/15 \\ \hline
+$S$ ($S_{\text{sourced}} + S_{\text{assumed}}$) & 1,225 (0,475 + 0,750) & 1,279 (0,492 + 0,787) \\ \hline
+M9a, xe/chu kỳ (thay thế 0,57) & 8,18 & 4,64 \\ \hline
+M9b, tỷ lệ xe rẽ phải bị chặn (thay thế 0,065) & 0,61 & 0,80 \\ \hline
+M9b, độ trễ xe rẽ phải bị chặn, s (thay thế 18,8) & 56,4 & 246,9 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát.} B0 bị loại ở cả 15 lần chạy vì va chạm trên làn vượt 4/h (10--34/h mỗi lần chạy); ngoài ra 2 lần có teleport không do va chạm, 1 lần còn xe chờ vào mạng. B1 bị loại ở cả 15 lần chạy: 15 lần còn xe chờ vào mạng và không qua G0, 14 lần có teleport không do va chạm, 10 lần có hơn 1 va chạm liên quan can thiệp, 5 lần vượt ngưỡng va chạm trên làn. Teleport kẹt của B1 theo seed 1--5 là 6, 3, 0, 63, 4 (PROXY\_D1); 48, 7, 1, 33, 21 (PROXY\_D2); 63, 7, 51, 28, 53 (PROXY\_D3). 8/15 lần chạy có từ 20 trở lên: nút khóa ở một số lần chạy, không phải kẹt đều ở mọi lần. M9a và M9b chạm trần $D_{\text{empty}}$ ở cả B0 và B1.
+
+\textbf{Diễn giải.} Hành vi 6 xuất hiện ở B0 mà không cần luật TraCI, khác với kết luận của thí nghiệm 3A trên mạng cấm đi thẳng từ làn 0. Điểm M9 chưa đọc được như sai lệch hành vi, vì hai mục tiêu của nó được suy từ giả định có cọc. B1 có ít va chạm trên làn hơn B0 nhưng để lại trung bình 564 xe chờ vào mạng, nên hai cấu hình không so được chỉ qua số va chạm. Ngưỡng 4 va chạm trên làn/h đóng băng trên N2 không còn phản ánh B0 trên N5.
+
+\section{Chẩn đoán khóa nút của B1 trên mạng N5}
+\label{subsection:gridlock}
+
+\textbf{Câu hỏi.} Teleport kẹt của B1 trên N5 đến từ các kết nối mới hay từ luật? \textbf{Thiết lập.} B1 trên PROXY\_D2, 1800~s, đổi một yếu tố mỗi lần (Bảng~\ref{table:4.gridlock}).
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Biến thể chẩn đoán của B1 trên PROXY\_D2. Số trong ô ghi theo seed 1, 2, 3; biến thể chỉ chạy seed 1 có một số.} \label{table:4.gridlock}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{6.4cm}|p{2.2cm}|p{2.2cm}|p{2.4cm}|}
+\hline
+\textbf{Biến thể} & \textbf{Teleport kẹt} & \textbf{Va chạm} & \textbf{Xe chờ vào mạng cuối} \\ \hline
+Mạng N5 & 48, 7, 1 & 21, 30, 28 & 459, 451, 368 \\ \hline
+Bỏ mọi kết nối mới từ làn 0, 1 & 58 & 56 & 465 \\ \hline
+Chỉ bỏ rẽ trái từ làn 0 & 41 & 45 & 414 \\ \hline
+Chỉ bỏ quay đầu từ làn 0, 1 & 13 & 14 & 279 \\ \hline
+Không tách 30~m, không kết nối mới & 3, 16, 3 & 13, 23, 12 & 290, 370, 313 \\ \hline
+Mạng N5, tắt luật vượt đỏ ($p_0 = p_{\max} = 0$) & 0, 0, 0 & 31, 22, 29 & 9, 98, 50 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát.} Ở seed 1, nút khóa khoảng $t = 1290$~s: khoảng 38 xe đứng yên trong nút, riêng làn nội bộ quay đầu của làn 2 nhánh phụ có 7 xe vi phạm rẽ trái, và hàng chờ dồn ngược ra cả ba làn của hai nhánh Lê Văn Lương. Tắt luật vượt đỏ làm teleport kẹt về 0 ở cả 3 seed và số xe chờ vào mạng giảm còn 9--98, trong khi tổng va chạm giữ cùng mức. Bỏ các kết nối mới không làm hết khóa nút (58 so với 48 ở seed 1).
+
+\textbf{Diễn giải.} Trong 3 seed này, luật vượt đỏ là điều kiện cần cho các lần khóa nút. Ba seed chưa đủ để tách phần đóng góp của mạng: mạng không tách cạnh vẫn có 16 teleport kẹt ở seed 2. Trong ba cách xử lý (coi khóa nút là thuộc tính của mô hình, thêm điều kiện để xe vượt đỏ không vào nút khi lối ra kín, hoặc để các phương án tự chỉnh $p_0$), luận văn chọn cách thứ hai (Mục~\ref{subsection:impl_rules}).
+
+\section{Va chạm trên làn của B0 trên mạng N5}
+\label{subsection:split_collisions}
+
+\textbf{Quan sát.} B0 trên PROXY\_D1, seed 1--5, chạy trực tiếp bằng \texttt{sumo} với cùng tùy chọn: N4 có 8 va chạm trên làn và 88 va chạm trong nút; N5 có 50 và 90. Kết nối đi thẳng giữa hai mạng giống hệt nhau, và B0 không có xe đi các kết nối mới của N5. Trong 139 va chạm trên làn của B0 ở 15 lần chạy trên N5, 105 nằm trên làn 0 và làn 1 của bốn cạnh ra, 64 là va chạm ngang. N6 giữ điểm tách cạnh 30~m của N5 nhưng bỏ các kết nối chỉ cho xe vi phạm từ làn 0, 1; trên N6, va chạm trên làn của B0 giảm từ 18,53/h xuống 1,87/h trên 15 lần chạy (Bảng~\ref{table:4.ref_n1104}).
+
+\textbf{Diễn giải.} Giữa N5 và N6 chỉ có thay đổi về các kết nối vi phạm, nên các kết nối này có ảnh hưởng tới va chạm trên làn của B0 dù không xe nào của B0 đi chúng. Cơ chế của ảnh hưởng này chưa xác định.
+
+\section{Xe quay đầu chặn xe sau: số liệu chi tiết}
+\label{subsection:uturn_detail}
+
+Trên N5, B1, PROXY\_D1, seed 1, lấy mẫu mỗi giây. Xe bị chặn là xe không quay đầu, cùng làn, cách xe quay đầu đang đứng dưới 12~m, đứng yên trong khi liên kết của chính nó xanh (Bảng~\ref{table:4.uturn_block}). Đặc tả thử \texttt{B1\_uturn\_bypass} là B1 thêm luật \texttt{uturn\_bypass} với các giá trị ở Mục~\ref{section:ex_config}; Bảng~\ref{table:4.uturn_rule} cho kết quả qua ba phiên bản của luật. Lần B1 cùng ngày, cùng seed có 6 teleport kẹt. Teleport kẹt tăng từ 6 lên 28 trên cùng một seed chưa quy được cho luật, vì cùng một đặc tả B1 có 0--63 teleport kẹt tùy seed (Bảng~\ref{table:4.ref_n29}).
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Thời gian xe bị chặn sau xe quay đầu đang đứng (N5, B1, PROXY\_D1, seed 1, đơn vị xe$\cdot$s).} \label{table:4.uturn_block}
+\begin{tabular}{|p{3.6cm}|p{2.6cm}|p{2.8cm}|p{1.6cm}|p{2.2cm}|}
+\hline
+\textbf{Nhánh} & \textbf{Xe máy đi thẳng} & \textbf{Xe vi phạm rẽ trái} & \textbf{Ô tô} & \textbf{Số xe máy khác nhau} \\ \hline
+Nhánh phụ bắc & 1409 & 3053 & 0 & 79 \\ \hline
+Nhánh phụ nam & 285 & 833 & 22 & 101 \\ \hline
+Lê Văn Lương đông & 658 & 615 & 209 & 47 \\ \hline
+Lê Văn Lương tây & 1720 & 111 & 231 & 83 \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Luật \texttt{uturn\_bypass} trên PROXY\_D1, seed 1, 1800~s (N5). Phiên bản 1: chỉ lệnh lách hoặc đổi làn, lề 0,3~m. Phiên bản 2: thêm lane change mode 01. Phiên bản 3: thêm \texttt{lcPushy} bằng 1, lề 0,1~m.} \label{table:4.uturn_rule}
+\begin{tabular}{|p{1.6cm}|p{1.9cm}|p{1.9cm}|p{2.4cm}|p{2.5cm}|p{1.9cm}|}
+\hline
+\textbf{Phiên bản} & \textbf{Số lần rút trúng} & \textbf{Vượt được} & \textbf{Không có khe hoặc làn} & \textbf{Không vượt trong 6~s} & \textbf{Teleport kẹt} \\ \hline
+1 & 144 & 8 & 88 & 48 & 7 \\ \hline
+2 & 150 & 16 & 77 & 57 & 20 \\ \hline
+3 & 150 & 13 & 42 & 95 & 28 \\ \hline
+\end{tabular}
+\end{table}
+
+\section{B0 và B1 trên mạng N6}
+\label{section:compare_b0_b1_n6}
+\label{subsection:ref_n1104}
+
+Trên mạng N6 và dữ liệu thay thế, mục này xét câu hỏi nghiên cứu thứ nhất (Mục~\ref{section:rq}): bộ thực thi luật có tạo ra trong mô phỏng các hành vi vi phạm mà B0 không có, mà không làm tăng va chạm và số xe kẹt so với B0 không? Phép so sánh theo thiết kế ở Mục~\ref{section:3.8} có ba nguồn: B0, bộ luật viết tay B1 chạy qua bộ thực thi, và dữ liệu thực tế. Chưa có video tại nút, nên dữ liệu thay thế đứng ở vị trí của nguồn thứ ba.
+
+\textbf{Thiết lập.} B0 và B1 chạy trên N6, PROXY\_D1--D3 $\times$ seed 1--5, mỗi lần 1800~s, bật kiểm tra va chạm trong nút; mỗi cấu hình 15 lần chạy (chiến dịch \texttt{REF\_n1104s5}). Bảng~\ref{table:4.ref_n1104} đặt kết quả cạnh mạng N5, nơi luật vượt đỏ chưa có điều kiện nút thông và mạng còn các kết nối vi phạm từ làn 0, 1 (Phụ lục~\ref{subsection:ref_n29}).
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{B0 và B1 trên mạng N5 và N6 (PROXY\_D1--D3 $\times$ seed 1--5, 15 lần chạy mỗi ô, 1800~s; trung bình trên 15 lần chạy).} \label{table:4.ref_n1104}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{4.6cm}|p{2.0cm}|p{2.0cm}|p{2.0cm}|p{2.0cm}|}
+\hline
+\textbf{Đại lượng} & \textbf{B0, N5} & \textbf{B0, N6} & \textbf{B1, N5} & \textbf{B1, N6} \\ \hline
+Va chạm/h & 50,27 & 36,13 & 53,07 & 33,33 \\ \hline
+Va chạm trên làn/h & 18,53 & 1,87 & 3,87 & 0,27 \\ \hline
+Teleport kẹt/h & 1,60 & 0,00 & 51,73 & 4,67 \\ \hline
+$S$ & 1,225 & 1,217 & 1,279 & 1,249 \\ \hline
+Số lần chạy đạt tiêu chí chấp nhận & 0/15 & 15/15 & 0/15 & 0/15 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát về tiêu chí chấp nhận.} Trên N6, B0 đạt tiêu chí ở 15/15 lần chạy và không còn xe chờ vào mạng ở mức nhu cầu của dữ liệu thay thế. B1 không đạt ở cả 15 lần chạy: 14 lần còn xe chờ vào mạng lúc kết thúc (22--457 xe, nhiều nhất ở PROXY\_D1 với 241--457 xe); 14 lần có hơn 1 va chạm liên quan can thiệp (2--6); 9 lần có teleport không do va chạm (1--10); 5 lần không qua G0, cả 5 đều ở PROXY\_D1. Không lần nào vượt ngưỡng va chạm trên làn. So với N5, teleport kẹt của B1 giảm từ 51,73/h xuống 4,67/h; ở N5 mỗi lần nút khóa sinh 20--40 teleport kẹt, còn ở N6 một lần chạy B1 có nhiều nhất 10 teleport không do va chạm. Mạng và luật vượt đỏ đổi cùng lúc giữa N5 và N6, nên bảng không tách được phần đóng góp của từng thay đổi.
+
+\textbf{Nhật ký can thiệp của B1} (cộng 15 lần chạy). \texttt{swarm\_red\_running} rút trúng 3380 lượt vượt đỏ và thực hiện 1946 lượt; 2775 lượt tới vạch khi nút chưa thông nên phải đợi, và 1016 lượt bị hủy vì đèn hết đỏ trước khi nút thông. \texttt{uturn\_bypass} có 1927 lượt thử, 116 lượt lách qua được, 494 lượt không có khe ngang và không có làn kề, 1317 lượt không vượt được xe quay đầu. \texttt{early\_start} và \texttt{queue\_space\_seeking} không can thiệp lần nào, vì B1 đặt mọi xác suất của chúng bằng 0. Khoảng 30\% số lượt vượt đỏ đã rút không thành hành vi trong mô phỏng, nên tỷ lệ vượt đỏ đo được (M3) thấp hơn tỷ lệ rút.
+
+\textbf{Số đếm hành vi.} Bảng~\ref{table:compare_b0_b1_n6} đặt các đại lượng đếm được trực tiếp của B0, B1 và dữ liệu thay thế cạnh nhau, tính bằng chính các hàm chỉ số của Mục~\ref{section:3.7} trên cửa sổ $[300, 1800)$~s. Hình~\ref{fig:traj_b0_b1_n6} đặt cạnh nhau quỹ đạo của B0 và B1 trong cùng một chu kỳ đèn. Script \texttt{experiments/\allowbreak operator/\allowbreak compare\_b0\_b1/\allowbreak compare.py} tạo bảng và hình.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Số đếm hành vi của B0, B1 và dữ liệu thay thế trên N6. Trung bình (độ lệch chuẩn); B0, B1: 15 lần chạy; dữ liệu thay thế: 3 ngày. Mục tiêu của nhóm M7 và M9 là giả định.}
+\label{table:compare_b0_b1_n6}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{6.2cm}|r|r|r|}
+\hline
+\textbf{Đại lượng} & \textbf{B0} & \textbf{B1} & \textbf{Dữ liệu thay thế} \\ \hline
+Tỷ lệ xe máy vượt đèn đỏ (\%) & 0,00 (0,00) & 4,86 (0,70) & 9,80 (0,82) \\ \hline
+Tỷ lệ ô tô vượt đèn đỏ (\%) & 0,00 (0,00) & 0,00 (0,00) & 0,41 (0,48) \\ \hline
+Số xe vượt đèn đỏ mỗi chu kỳ mỗi nhánh & 0,00 (0,00) & 1,56 (0,26) & 3,91 (0,54) \\ \hline
+Tỷ lệ xe máy xuất phát sớm (\%) & 0,21 (0,14) & 0,84 (0,27) & 13,02 (1,74) \\ \hline
+Tỷ lệ xe máy dừng quá vạch dừng (\%) & 0,00 (0,00) & 0,04 (0,05) & 62,03 (1,62) \\ \hline
+Số xe chờ giữa nút mỗi chu kỳ (M7a) & 4,00 (0,43) & 4,89 (0,57) & 5,59 (0,56) \\ \hline
+Số xe đứng chờ đỏ trên làn rẽ phải mỗi chu kỳ (M9a) & 8,26 (0,34) & 7,15 (0,50) & 0,57 (0,13) \\ \hline
+Số xe máy trên vỉa hè mỗi chu kỳ (M10a) & 0,00 (0,00) & 0,00 (0,00) & 0,56 (0,07) \\ \hline
+Số lượt qua vạch dừng mỗi giờ & 7710 (780) & 6220 (432) & 8060 (1077) \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/traj_b0_b1.png}
+\caption{Quỹ đạo các xe trong bán kính 70~m quanh tâm nút trong cùng một chu kỳ đèn (550--670~s, PROXY\_D2, seed 1, mạng N6), B0 bên trái, B1 bên phải. Chu kỳ được chọn là chu kỳ có nhiều lượt vượt đèn đỏ nhất của B1 trong lần chạy này, nên không đại diện cho một chu kỳ trung bình; số trung bình nằm ở Bảng~\ref{table:compare_b0_b1_n6}. Dấu $\times$ là vị trí xe lúc vượt vạch khi đèn đỏ; 9 lượt của B1 nằm ở vạch dừng của ba nhánh nên nhiều dấu chồng lên nhau. Ô tô màu xám, xe máy màu xanh, xe máy lớp vi phạm màu cam nét đứt.}
+\label{fig:traj_b0_b1_n6}
+\end{figure}
+
+\textbf{Quan sát.} B0 không có lượt vượt đèn đỏ nào trong 15 lần chạy, không có xe máy dừng quá vạch, và tỷ lệ xuất phát sớm 0,21\%. B1 có 4,86\% xe máy vượt đèn đỏ và 1,56 xe vượt đỏ mỗi chu kỳ mỗi nhánh, khoảng một nửa tỷ lệ của dữ liệu thay thế. Ở PROXY\_D2 và PROXY\_D3, nơi B1 ít xe chờ vào mạng hơn, tỷ lệ xe máy vượt đỏ của B1 là 5,0\% và 4,8\%, gần mức 4,7\% ở PROXY\_D1. Trong chu kỳ ở Hình~\ref{fig:traj_b0_b1_n6}, B0 có 340 xe đi qua vùng vẽ và không lượt vượt đỏ nào; B1 có 432 xe và 9 lượt vượt đỏ. Số xe chờ giữa nút của B1 là 4,89 mỗi chu kỳ, so với 4,00 của B0 và 5,59 của dữ liệu thay thế (mục tiêu giả định). Ở ba đại lượng B1 không khác B0: không có xe máy trên vỉa hè, gần như không có xe dừng quá vạch, và tỷ lệ xuất phát sớm dưới 1\%. Số xe đứng chờ đỏ trên làn rẽ phải ở cả B0 và B1 (8,26 và 7,15) cao hơn nhiều so với dữ liệu thay thế (0,57). B1 có ít lượt qua vạch dừng hơn B0 (6220 so với 7710 mỗi giờ).
+
+\textbf{Diễn giải.} Vượt đèn đỏ là hành vi duy nhất trong bảng mà B1 bật một luật có xác suất khác 0, và đó là chỗ B1 khác B0 rõ nhất. Tỷ lệ này đọc được dù B1 không đạt tiêu chí chấp nhận: nó tính trên các lượt qua vạch đã xảy ra, và gần như không đổi giữa ngày có nhiều và ngày có ít xe chờ vào mạng. B1 đặt xác suất bằng 0 cho \texttt{early\_start} và cho mọi lựa chọn của \texttt{queue\_space\_seeking}, nên không có xuất phát sớm hay đi vỉa hè do luật; các giá trị nhỏ còn lại của xuất phát sớm đến từ chính SUMO. Xe chờ giữa nút có ở cả B0, vì nhu cầu của mọi phương án có xe lớp vi phạm đi hướng rẽ trái bị cấm qua bản vá mạng; B1 chỉ đổi tham số của lớp này. Số xe đứng trên làn rẽ phải không đọc được như sai lệch hành vi, vì mục tiêu M9 được suy từ thiết lập có cọc (Mục~\ref{section:3.6}). Lượt qua vạch thấp hơn ở B1 khớp với việc B1 còn xe chờ vào mạng ở PROXY\_D1 (Mục~\ref{subsection:d1_backlog}).
+
+\textbf{Kết quả trên N6.} Bộ thực thi tạo ra được hành vi vượt đèn đỏ mà B0 không có (4,86\% so với 0\% xe máy), với va chạm trên làn thấp hơn B0 (0,27 so với 1,87 va chạm/h). Vế thứ hai của câu hỏi có câu trả lời là chưa: B1 để lại xe chờ vào mạng ở 14/15 lần chạy và có 4,67 teleport kẹt/h, trong khi B0 không có cả hai, nên B1 không đạt tiêu chí chấp nhận ở lần chạy nào. Các số của B1 là của một bộ luật viết tay chưa hiệu chỉnh; chúng cho thấy bộ thực thi tạo ra được hành vi mà SUMO mặc định không có, chưa cho thấy mức của các hành vi đó đúng.
+
+\section{Ba chiến dịch hiệu chỉnh trên mạng N6}
+\label{subsection:campaigns_n6}
+
+Mục này xét câu hỏi nghiên cứu thứ hai trên N6: trên cùng không gian tham số và cùng ngân sách, đặc tả do LLM cục bộ sinh so với bộ tối ưu số như thế nào?
+
+\textbf{Thiết lập.} Ba chiến dịch B2, P1, P2 chạy trên N6 với PROXY\_D1--D3 $\times$ seed 1, ngân sách 36 lần chạy mỗi chiến dịch, mỗi lần 1800~s. Mức trần va chạm trên làn khi chọn đặc tả tốt nhất là \tamthoi{1,867} $+ 1$ va chạm/h. B2 là Optuna với 3 tiến trình song song. P1 (\texttt{params\_only}, nền B1) và P2 (\texttt{full}) dùng \texttt{qwen3.5:9b}, prompt \texttt{v004}, 4 mẫu mỗi vòng, tối đa 3 lần thử mỗi mẫu, thinking tắt. Bảng~\ref{table:4.campaigns_n6} tóm tắt kết quả.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Ba chiến dịch trên N6 (PROXY\_D1--D3 $\times$ seed 1, 36 lần chạy mỗi chiến dịch).} \label{table:4.campaigns_n6}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.6cm}|>{\raggedright\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}p{3.2cm}|}
+\hline
+ & \textbf{B2} & \textbf{P1} & \textbf{P2} \\ \hline
+Thời gian chạy & 3~h~25 & khoảng 2~h~25 & 1~h~56 \\ \hline
+Thử nghiệm hoặc vòng & 12 thử nghiệm & 4 vòng (3 + 1) & 5 vòng (3 + 2) \\ \hline
+Mẫu hợp lệ & 12/12 & 12/16 & 14/20 (2 mẫu hợp lệ nhưng hết ngân sách) \\ \hline
+Lần trả lời hợp lệ & không dùng LLM & 12/27 & 14/36 \\ \hline
+Đặc tả được chạy & 12 & 12 & 12 \\ \hline
+Đặc tả đạt tiêu chí chấp nhận & 0 & 0 & 0 \\ \hline
+Lần chạy đạt tiêu chí, PROXY\_D1 / D2 / D3 & 0/12, 0/12, 0/12 & 0/12, 0/12, 0/12 & 0/12, 6/12, 5/12 \\ \hline
+$S$ nhỏ nhất & 1,144 (\texttt{t003}) & 1,239 (\texttt{it01\_s01}) & 1,168 (\texttt{it04\_s03}) \\ \hline
+Đặc tả chọn theo quy tắc dự phòng & \texttt{t002}, $S = 1{,}209$ & \texttt{it01\_s02}, $S = 1{,}298$ & \texttt{it03\_s02}, $S = 1{,}174$ \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{sloppypar}
+\textbf{Quan sát.} Không chiến dịch nào có đặc tả đạt tiêu chí chấp nhận, nên đặc tả tốt nhất được chọn theo quy tắc dự phòng: ít teleport kẹt nhất, rồi theo $S$, không xét mức trần va chạm. B2 và P1 còn xe chờ vào mạng lúc kết thúc ở cả ba ngày. P1 có ở 36/36 lần chạy (PROXY\_D1 301--623 xe, PROXY\_D2 23--179, PROXY\_D3 133--297). B2 có ở 21/36 lần chạy, trong đó cả 12 lần chạy PROXY\_D1 (20--338 xe). Gần như mọi đặc tả có lần chạy với hơn 1 va chạm liên quan can thiệp. 9/12 thử nghiệm B2 còn vượt ngưỡng va chạm trên làn ở ít nhất một lần chạy; P1 không có lần chạy nào bị loại vì lý do này. P2 chỉ còn xe chờ vào mạng ở PROXY\_D1 (4--163 xe, cả 12 đặc tả). Ở PROXY\_D2 và PROXY\_D3, 11/24 lần chạy của P2 đạt tiêu chí; các lần còn lại bị loại vì va chạm trên làn vượt ngưỡng hoặc vì hơn 1 va chạm liên quan can thiệp. Từ vòng 2, cả 12 đặc tả P2 được chạy có cùng một cấu trúc: 5 nguyên mẫu và 3 luật (\texttt{early\_start} cho ô tô, \texttt{swarm\_red\_running} cho xe máy thường, \texttt{illegal\_left\_box}); các vòng sau chỉ đổi tỷ trọng và tham số (Mục~\ref{subsection:qwen_campaign_n6}). Cấu trúc này không có \texttt{queue\_space\_seeking}, \texttt{uturn\_bypass} và \texttt{slow\_lane\_center}.
+\end{sloppypar}
+
+\textbf{Diễn giải.} P1 giữ cấu trúc của B1, mà B1 đã có 14/15 lần chạy còn xe chờ vào mạng; cùng với 12 thử nghiệm B2 và các biến thể ở Mục~\ref{subsection:d1_backlog}, điều này gợi ý cấu trúc B1 khó đạt tiêu chí chấp nhận ở PROXY\_D1, nhưng chưa chứng minh là không thể. B2 giữ đủ cấu trúc B1 mà có $S$ nhỏ nhất (1,144), thấp hơn $S$ nhỏ nhất của P2 (1,168). Từ vòng 2, P2 giữ một cấu trúc thiếu ba loại luật; chưa có thí nghiệm nào thêm lại các luật đó để kiểm tra việc bỏ luật có làm giảm $S$ hay không. Ba chiến dịch cũng chưa tách được phần giảm xe chờ vào mạng của P2 là do tham số vType hay do không có các luật có thể chặn làn (cắt về, lách xe quay đầu). Các chiến dịch chỉ dùng seed 1, nên $S$ ở Bảng~\ref{table:4.campaigns_n6} không so trực tiếp được với $S$ của B0 và B1 trên 5 seed ở Bảng~\ref{table:4.ref_n1104}.
+
+\textbf{Kết quả trên N6.} Câu hỏi chưa trả lời được trên dữ liệu hiện có. Không phương án nào có đặc tả đạt tiêu chí chấp nhận, mỗi đặc tả chỉ có một seed mỗi ngày, và chênh lệch $S$ giữa các phương án nhỏ so với biến động giữa các seed của cùng một đặc tả (teleport kẹt của B1 trên N5 dao động 0--63 tùy seed, Phụ lục~\ref{subsection:ref_n29}).
+
+\subsection{Nguyên nhân xe chờ vào mạng ở PROXY\_D1}
+\label{subsection:d1_backlog}
+
+\textbf{Câu hỏi.} Ở PROXY\_D1, mọi đặc tả của ba chiến dịch và 5/5 lần chạy B1 còn xe chờ vào mạng, trong khi B0 với cùng nhu cầu thì không. Phần nào của B1 gây ra điều này?
+
+\textbf{Thiết lập.} B1 trên PROXY\_D1 $\times$ seed 1--3, 1800~s. Bỏ lần lượt từng luật TraCI, rồi bỏ mọi luật và đưa từng nhóm tham số vType về giá trị của B0 (mặc định SUMO). Trong B1, \texttt{early\_start} và \texttt{queue\_space\_seeking} có mọi xác suất bằng 0 và không can thiệp lần nào, nên ở các biến thể bỏ một luật chỉ \texttt{swarm\_red\_running} và \texttt{uturn\_bypass} được tắt.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Biến thể của B1 trên PROXY\_D1. Số xe chờ vào mạng ghi theo seed 1, 2, 3.} \label{table:4.d1_backlog}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{6.4cm}|p{3.0cm}|p{1.8cm}|p{1.4cm}|}
+\hline
+\textbf{Biến thể} & \textbf{Xe chờ vào mạng lúc kết thúc} & \textbf{Va chạm/h} & \textbf{$S$} \\ \hline
+B1 đủ luật & 339, 457, 377 & 24--26 & 1,271 \\ \hline
+Bỏ \texttt{swarm\_red\_running} & 332, 337, 221 & 14--18 & 1,264 \\ \hline
+Bỏ \texttt{uturn\_bypass} & 295, 273, 291 & 20--32 & 1,278 \\ \hline
+Bỏ mọi luật & 387, 203, 227 & 12--20 & 1,297 \\ \hline
+Bỏ mọi luật, ô tô dùng tham số B0 & 295, 206, 263 & 24--32 & 1,263 \\ \hline
+Bỏ mọi luật, xe máy bỏ \texttt{accel} (mặc định 6~m/s\textsuperscript{2}) & 10, 126, 52 & 48--58 & 1,248 \\ \hline
+\end{tabular}
+\end{table}
+
+\textbf{Quan sát.} Bỏ mọi luật TraCI vẫn còn 203--387 xe chờ vào mạng. Khi trả \texttt{accel} của xe máy về mặc định, số xe chờ giảm xuống 10--126 nhưng chưa về 0, và va chạm tăng từ 12--20/h lên 48--58/h. Tham số ô tô (\texttt{tau} 2,5~s, \texttt{accel} 1,2~m/s\textsuperscript{2}) chỉ làm số xe chờ thay đổi ít. B2 tìm \texttt{accel} của xe máy trong $[0{,}8;\,6]$~m/s\textsuperscript{2}, nhưng cả 12 thử nghiệm vẫn có 20--338 xe chờ vào mạng ở PROXY\_D1; thử nghiệm \texttt{t000} với \texttt{accel} 5,8 vẫn còn 256 xe, và có \texttt{tau} xe máy 2,5~s.
+
+\textbf{Diễn giải.} Trong các biến thể đã thử, \texttt{accel} 1,1~m/s\textsuperscript{2} của xe máy là yếu tố có ảnh hưởng lớn nhất; riêng nó chưa giải thích hết số xe chờ vào mạng. Giá trị này chuyển từ gia tốc cực đại $a$ của mô hình IDM trong Bảng 11 của Saval và cộng sự~\cite{saval2023mixed} sang \texttt{accel} của mô hình Krauss (Phụ lục~\ref{section:appendix_b1}), trong khi mặc định SUMO cho xe máy là 6~m/s\textsuperscript{2}. Hai thuộc tính cùng tên ``gia tốc'' nhưng đóng vai trò khác nhau trong hai mô hình bám xe (Mục~\ref{section:2.background}), nên việc chép nguyên giá trị là một nguồn sai lệch. Với \texttt{accel} thấp, xe máy tăng tốc chậm và mỗi thời gian xanh xả được ít xe. Chưa có biến thể nào thử riêng \texttt{tau} của xe máy, và các biến thể chỉ chạy ở PROXY\_D1 với 3 seed. Luận văn giữ B1 đúng như chuyển giao từ tài liệu và nêu điều này như một hạn chế của B1 (Mục~\ref{section:limitations}).
+
+\section{Hành vi của LLM cục bộ trên các chiến dịch N6}
+\label{subsection:qwen_campaign_n6}
+
+Mục này xét câu hỏi nghiên cứu thứ ba trên các chiến dịch N6: \texttt{qwen3.5:9b} có sinh được đặc tả hợp lệ không, mắc những lỗi gì, và bộ kiểm tra hợp lệ có chặn được các lỗi đó trước khi tốn lần chạy mô phỏng không? Số liệu lấy từ nhật ký LLM của hai chiến dịch P1, P2 ở Mục~\ref{subsection:campaigns_n6}.
+
+\textbf{Chế độ suy nghĩ.} Hai lần khởi động P1 đầu tiên, với thinking bật, đều hỏng ngay lần thử đầu của vòng 1: câu trả lời bị cắt ở 4500 rồi ở 7000 token, phần suy nghĩ dài 18.554 và 28.585 ký tự, chưa tới JSON. Hai thư mục chiến dịch đó bị xóa trước khi có lần chạy SUMO nào được tính; nhật ký LLM của chúng được giữ. Với thinking tắt, chạy thử trên prompt vòng 1 cho 3/3 chuỗi P1 và 2/3 chuỗi P2 hợp lệ. Trong hai chiến dịch chính thức, prompt dài 9.471--24.441 token ở P1 và 7.063--19.895 token ở P2; câu trả lời dài 1.257--2.256 token, cả 63 câu trả lời kết thúc bình thường. Mỗi lần thử mất khoảng 1,5--3,5 phút.
+
+\textbf{Tỷ lệ hợp lệ.} 12/27 lần trả lời của P1 và 14/36 lần trả lời của P2 hợp lệ; tính theo mẫu, 12/16 mẫu P1 và 14/20 mẫu P2 có đặc tả hợp lệ sau tối đa 3 lần thử. Bộ kiểm tra hợp lệ bắt mọi lần trả lời hỏng trước khi chạy, nên không lần chạy SUMO nào bị tốn cho đặc tả hỏng.
+
+\textbf{P1.} 14/15 lần thử hỏng là lỗi tổng tỷ trọng, cả 14 lần ở phân phối \texttt{moto\_violator}. Phân phối này chỉ có một nguyên mẫu, nên tỷ trọng của nó phải bằng 1, nhưng LLM đổi thành 0,9, 0,85, 0,5, 0,1 hoặc 0,05. 4 mẫu hỏng cả 3 lần thử vì lỗi này, dù tin nhắn thử lại đã nêu rõ yêu cầu tổng tỷ trọng. P1 còn nộp lại một đặc tả bốn lần: \texttt{it01\_s02}, \texttt{it02\_s03}, \texttt{it03\_s01} và \texttt{it04\_s02} giống nhau (\texttt{early\_start} $p = 0{,}13$, xác suất chọn vỉa hè 0,75, xác suất đi sai làn 0,25, phần còn lại như B1). Đây là đặc tả được chọn sau vòng 1, nên phản hồi giới thiệu nó là tốt nhất. Ba lần nộp lại tốn 9 lần chạy và cho cùng $S = 1{,}298$.
+
+\textbf{P2.} Ở vòng 1 và 2, 6/8 mẫu không hợp lệ sau 3 lần thử. Bảng~\ref{table:4.qwen_errors_n6} đếm lỗi trên mọi lần thử hỏng. Lỗi nhiều nhất là lỗi cấu trúc: mã nguyên mẫu trùng tên phân phối, và phân phối mà nhu cầu dùng không có nguyên mẫu nào. Có cả lỗi giá trị: tổng tỷ trọng khác 1 và giá trị ngoài miền. Từ vòng 2, lịch sử gửi cho LLM có JSON của một đặc tả hợp lệ (\texttt{it02\_s01}, Hình~\ref{lst:p2_spec_n6}); các đặc tả vòng 3--5 giữ đúng cấu trúc đó, và 11/12 mẫu từ vòng 3 hợp lệ ngay lần thử đầu.
+
+\begin{table}[!htbp]
+\centering
+\small
+\caption{Lỗi trên các lần thử hỏng của P2 (một lần thử có thể có nhiều lỗi).} \label{table:4.qwen_errors_n6}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{11.0cm}|p{1.8cm}|}
+\hline
+\textbf{Lỗi} & \textbf{Số lần} \\ \hline
+Mã nguyên mẫu trùng tên phân phối (\texttt{car}, \texttt{moto}, \texttt{moto\_violator}, \texttt{car\_violator}) & 19 \\ \hline
+Tổng tỷ trọng của một phân phối khác 1 & 15 \\ \hline
+Phân phối mà nhu cầu dùng không có nguyên mẫu nào & 7 \\ \hline
+\texttt{queue\_space\_seeking} áp cho lớp xe không được phép & 6 \\ \hline
+\texttt{queue\_space\_seeking} không áp dụng được trên mạng cho nguyên mẫu trong \texttt{moto\_violator} & 5 \\ \hline
+\texttt{illegal\_left\_box} áp cho xe máy thường & 4 \\ \hline
+Giá trị ngoài miền (lược đồ) & 4 \\ \hline
+\texttt{early\_start} áp hai lần cho cùng nguyên mẫu & 1 \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[!htbp]
+\centering
+\begin{minipage}{0.95\textwidth}
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize, breaklines=true, frame=single, columns=fullflexible]
+{"spec_id": "P2_n1108_it02_s01", "source": "llm",
+ "provenance": {"model": "qwen3.5:9b", "prompt_version": "v004",
+                "iteration": 2, "sample_idx": 1},
+ "driver_archetypes": [ ...,
+  {"id": "moto_violator_left", "base_vclass": "custom1",
+   "distribution": "moto_violator", "share": 1.0,
+   "params": {"tau": 2.5, "minGap": 2.5, "accel": 6.0, "decel": 8.0,
+              "latAlignment": "arbitrary", "lcPushy": 0.6,
+              "jmTimegapMinor": 2.0, ...},
+   "rationale": "Violating motorcycle archetype (custom1) that joins the
+     'moto_violator' distribution to model illegal left turns from
+     HDT_N/S and queue seeking behaviors (M8/moto wrong-lane share)."}],
+ "traci_rules": [ ...,
+  {"rule_type": "swarm_red_running",
+   "applies_to": ["moto_compliant", "moto_slow_center"],
+   "params": {"p0": 0.2, "k": 0.15, "p_max": 0.6, "dt": 30},
+   "rationale": "Enables red-light running for standard motorcycles to
+     match M3/share/moto (target ~0.098) and M3/per_cycle (target ~3.913)."}]}
+\end{lstlisting}
+\end{minipage}
+\caption{Trích đặc tả \texttt{P2\_n1108\_it02\_s01} do \texttt{qwen3.5:9b} sinh (rút gọn; ``...'' là phần lược bỏ). Mỗi nguyên mẫu và mỗi luật có trường lý do. Lý do của \texttt{moto\_violator\_left} nhắc tới hành vi tìm khoảng trống, nhưng đặc tả không có luật \texttt{queue\_space\_seeking} nào.}
+\label{lst:p2_spec_n6}
+\end{figure}
+
+\textbf{Kết quả trên N6.} \texttt{qwen3.5:9b} sinh được đặc tả hợp lệ ở 12/16 mẫu P1 và 14/20 mẫu P2, nhưng chỉ 12/27 và 14/36 lần trả lời hợp lệ. P1 mắc chủ yếu lỗi tổng tỷ trọng; P2 mắc chủ yếu lỗi cấu trúc. Bộ kiểm tra hợp lệ bắt mọi lỗi trước khi chạy. Khi đã có một đặc tả hợp lệ trong lịch sử, mô hình giữ nguyên cấu trúc của nó và chỉ đổi giá trị. Lý do mà mô hình ghi kèm không phải lúc nào cũng khớp với đặc tả (Hình~\ref{lst:p2_spec_n6}). Các kết quả này gắn với một mô hình 9 tỷ tham số, một prompt (\texttt{v004}) và một lần chạy mỗi chiến dịch.
+
+
+\end{document}

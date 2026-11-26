@@ -1,0 +1,28 @@
+# Đếm xe theo hướng, theo từng phút video. Dùng dựng demand và cổng G0 (GEH lưu lượng).
+# Mỗi nhánh 2 lượt: lượt 1 đếm ô tô (mọi hướng), lượt 2 đếm xe máy (mỗi hướng một nút trên app đếm).
+# Đếm khi đầu xe qua vạch dừng của nhánh vào; hướng xác định theo nhánh xe đi ra.
+# Mỗi danh sách có 5 số = phút 0-1, 1-2, 2-3, 3-4, 4-5 của video. Video dài hơn 5 phút: thêm số thứ 6
+# cho phần lẻ và ghi độ dài phần lẻ vào last_bin_s.
+# Nhánh camera không thấy: để nguyên null. Hướng có quan sát mà không có xe: 0.
+# illegal_l chỉ có ở HDT_N, HDT_S (cấm rẽ trái). Rẽ trái ở LVL là l.
+
+last_bin_s: null           # độ dài phần lẻ cuối (giây), nếu có
+
+counts:
+  LVL_W:
+    car:  {s: null, r: null, l: null, u: null}
+    moto: {s: null, r: null, l: null, u: null}
+  LVL_E:
+    car:  {s: null, r: null, l: null, u: null}
+    moto: {s: null, r: null, l: null, u: null}
+  HDT_N:
+    car:  {s: null, r: null, illegal_l: null, u: null}
+    moto: {s: null, r: null, illegal_l: null, u: null}
+  HDT_S:
+    car:  {s: null, r: null, illegal_l: null, u: null}
+    moto: {s: null, r: null, illegal_l: null, u: null}
+
+# Ví dụ một ô đã điền:   moto: {s: [41, 38, 45, 40, 39], r: [12, 10, 9, 14, 11], l: [6, 7, 5, 8, 6], u: [2, 1, 3, 0, 2]}
+
+excluded_vehicles: null    # tổng xe buýt + xe tải đã bỏ qua, theo nhánh nếu được
+notes: null

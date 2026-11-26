@@ -12,8 +12,8 @@ traversals of its approach whose stop-line crossing falls in the row's cycle (`c
   is not used.
 - M7c/slope (scalar): least-squares slope of the crossing road's start delay (green onset to its first stop-line
   crossing, `m2_early_start.first_delays`) on the box waiters at the last box time at or before that onset (sum of
-  `n_waiting_in_box` over the rows at that time: with illegal lefts from both approaches of one road, HDT_N and
-  HDT_S, both boxes hold the crossing road), if that time is less than one cycle (the median onset spacing) before
+  `n_waiting_in_box` over the rows at that time: with illegal lefts from both approaches of one road, HMG and
+  NT, both boxes hold the crossing road), if that time is less than one cycle (the median onset spacing) before
   it. Crossing roads = approaches that are neither an illegal-left approach nor its opposing approach. NaN
   (undefined) with fewer than two distinct x values.
 """

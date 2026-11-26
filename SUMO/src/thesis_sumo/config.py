@@ -8,6 +8,8 @@ A required value that is still `null` raises `MissingFieldDataError`; there is n
 
 from __future__ import annotations
 
+import os
+
 from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
@@ -89,7 +91,11 @@ def load_site(path: Path | None = None) -> Site:
 
 
 def load_experiment(path: Path | None = None) -> dict:
-    return _read_yaml(Path(path) if path is not None else CONFIG_DIR / "experiment.yaml")
+    """config/experiment.yaml, or the file named by the environment variable THESIS_EXPERIMENT (the test suite points
+    it at a copy whose data split keeps the PROXY days, tests/conftest.py)."""
+    if path is None:
+        path = os.environ.get("THESIS_EXPERIMENT") or CONFIG_DIR / "experiment.yaml"
+    return _read_yaml(Path(path))
 
 
 def load_llm(path: Path | None = None) -> dict:

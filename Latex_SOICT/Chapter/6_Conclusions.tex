@@ -1,65 +1,67 @@
 \documentclass[../main.tex]{subfiles}
 \begin{document}
 
-% Nguồn: docs/PROGRESS.md (bảng trạng thái Task 1--15, rulings), PLAN.md (Phase 5--7, mục 8),
-% docs/superpowers/specs/2026-10-25-proxy-benchmark-loop-design.md, config/site.yaml, config/llm.yaml;
-% cập nhật 2026-10-31: report/2026-10-27/data/campaign_specs.csv, experiments/campaigns/REF_run.log, report/2026-10-28, report/2026-10-29, REF_n29s5;
-% cập nhật 2026-11-09: report/2026-11-08/README.md (REF_n1104s5, B2/P1/P2_n1108, AB_cut, AB_d1, AB_d1v).
+Chương này tóm tắt kết quả đạt được, trả lời từng câu hỏi nghiên cứu ở Mục~\ref{section:rq}, nêu các hạn chế và hướng phát triển.
 
-Chương này tổng kết những gì luận văn đã làm, những gì quá trình xây dựng cho thấy, những việc chưa làm, và hướng phát triển tiếp theo.
+\section{Kết quả đạt được}
 
-\section{Kết luận}
+Luận văn xây dựng một phương pháp mô phỏng hành vi người tham gia giao thông Việt Nam tại một nút giao có đèn. Phương pháp tách sinh luật khỏi thực thi luật: một LLM chạy cục bộ sinh và tinh chỉnh lặp đặc tả luật ngoài vòng mô phỏng, còn mã tất định kiểm tra, biên dịch, thực thi đặc tả và đo kết quả. Danh mục hành vi gồm 11 hành vi, tổng hợp từ các nghiên cứu đã công bố và bổ sung từ quan sát. Phương pháp được hiện thực trên SUMO~\cite{lopez2018sumo} cho nút Lê Văn Lương -- Hoàng Minh Giám -- Nguyễn Tuân (Hà Nội) trong giờ cao điểm: SUMO thực thi phần tham số vType tĩnh, và một bộ điều khiển TraCI thực thi sáu loại luật có điều kiện. Lưu lượng, tỷ lệ hướng đi, tỷ lệ xe máy và chu kỳ đèn được đo từ video quay tại nút; các chỉ số hành vi lấy giá trị mục tiêu từ tài liệu.
 
-\subsection{Mục tiêu và cách làm}
+Toàn bộ quy trình chạy được, có 403 ca kiểm thử tự động, trong đó 401 ca đạt và 2 ca được đánh dấu thất bại dự kiến (Mục~\ref{section:testing}). Mạng mô phỏng dựng hoàn toàn bằng script từ OpenStreetMap qua các tệp vá sinh từ cấu hình hiện trường; tám lần chạy B0 đối chiếu giữa máy Windows và máy Linux cho cùng số va chạm và teleport. Mười trong 11 hành vi có trong phương pháp; hành vi đi ngược chiều nằm ngoài phạm vi vì SUMO không giữ được việc tính xung đột khi biểu diễn nó. Trên nút nghiên cứu, 9 hành vi tham gia hiệu chỉnh, vì nút chưa có làn vỉa hè. Bảy giải pháp kỹ thuật rút ra khi hiện thực nằm ở Mục~\ref{section:solutions}.
 
-Luận văn mô phỏng hành vi tham gia giao thông tại nút Lê Văn Lương -- Hoàng Đạo Thúy trong cao điểm sáng, sao cho giống thực tế nhất có thể. Kịch bản gồm 11 hành vi; rẽ trái trái phép chờ giữa nút là một trong số đó. Một LLM chạy cục bộ sinh và tinh chỉnh lặp các luật hành vi tài xế cho SUMO~\cite{lopez2018sumo}. LLM chỉ sinh đặc tả luật ngoài vòng mô phỏng. SUMO thực thi phần tham số vType tĩnh, và một bộ điều khiển TraCI thực thi phần luật có điều kiện.
+Quá trình xây dựng cho thấy ba điều. Thứ nhất, nhiều hiện tượng trông giống hành vi tài xế đến từ cách dựng mạng: va chạm cao bất thường của B0 trên mạng ban đầu đến từ bề rộng mặc định không có nguồn của làn ra, và việc bỏ các kết nối chỉ cho xe vi phạm từ làn 0, 1 làm va chạm trên làn của B0 giảm từ 18,53/h xuống 1,87/h dù B0 không đi các kết nối đó, theo một cơ chế chưa xác định. Thứ hai, kiểm tra va chạm trong nút phải bật từ đầu: một phiên bản luật giữ xe tưởng an toàn khi kiểm tra này tắt, nhưng có 55 va chạm trong nút khi bật, so với 7 khi không dùng cách đó. Thứ ba, video quay chéo qua kính từ trên cao đo được lưu lượng ra theo nhánh và chu kỳ đèn, nhưng không dựng được quỹ đạo theo làn: tracking bỏ sót nhiều xe máy trong hàng chờ dày (493 xe máy đếm được khi vào nút so với 943 khi ra), nên các chỉ số hành vi chưa đo được từ hai đoạn video này.
 
-\subsection{Đã hoàn thành}
+\section{Trả lời câu hỏi nghiên cứu}
 
-Toàn bộ mã của quy trình đã chạy được và có 403 ca kiểm thử tự động; trên máy chính ngày 08/11/2026, 401 ca đạt và 2 ca xfail có chủ đích (Mục~\ref{section:testing}).
+\subsection{Câu hỏi 1}
 
-Mạng mô phỏng dựng hoàn toàn bằng script từ OpenStreetMap qua tệp vá sinh từ cấu hình hiện trường, với đèn ba pha, làn rẽ phải liên tục ở 30~m cuối của mọi nhánh, và các bản vá chỉ cho lớp xe vi phạm (kết nối rẽ trái trái phép ở hai nhánh Hoàng Đạo Thúy, hai làn vỉa hè). Cấu hình cơ sở B0, bộ sinh nhu cầu, trình chạy kèm \texttt{manifest.json} và bộ chuyển đầu ra sang lược đồ quan sát chung chạy được trên cả Windows và Linux; tám lần chạy B0 đối chiếu giữa hai máy cho cùng số va chạm và teleport.
+Bộ thực thi luật tạo ra được hành vi vượt đèn đỏ mà SUMO mặc định không có: trên mạng N7, 1,90\% xe máy của B1 vượt đèn đỏ, so với 0\% của B0, và B1 có ít va chạm trên làn hơn B0 (1,6 so với 8,0/h). Vế thứ hai của câu hỏi có câu trả lời là chưa: B1 để lại 1851--2140 xe chờ vào mạng, so với 1055--1199 của B0, và cả hai không đạt tiêu chí chấp nhận ở lần chạy nào (Mục~\ref{section:compare_b0_b1}). Ngay cả B0 cũng chỉ cho số lượt qua vạch dừng bằng 83\% nhu cầu đo từ video.
 
-Phần luật gồm lược đồ đặc tả, tệp miền giá trị có ghi nguồn cho 24 thuộc tính vType, bộ kiểm tra hợp lệ trả lỗi có cấu trúc theo tám mã, bộ biên dịch, và bộ điều khiển TraCI với sáu luật có điều kiện. Trong đó \texttt{queue\_space\_seeking} gộp các hành vi tìm khoảng trống và có lựa chọn đi sai làn kiểu cắt về; luật vượt đỏ chỉ cho xe vào nút khi nút thông. Phần đánh giá gồm chỉ số M1--M10, cổng GEH, hàm khoảng cách có chặn trên và điểm tổng $S$, cùng khung đánh giá dùng chung với bộ đếm ngân sách theo chiến dịch. Phần hiệu chỉnh gồm trình khách LLM với năm phiên bản prompt, vòng lặp LLM chạy tiếp được sau khi bị ngắt, và phương án Optuna. Các đóng góp kỹ thuật rút ra từ quá trình này nằm ở Chương~\ref{chapter:SolutionAndContribution}.
+%%CH2%%
 
-\subsection{Phát hiện trong quá trình xây dựng}
+%%CH3%%
 
-Nhiều hiện tượng trông giống hành vi tài xế hóa ra đến từ cách dựng mạng. Va chạm cao bất thường của B0 trên mạng ban đầu đến từ bề rộng mặc định không có nguồn của làn ra. Trên mạng 29/10, va chạm trên làn của B0 là 18,53/h; trên mạng 04/11, chỉ bỏ các kết nối chỉ cho xe vi phạm từ lane 0, 1 đã làm mức này còn 1,87/h và B0 đủ điều kiện ở 15/15 lần chạy, dù không xe nào của B0 đi các kết nối đó. Cơ chế của ảnh hưởng này chưa xác định.
+Mọi kết quả trên tính trên nhu cầu đo từ hai đoạn video ngắn, các chỉ số hành vi lấy từ tài liệu và các giá trị tạm thời của hình học và chương trình đèn. Chúng cho biết quy trình vận hành được với nhu cầu đo tại nút và mô phỏng khác mô hình chuẩn ở đâu; chúng chưa cho biết các hành vi vi phạm trong mô phỏng giống giao thông thực tại nút đến mức nào.
 
-Bật kiểm tra va chạm trong nút phát hiện một phiên bản luật giữ xe tưởng an toàn nhưng thực chất cho xe đi xuyên qua nhau. Từ đó có nguyên tắc luật TraCI chỉ giữ xe, không đẩy xe qua xung đột. Theo cùng tinh thần, luật vượt đỏ được thêm điều kiện nút thông sau khi chẩn đoán cho thấy nó là điều kiện cần cho các lần khóa nút của B1 trên mạng 29/10; teleport kẹt của B1 giảm từ 51,73/h xuống 4,67/h trên 15 lần chạy.
+\section{Hạn chế}
+\label{section:limitations}
 
-Các hành vi tìm khoảng trống phụ thuộc mạnh vào cách mô hình hóa không gian. SUMO không tự tạo hành vi đi trên vỉa hè, nhưng biểu diễn được bằng cấu trúc mạng riêng kèm điều kiện kích hoạt qua TraCI. Hành vi đi ngược chiều chưa biểu diễn được mà vẫn giữ việc tính xung đột với dòng ngược chiều, nên được hoãn. Khi lane 0 cho đi thẳng theo đèn như ngoài hiện trường, hành vi chặn làn rẽ phải xuất hiện ngay ở B0 (8,18 xe đứng chờ đỏ mỗi chu kỳ, so với 0,57 của dữ liệu đại diện); mục tiêu M9 chưa được định nghĩa lại theo mô hình này. Xe đi sai làn kiểu cắt về đã nhập lại làn đúng trước vạch dừng, nên M8 phải đọc làn ở đầu đoạn 30~m thay vì tại vạch.
+\subsection{Dữ liệu và kịch bản}
 
-Hai phát hiện liên quan trực tiếp tới các chiến dịch. Thứ nhất, xe chờ chèn ở PROXY\_D1 của mọi đặc tả dựa trên cấu trúc B1 chủ yếu đến từ \texttt{accel} 1,1~m/s\textsuperscript{2} của xe máy, chuyển từ tham số IDM của Saval và cộng sự~\cite{saval2023mixed}; bỏ hết luật TraCI vẫn còn 203--387 xe chờ chèn, còn trả \texttt{accel} về mặc định SUMO thì còn 10--126 xe nhưng va chạm tăng lên 48--58/h. Thứ hai, \texttt{qwen3.5:9b} mắc chủ yếu lỗi cấu trúc (mã nguyên mẫu trùng tên phân phối, tổng tỷ trọng), và khi đã có một cấu trúc hợp lệ trong lịch sử thì giữ nguyên nó; ở chế độ sinh cả cấu trúc, mô hình hạ $S$ bằng cách bỏ bớt luật.
+Dữ liệu tại nút gồm hai đoạn video dài 144~s và 309~s, quay cầm tay từ tầng 11 qua kính lúc trời đã tối; chỉ đoạn 309~s được dùng để đo. Lưu lượng được tái dựng từ số xe ra với tỷ lệ bỏ sót chưa biết, và bốn hướng không quan sát được nhận tỷ lệ giả định 15\%. Các chỉ số hành vi vẫn là mục tiêu chuyển giao từ nút khác hoặc giả định. Ngày kiểm định VIDEO\_V1 chung giá trị mục tiêu với ngày hiệu chỉnh và chỉ khác seed sinh, nên chưa là một ngày quan sát độc lập. Số làn và cách chia hướng theo làn lấy từ ghi nhận hiện trường và báo chí, bề rộng làn lấy từ tiêu chuẩn, thời lượng ba pha là ước lượng tại hiện trường, đỏ toàn phần là giả định. Nút chưa có làn vỉa hè vì bề rộng và điểm lên vỉa hè chưa đo. Các thực nghiệm chỉ mô phỏng 30 phút cao điểm của một nút.
 
-\subsection{Kết quả tạm thời của các chiến dịch}
+\subsection{Nhu cầu so với năng lực thông qua}
 
-Trên mạng F2, Optuna B2 đã dùng hết 36 lần chạy; không đặc tả nào trong 12 đặc tả của nó đủ điều kiện vì tất cả còn teleport do kẹt, và $S$ của chúng nằm trong 1,182--1,523, so với 1,181 của B0 chấm cùng cách (Mục~\ref{subsection:interim}). Trên hai mạng ngày 28/10, B2 dùng 24 lần chạy mỗi mạng; không đặc tả nào đủ điều kiện, và 3 trong 16 đặc tả có $S$ nhỏ hơn B0 của cùng mạng (Mục~\ref{subsection:scenario_update}).
+Với nhu cầu đo từ video, chính B0 để lại hơn 1000 xe chờ vào mạng ở mọi lần chạy. Hiện chưa tách được nguyên nhân là lưu lượng bị ước lượng cao (tái dựng từ phía ra, cộng giả định 15\% cho bốn hướng), là năng lực của mạng bị ước lượng thấp (thời lượng pha, số làn, bề rộng làn), hay cả hai. Vì mọi phương án đều còn xe chờ vào mạng, tiêu chí chấp nhận loại mọi lần chạy, và việc chọn đặc tả rơi về quy tắc dự phòng.
 
-Trên mạng 04/11, B0 và B1 chạy 15 lần mỗi cấu hình: B0 đủ điều kiện ở 15/15 lần với $S = 1{,}2174$, còn B1 bị loại ở cả 15 lần với $S = 1{,}2494$ (Mục~\ref{subsection:ref_n1104}). Ba chiến dịch B2, P1 và P2 (P1, P2 với \texttt{qwen3.5:9b}) mỗi chiến dịch dùng 36 lần chạy trên PROXY\_D1--D3 với seed 1, và không có đặc tả nào đủ điều kiện. $S$ nhỏ nhất là 1,1438 với B2, 1,2386 với P1 và 1,1680 với P2. P1 không thể đủ điều kiện vì giữ cấu trúc B1; P2 có 11/24 lần chạy đủ điều kiện ở PROXY\_D2 và PROXY\_D3, nhưng các đặc tả của nó bỏ \texttt{queue\_space\_seeking}, \texttt{uturn\_bypass} và \texttt{slow\_lane\_center} (Mục~\ref{subsection:campaigns_n1108}).
+\subsection{Chỉ số và tiêu chí}
 
-Các số này dựa trên một seed mỗi ngày, trên dữ liệu đại diện \texttt{LITERATURE\_PROXY} và các giá trị tạm thời. Chúng chưa cho phép kết luận LLM tốt hơn hay kém hơn Optuna.
+Cổng G0 tính GEH trên số đếm 15 phút, nên lỏng hơn tiêu chí của TAG vốn áp cho lưu lượng giờ. Hai ngưỡng va chạm suy từ B0 trên mạng N2 và chưa được tính lại; trên N7, chính B0 vượt ngưỡng 4 va chạm trên làn/h ở cả 5 lần chạy. Mục tiêu của M9 (chặn làn rẽ phải) suy từ thiết lập có cọc, chưa định nghĩa lại cho làn dùng chung 30~m. M8 (đi sai làn) đọc làn tại vạch dừng, nên không ghi nhận xe đi sai làn rồi cắt về. Mục tiêu của M2 (xuất phát sớm) lấy từ một nguồn dùng ngưỡng 5~s, trong khi M2 dùng 10~s; mục tiêu của M6 (thời gian qua nút) suy từ tốc độ đo giữa tuyến. Hành vi 9, hành vi 11 và luật lách xe quay đầu không có chỉ số riêng. Hàm khoảng cách vẫn cho phép ép một hành vi hiếm về 0 rẻ hơn làm nó xảy ra quá mức.
 
-\subsection{Chưa thực hiện}
+\subsection{Thiết kế thí nghiệm}
 
-Luận văn chưa có quyết định về \texttt{accel} của xe máy trong B1, chưa chạy lại P2 với prompt \texttt{v005}, chưa chạy lại các đặc tả chọn được với 5 seed, chưa chạy phương án H, và chưa có đánh giá cuối E1, E2 trên PROXY\_D4--PROXY\_D5 với ít nhất 20 seed và kiểm định thống kê. Luận văn cũng chưa có dữ liệu quan sát từ video; mọi giá trị đo trong cấu hình hiện trường thực vẫn để trống, và mọi giá trị tạm thời in màu đỏ trong luận văn còn chờ thay. Vì vậy luận văn chưa khẳng định mô phỏng tái hiện đúng giao thông thực tại nút. \textbf{[TODO: kết quả P2 với \texttt{v005}, kết quả H]} \textbf{[TODO: kết quả đánh giá cuối E1, E2 trên PROXY\_D4--PROXY\_D5 với kiểm định thống kê]} \textbf{[TODO: câu kết luận chính về khả năng của LLM cục bộ trong hiệu chỉnh luật hành vi, chỉ trong phạm vi dữ liệu đại diện]}
+Mỗi đặc tả trong chiến dịch chỉ chạy 3 seed trên một ngày. Khi không có đặc tả nào đạt tiêu chí, quy tắc chọn dự phòng không xét số xe chờ vào mạng và bỏ mức trần va chạm; trên N7, quy tắc này chọn cho B2 thử nghiệm \texttt{t011} với 22,0 va chạm trên làn/h, gấp hơn hai lần mức trần. Ngân sách 36 lần chạy được chọn theo thời gian chạy trên máy chính, không theo phân tích độ nhạy. Khung so sánh chưa hoàn toàn cân: P1 tốn 6/36 lần chạy cho các đặc tả trùng nhau, điều Optuna không gặp. B1 giữ \texttt{accel} chép từ IDM, nên mọi phương án giữ cấu trúc và giá trị vType của B1 mang theo nguồn xe chờ vào mạng này.
+
+\subsection{LLM}
+
+Luận văn chỉ thử một LLM 9 tỷ tham số ở nhiệt độ 0,7, và mỗi chiến dịch chạy một lần. Prompt đổi giữa các mạng (\texttt{v004} trên N6, \texttt{v006} và \texttt{v007} trên N7), và \texttt{v006} có một lỗi mô tả nút do luận văn gây ra (Bảng~\ref{table:3.prompts}). Kết quả về hành vi của LLM vì vậy chưa tách được phần do mô hình, phần do prompt, phần do nút và phần do ngẫu nhiên lấy mẫu.
 
 \section{Hướng phát triển}
 
-\subsection{Việc trước mắt}
-
-Việc đầu tiên là quyết định giữ \texttt{accel} xe máy của Saval trong B1 hay sửa B1, bằng cách dùng mặc định SUMO cho thuộc tính này hoặc nâng cận dưới của nó trong tệp miền giá trị (Mục~\ref{subsection:d1_backlog}). Khi PROXY\_D1 còn xe chờ chèn, không đặc tả nào dựa trên cấu trúc B1 đủ điều kiện được, nên mọi chiến dịch sau phụ thuộc vào quyết định này. Tiếp theo, P2 được chạy lại với prompt \texttt{v005} để đặc tả có đủ sáu luật TraCI, và các đặc tả chọn được của B2 và P2 được chạy lại với 5 seed trước khi so với B0 và B1. Sau đó, phương án H chạy Optuna trên cấu trúc tốt nhất của P2 với cùng ngân sách 36 lần chạy. Cuối cùng, B0, B1, B2, P1, P2 và H được đánh giá trên PROXY\_D4--PROXY\_D5 với ít nhất 20 seed, dùng kiểm định Mann--Whitney có hiệu chỉnh Holm và kích thước hiệu ứng Cliff's delta cho E1 (P1 so với B2) và E2 (B2, H, P2).
-
-Song song, vòng LLM có hai cải tiến đã xác định: dùng lại kết quả khi LLM nộp lại một đặc tả đã chạy (ở P1, ba lần nộp lại tốn 9 lần chạy), và ép trong lược đồ tỷ trọng bằng 1 cho phân phối chỉ có một nguyên mẫu. Hai vấn đề phương pháp cần quyết định trước khi diễn giải kết quả là cách xử lý tỷ lệ nhỏ trong hàm khoảng cách, để bộ tối ưu không lợi khi ép một hành vi hiếm về 0, và định nghĩa lại hai mục tiêu của M9 theo mô hình làn 30~m.
-
 \subsection{Dữ liệu đo thực}
 
-Hướng quan trọng nhất về mặt khoa học là thay dữ liệu đại diện bằng dữ liệu đo thực, tức thay toàn bộ các giá trị in màu đỏ. Việc đầu tiên là quay video tại nút trong nhiều ngày và xây một đường ống xử lý video (ngoài phạm vi luận văn) xuất đúng lược đồ quan sát đã định nghĩa (Phụ lục~\ref{section:appendix_schema}), kể cả các bảng của nhóm tìm khoảng trống và làn của xe tại đầu đoạn làn rẽ phải cho M8. Khi đó các ngày PROXY được thay bằng ngày đo, việc tách ngày hiệu chỉnh và ngày đánh giá độc lập thực sự, và sàn nhiễu giữa các ngày tính từ biến động quan sát thay vì hệ số giả định.
+Việc đầu tiên là quay video từ một điểm cố định trên cao, không qua kính, trong nhiều ngày và cả giờ thấp điểm, kèm đếm tay trên một đoạn để ước lượng tỷ lệ bỏ sót của tracking. Từ video đó cần đo thêm các chỉ số hành vi (vượt đèn đỏ, xuất phát sớm, xe chờ giữa nút, xe đứng trên làn rẽ phải) để thay các mục tiêu lấy từ tài liệu, và giữ riêng ít nhất một ngày làm ngày kiểm định độc lập. Việc thứ hai là đo tại hiện trường các giá trị đang tạm thời: bề rộng và hướng đi của từng làn theo vạch sơn và biển báo; thời lượng các pha, vàng và đỏ toàn phần; chiều dài đoạn làn rẽ phải liên tục; vị trí và bề rộng vỉa hè. Việc thứ ba là so lưu lượng xả của B0 ở vạch dừng với lưu lượng bão hòa đo được, để biết lượng xe chờ vào mạng đến từ nhu cầu hay từ năng lực của mạng, rồi chạy lại mọi thực nghiệm của Chương~\ref{chapter:Experiment}.
 
-Việc thứ hai là đo hoặc xác định tại hiện trường các giá trị đang để trống trong cấu hình hiện trường thực: bề rộng từng làn vào và làn ra; hướng đi được phép của từng làn; các nhánh cấm rẽ trái hoặc quay đầu và các làn xe vi phạm dùng để rẽ; chu kỳ và các pha đèn, gồm vàng và đỏ toàn phần; chiều dài đoạn làn rẽ phải liên tục; vị trí và bề rộng vỉa hè cùng điểm xe lên vỉa hè và điểm nhập lại. Việc thứ ba là chạy lại, trên hình học đo thực, thí nghiệm sức chứa vùng chờ giữa nút ở hai nhánh Hoàng Đạo Thúy và thí nghiệm 3B, và thay phạm vi quan sát hàng chờ hiện đặt 80~m bằng phạm vi thực của camera. Mọi thực nghiệm của Chương~\ref{chapter:Experiment} sau đó được chạy lại trên các giá trị thật.
+\subsection{Hoàn tất phép so sánh LLM với bộ tối ưu số}
+
+Trước hết cần một cấu trúc nền đạt được tiêu chí chấp nhận: sửa \texttt{accel} của xe máy trong B1 (dùng mặc định SUMO hoặc nâng cận dưới trong tệp miền giá trị) và chạy lại các chiến dịch. Sau đó, các đặc tả chọn được chạy lại với nhiều seed, rồi được chấm trên ngày giữ riêng với ít nhất 20 seed. Hai phép so sánh của Mục~\ref{section:3.8} khi đó dùng kiểm định Mann--Whitney~\cite{mann1947test} có hiệu chỉnh Holm~\cite{holm1979simple} và kích thước hiệu ứng Cliff's delta~\cite{cliff1993dominance}. Để đánh giá riêng giá trị của cấu trúc do LLM đề xuất, có thể thêm một phương án chạy Optuna trên cấu trúc tốt nhất của LLM.
+
+\subsection{Cải tiến phương pháp}
+
+Định nghĩa lại mục tiêu M9 cho làn dùng chung; cho M8 đọc làn ở đầu đoạn làn rẽ phải để ghi nhận xe cắt về; làm mượt khoảng cách của tỷ lệ nhỏ, hoặc tính khoảng cách trên số đếm thay vì tỷ lệ; thêm chỉ số cho hành vi 9 và 11; tính GEH trên lưu lượng giờ. Vòng LLM có ba cải tiến đơn giản: dùng lại kết quả khi LLM nộp lại một đặc tả đã chạy; ép trong lược đồ tỷ trọng bằng 1 cho phân phối chỉ có một nguyên mẫu; và để lần thử lại chỉ sửa các trường bị báo lỗi, giữ nguyên phần còn lại của đặc tả. Nên thử thêm các LLM khác cỡ và lặp lại mỗi chiến dịch nhiều lần để đo biến động.
 
 \subsection{Mở rộng}
 
-Khi bộ luật đã hiệu chỉnh trên dữ liệu thực, mô phỏng có thể dùng cho các kịch bản chính sách, ví dụ đổi lưu lượng rẽ trái trái phép ở 0\%, 50\% và 100\% so với quan sát để đo độ trễ và số xung đột có PET dưới ngưỡng. Kết quả loại này phải ghi rõ là ngoại suy. Các mở rộng khác gồm dùng thiết bị đo xung đột SSM của SUMO cho chẩn đoán an toàn trên các lần chạy đánh giá; kiểm tra luật cắt về trên dữ liệu video, so tỷ lệ xe đi sai làn và vị trí xe nhập lại với quan sát; tìm cách biểu diễn hành vi đi ngược chiều mà vẫn giữ việc tính xung đột với dòng ngược chiều thật; và mở rộng sang các nút giao khác để kiểm tra khả năng chuyển giao của quy trình.
+Khi bộ luật đã hiệu chỉnh trên dữ liệu thực, mô phỏng có thể dùng cho các kịch bản chính sách, ví dụ đổi lưu lượng rẽ trái trái phép ở 0\%, 50\% và 100\% so với quan sát để đo độ trễ và số xung đột có PET dưới ngưỡng; kết quả loại này phải ghi rõ là ngoại suy. Các mở rộng khác gồm dùng thiết bị đo xung đột SSM của SUMO cho chẩn đoán an toàn, thực nghiệm giờ thấp điểm để kiểm tra câu hỏi ở Mục~\ref{section:rg_scenario}, tìm cách biểu diễn hành vi đi ngược chiều mà vẫn giữ việc tính xung đột, và áp dụng quy trình cho các nút giao khác.
 
 \end{document}

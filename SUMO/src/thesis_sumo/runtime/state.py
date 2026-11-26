@@ -24,7 +24,7 @@ controller works on any net whose site file names the inbound edges (`approaches
 - box of an illegal-left approach (site `illegal_left.approaches`, its left links): the internal-lane chain of the
   left link (as `outputs.junction_geometry.box_lanes`); `hold_lanes` = the chain lanes before the last one, i.e. the
   lanes that end at the internal junction where the left-turners wait (proxy net: the first internal lane of the
-  HDT_N / HDT_S left). A vehicle on the last chain lane has passed the waiting point and is inside the crossing
+  HMG / NT left). A vehicle on the last chain lane has passed the waiting point and is inside the crossing
   stream: it is never held;
 - opposing approach = the other approach of the same road (`<ROAD>_<side>`), as `outputs.Geometry.opposing_of`;
   crossing approaches = the remaining ones.
@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 
 import traci.constants as tc
 
+from thesis_sumo.net.build_net import opposing_arm
 from thesis_sumo.config import Site
 from thesis_sumo.runtime.wrong_lane import LaneLink, banned_movements
 from thesis_sumo.schema_observed import normalise_state
@@ -135,10 +136,11 @@ class JunctionInfo:
         info = cls(tls_id, junctions.pop(), approach_edge, lanes, lane_approach, lane_length, links,
                    {a: sorted(v) for a, v in group_links.items()}, [(float(p.duration), p.state) for p in logic.phases],
                    link_of_internal=internal)
-        for app in approach_edge:
-            same = [o for o in approach_edge if o != app and o.split("_")[0] == app.split("_")[0]]
-            if len(same) == 1:
-                info.opposing[app] = same[0]
+        for app in approach_edge:  # across the junction (build_net.opposing_arm: LVL_W <-> LVL_E, HMG <-> NT)
+            try:
+                info.opposing[app] = opposing_arm(app, approach_edge)
+            except ValueError:
+                pass
         info._build_segments(backend)
         if need_lane_movements:
             for i, a in enumerate(site["approaches"]):
