@@ -1,0 +1,58 @@
+{
+ "mode": "params_only",
+ "base_spec": "B1_manual",
+ "base_sha": "9bfdc81813be2cb4",
+ "days": [
+  "VIDEO_V2"
+ ],
+ "seeds": [
+  1,
+  2,
+  3
+ ],
+ "n_samples": 4,
+ "n_iter": 3,
+ "max_iter": 5,
+ "budget_runs": 36,
+ "sim_end_s": null,
+ "site": "D:\\hust-master\\Thesis\\SUMO\\config\\site.yaml",
+ "b0_lane_collisions_per_hour": 15.6,
+ "llm": {
+  "profile": "ollama",
+  "runtime": "openai",
+  "server": "ollama",
+  "model": "qwen3.5:9b",
+  "quant": "Q4_K_M",
+  "temperature": 0.7,
+  "seed": 42,
+  "prompt_version": "v006",
+  "max_attempts": 3,
+  "reasoning_effort": "none"
+ },
+ "status": {
+  "n_iterations": 3,
+  "n_planned": 3,
+  "n_extra_r45": 0,
+  "stop_reason": "budget",
+  "runs_used": 36,
+  "budget_used": 36,
+  "budget_remaining": 0,
+  "validity": {
+   "n_samples": 12,
+   "n_evaluated": 9,
+   "n_invalid": 0,
+   "n_lost": 3,
+   "n_network_error": 0,
+   "n_unaffordable": 0,
+   "n_answered": 12,
+   "n_valid": 12,
+   "valid_rate_per_sample": 1.0,
+   "per_attempt_rate": 0.7058823529411765
+  },
+  "best": {
+   "spec_id": "P1_v1127_it01_s00",
+   "S": 1.0998139345844233,
+   "eligibility": "excluded"
+  }
+ }
+}

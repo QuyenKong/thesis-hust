@@ -1,0 +1,176 @@
+{
+  "spec_id": "P2b_v1126_it05_s02",
+  "source": "llm",
+  "provenance": {
+    "model": "qwen3.5:9b",
+    "prompt_version": "v007",
+    "iteration": 5,
+    "sample_idx": 2,
+    "runtime": "ollama"
+  },
+  "driver_archetypes": [
+    {
+      "id": "car_compliant",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.85,
+      "params": {
+        "tau": 1.2,
+        "minGapLat": 0.6,
+        "latAlignment": "right"
+      },
+      "rationale": "Standard compliant car to match M1/car discharge headway (target 0.335s). Increased tau from 1.0 slightly reduces aggressive acceleration, helping lower the simulated mean of 0.64s towards target."
+    },
+    {
+      "id": "car_early",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.15,
+      "params": {
+        "tau": 1.4,
+        "minGapLat": 0.7,
+        "latAlignment": "right",
+        "impatience": 0.8
+      },
+      "rationale": "Higher impatience (0.8) and larger gaps allow occasional early starts (M2/early/car target 0.0074). Previous specs yielded ~0.001-0.002; increasing impatience is the primary lever to raise this share without triggering excessive red-light running."
+    },
+    {
+      "id": "moto_compliant",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.5,
+      "params": {
+        "tau": 0.6,
+        "minGapLat": 0.4,
+        "latAlignment": "right"
+      },
+      "rationale": "Very low tau (0.6) and tight lateral gaps (0.4m) reduce discharge headway to target M1/moto (0.246s). Previous simulations were ~0.45-0.47s; aggressive following is required."
+    },
+    {
+      "id": "moto_slow",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.3,
+      "params": {
+        "tau": 1.8,
+        "minGapLat": 0.9,
+        "latAlignment": "center"
+      },
+      "rationale": "Higher tau and center alignment mimic slow riders who overshoot the stop line (M4/overshoot_share target 0.6327). This archetype contributes to the high lateral position (M4/lat_moto ~7.1m) when stopping."
+    },
+    {
+      "id": "moto_wrong_lane",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.2,
+      "params": {
+        "tau": 1.5,
+        "minGapLat": 0.7,
+        "latAlignment": "left"
+      },
+      "rationale": "Custom1 base class enables queue_space_seeking to ride in lane 0 (wrong lane) to bypass queues (M8/moto wrong-lane share target 0.2131). 'left' alignment biases towards the continuous right-turn lane."
+    },
+    {
+      "id": "moto_left_box",
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "share": 1.0,
+      "params": {
+        "tau": 2.5,
+        "minGap": 2.5,
+        "latAlignment": "left"
+      },
+      "rationale": "High tau/minGap ensures illegal left-turners wait in the box until opposing green ends (M6/approach/l/moto ~64s). Large minGap prevents them from squeezing past the queue head too early."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "car_early"
+      ],
+      "params": {
+        "t_before_green": 8.0,
+        "p": 0.25,
+        "v_max": 4.0
+      },
+      "rationale": "Target M2/early/car (0.0074). Increased probability (0.25) and window (8.0s) significantly raise the early-start share from the previous ~0.001-0.002 range."
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_compliant"
+      ],
+      "params": {
+        "t_before_green": 5.0,
+        "p": 0.45,
+        "v_max": 3.0
+      },
+      "rationale": "Target M2/early/moto (0.1303). Higher probability (0.45) and shorter window (5.0s) are needed for motorcycles to creep before green, aiming to bridge the gap from ~0.01-0.017."
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_compliant",
+        "moto_slow"
+      ],
+      "params": {
+        "p0": 0.65,
+        "k": 0.4,
+        "p_max": 0.9,
+        "dt": 20.0
+      },
+      "rationale": "Target M3/share/moto (0.09048) and M3/var_to_mean. Higher base probability (0.65) and swarm gain (0.4) simulate group red-running to approach the ~9% share, which was previously under 2-3%."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_wrong_lane"
+      ],
+      "params": {
+        "q": 40.0,
+        "t_g_s": 5.0,
+        "est_noise": 0.3,
+        "p_wrong_lane": 1.0,
+        "p_right_lane": 0.0,
+        "p_sidewalk": 0.0,
+        "v_creep": 2.5,
+        "merge_zone_m": 12.0
+      },
+      "rationale": "Target M8/moto wrong-lane share (0.2131). Lowering the queue trigger from 60m to 40m and increasing green-check frequency ensures more vehicles use the adjacent lane, raising the wrong-lane share."
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_left_box"
+      ],
+      "params": {
+        "release_lag_s": 0.3
+      },
+      "rationale": "Target M7a/release_time (0.28s) and M6/junction/illegal_l/moto. A slightly longer release lag (0.3s) accounts for box geometry and ensures exit shortly after opposing green ends, matching the observed ~52s entry time."
+    },
+    {
+      "rule_type": "slow_lane_center",
+      "applies_to": [
+        "moto_slow"
+      ],
+      "params": {
+        "lat_offset": 0.0
+      },
+      "rationale": "Target M4/lat_moto (7.136m). lat_offset 0 keeps the slow motorcycle in the lane center. Note: The 'overshoot' metric is largely driven by vType minGap/minGapLat and speedFactor, but this ensures the lateral position matches when they stop."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_compliant",
+        "moto_slow",
+        "moto_wrong_lane"
+      ],
+      "params": {
+        "p": 0.95,
+        "t_wait": 2.0
+      },
+      "rationale": "Target M9b/delay_blocked and M7c/slope. Very high probability (0.95) reflects that motorcycles frequently squeeze past standing U-turners, reducing the excessive delay observed in previous iterations."
+    }
+  ]
+}

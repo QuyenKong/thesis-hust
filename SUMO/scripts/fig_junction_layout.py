@@ -83,11 +83,12 @@ def main():
 
     bx = fig.add_subplot(gs[1])
     sig = site["signal"]
-    stages = [("LVL đi thẳng (hai nhánh)", "LVL_straight"), ("LVL rẽ trái, quay đầu (hai nhánh)", "LVL_left"),
-              ("HMG và NT", "cross")]
+    # stage key = phase name without the _green/_yellow/_allred suffix (site.yaml signal.phases, decision D30 27/11)
+    stages = [("LVL phía Láng Hạ: thẳng, trái, quay đầu", "LVL_E"), ("HMG và NT: thẳng, phải", "cross"),
+              ("LVL phía Tố Hữu: thẳng, trái, quay đầu", "LVL_W")]
     t, rows = 0.0, {}
     for p in sig["phases"]:
-        rows.setdefault(p["name"].split("_yellow")[0].split("_allred")[0].replace("cross_green", "cross"), []).append(
+        rows.setdefault(p["name"].split("_yellow")[0].split("_allred")[0].split("_green")[0], []).append(
             (t, p["duration_s"], "yellow" if "yellow" in p["name"] else "allred" if "allred" in p["name"] else "green"))
         t += p["duration_s"]
     style = {"green": dict(facecolor="0.35", hatch=None), "yellow": dict(facecolor="0.75", hatch="...."),
@@ -99,7 +100,7 @@ def main():
             if kind == "green":
                 bx.text(t0 + dur / 2, y, f"xanh {dur:g} s", ha="center", va="center", color="white", fontsize=7)
         bx.text(-3, y, label, ha="right", va="center", fontsize=7)
-    for kind, lab in (("green", "xanh"), ("yellow", "vàng 4 s"), ("allred", "đỏ toàn phần 2 s")):
+    for kind, lab in (("green", "xanh"), ("yellow", f"vàng {sig['yellow_s']:g} s"), ("allred", f"đỏ toàn phần {sig['all_red_s']:g} s")):
         bx.add_patch(Rectangle((0, -9), 1, 1, **style[kind], edgecolor="black", lw=0.5, label=lab))
     bx.legend(loc="upper center", bbox_to_anchor=(0.62, -0.32), ncol=3, fontsize=7, frameon=False)
     bx.set_xlim(0, sig["cycle_s"])

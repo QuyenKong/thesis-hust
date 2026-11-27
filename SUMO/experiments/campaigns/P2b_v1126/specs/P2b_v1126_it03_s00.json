@@ -1,0 +1,181 @@
+{
+ "spec_id": "P2b_v1126_it03_s00",
+ "source": "llm",
+ "provenance": {
+  "model": "qwen3.5:9b",
+  "prompt_version": "v007",
+  "iteration": 3,
+  "sample_idx": 0,
+  "runtime": "ollama"
+ },
+ "driver_archetypes": [
+  {
+   "id": "car_compliant",
+   "base_vclass": "passenger",
+   "distribution": "car",
+   "share": 0.85,
+   "params": {
+    "tau": 1.0,
+    "minGapLat": 0.6,
+    "latAlignment": "right",
+    "lcSublane": 1.0
+   },
+   "rationale": "Standard compliant car behavior to match M1/car discharge headway and ensure correct lane positioning."
+  },
+  {
+   "id": "car_early",
+   "base_vclass": "passenger",
+   "distribution": "car",
+   "share": 0.15,
+   "params": {
+    "tau": 1.4,
+    "minGapLat": 0.7,
+    "latAlignment": "right",
+    "impatience": 0.5
+   },
+   "rationale": "Higher impatience and slightly larger gaps allow occasional early starts (M2/early/car) without excessive red-running."
+  },
+  {
+   "id": "moto_compliant",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.6,
+   "params": {
+    "tau": 0.7,
+    "minGapLat": 0.5,
+    "latAlignment": "right",
+    "lcSublane": 1.0
+   },
+   "rationale": "Lower tau and tight lateral gaps (M1/moto) with right alignment to reduce overshoot depth and improve flow."
+  },
+  {
+   "id": "moto_slow",
+   "base_vclass": "motorcycle",
+   "distribution": "moto",
+   "share": 0.2,
+   "params": {
+    "tau": 1.5,
+    "minGapLat": 0.8,
+    "latAlignment": "center",
+    "lcSublane": 1.0,
+    "impatience": 0.1
+   },
+   "rationale": "Higher tau and center alignment mimic slow riders who overshoot the stop line (M4/overshoot_share, M4/lat_moto)."
+  },
+  {
+   "id": "moto_wrong_lane",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.2,
+   "params": {
+    "tau": 1.5,
+    "minGapLat": 0.7,
+    "latAlignment": "left",
+    "lcSublane": 2.0,
+    "impatience": 0.4
+   },
+   "rationale": "Custom1 base class enables queue_space_seeking to ride in lane 0 (wrong lane) to bypass queues (M8/moto wrong-lane share)."
+  },
+  {
+   "id": "moto_left_box",
+   "base_vclass": "custom1",
+   "distribution": "moto_violator",
+   "share": 1.0,
+   "params": {
+    "tau": 2.5,
+    "minGap": 2.5,
+    "latAlignment": "left",
+    "impatience": 0.1,
+    "jmDriveAfterRedTime": 9.0
+   },
+   "rationale": "High tau/minGap and long red-drive time ensure illegal left-turners wait in the box until opposing green ends (M6/approach/l/moto, M7a/n_waiting)."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "car_early"
+   ],
+   "params": {
+    "t_before_green": 6.0,
+    "p": 0.12,
+    "v_max": 3.0
+   },
+   "rationale": "Target M2/early/car (0.0074); moderate probability prevents overshooting observed share while allowing some creep."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_compliant"
+   ],
+   "params": {
+    "t_before_green": 4.0,
+    "p": 0.25,
+    "v_max": 2.5
+   },
+   "rationale": "Target M2/early/moto (0.1303); higher probability for standard motorcycles to creep in the last seconds of red."
+  },
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_compliant"
+   ],
+   "params": {
+    "p0": 0.4,
+    "k": 0.2,
+    "p_max": 0.85,
+    "dt": 12.0
+   },
+   "rationale": "Target M3/share/moto (0.09048); moderate base probability and swarm effect simulate group red-running without exceeding limits."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_wrong_lane"
+   ],
+   "params": {
+    "q": 60.0,
+    "t_g_s": 7.0,
+    "est_noise": 0.4,
+    "p_wrong_lane": 1.0,
+    "p_right_lane": 0.0,
+    "p_sidewalk": 0.0,
+    "v_creep": 2.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Target M8/moto wrong-lane share (0.2131); force usage of adjacent lane (lane 0) to bypass queues when queue length > 60m."
+  },
+  {
+   "rule_type": "illegal_left_box",
+   "applies_to": [
+    "moto_left_box"
+   ],
+   "params": {
+    "release_lag_s": 0.2
+   },
+   "rationale": "Target M7a/release_time (0.28s) and M6/junction/illegal_l/moto; small release lag ensures exit shortly after opposing green ends."
+  },
+  {
+   "rule_type": "slow_lane_center",
+   "applies_to": [
+    "moto_slow"
+   ],
+   "params": {
+    "lat_offset": 0.0
+   },
+   "rationale": "Target M4/lat_moto (7.136m); lat_offset 0 keeps slow riders in the lane center, mimicking observed lateral positioning."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "moto_compliant"
+   ],
+   "params": {
+    "p": 0.85,
+    "t_wait": 3.0
+   },
+   "rationale": "Target M9b/delay_blocked; high probability reflects that motorcycles frequently squeeze past standing U-turners."
+  }
+ ]
+}

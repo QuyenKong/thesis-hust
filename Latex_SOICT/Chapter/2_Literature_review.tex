@@ -1,34 +1,39 @@
 \documentclass[../main.tex]{subfiles}
 \begin{document}
 
-Chương~\ref{chapter:Introduction} đã nêu bài toán: mô phỏng hành vi đặc trưng của người tham gia giao thông Việt Nam tại một nút giao có đèn, nơi dòng xe máy dày đặc và không tuân thủ. Chương này trình bày nền tảng cho phương pháp ở Chương~\ref{chapter:RuleGeneration} và Chương~\ref{chapter:RuleExecution}. Mục~\ref{section:2.background} nêu các khái niệm cơ bản về nút có đèn và mô hình bám xe mà các chương sau dùng. Mục~\ref{section:2.context} tổng hợp số liệu đã công bố về hành vi xe máy tại nút có đèn. Mục~\ref{section:2.sumo} mô tả mô phỏng vi mô với mô hình làn con, lấy SUMO làm ví dụ. Mục~\ref{section:2.1} phân tích các công trình gần nhất theo ba nhóm: mô hình hóa dòng xe hỗn hợp có xe máy, hiệu chỉnh mô phỏng vi mô, và dùng LLM như một bộ tối ưu hay cùng trình mô phỏng; mục kết thúc bằng bảng so sánh và khoảng trống nghiên cứu.
+Chương~\ref{chapter:Introduction} đã nêu bài toán: mô phỏng hành vi đặc trưng của người tham gia giao thông Việt Nam tại một nút giao có đèn, nơi dòng xe máy dày đặc và không tuân thủ. Chương này trình bày nền tảng cho phương pháp ở Chương~\ref{chapter:RuleGeneration} và Chương~\ref{chapter:RuleExecution}. Mục~\ref{section:2.background} nêu các khái niệm cơ bản mà các chương sau dùng: pha và chu kỳ của đèn tín hiệu, thời gian sau xâm phạm, mô hình bám xe và chuyển làn, thống kê GEH. Mục~\ref{section:2.context} tổng hợp số liệu đã công bố về hành vi xe máy tại nút có đèn. Mục~\ref{section:2.sumo} mô tả mô phỏng vi mô với mô hình làn con, lấy SUMO làm ví dụ. Mục~\ref{section:2.1} phân tích các công trình gần nhất theo ba nhóm: mô hình hóa dòng xe hỗn hợp có xe máy, hiệu chỉnh mô phỏng vi mô, và LLM trong tối ưu hóa và mô phỏng giao thông; mục kết thúc bằng bảng so sánh và khoảng trống nghiên cứu.
 
 \section{Khái niệm cơ bản}
 \label{section:2.background}
 
-Mục này định nghĩa các khái niệm dùng trong các chương sau: nút có đèn, chỉ số an toàn, mô hình bám xe, hiệu chỉnh và kiểm định.
+Mục này định nghĩa bốn khái niệm dùng trong các chương sau: pha và chu kỳ của đèn tín hiệu, thời gian sau xâm phạm, mô hình bám xe và chuyển làn, thống kê GEH.
 
-\subsection{Nút có đèn}
+\subsection{Pha và chu kỳ của đèn tín hiệu}
 
-Đèn tín hiệu chia thời gian của nút thành các \emph{pha}; mỗi pha cho một nhóm hướng đi quyền qua nút. Một \emph{chu kỳ} là khoảng thời gian để đèn đi hết các pha và trở lại pha đầu. Mỗi pha gồm thời gian xanh, thời gian vàng và thời gian đỏ toàn phần, khi mọi hướng đều đỏ để xe còn trong nút ra hết. Khi đèn chuyển xanh, các xe trong hàng chờ lần lượt qua vạch dừng. Khoảng thời gian giữa hai xe liên tiếp qua vạch là \emph{giãn cách xả hàng}; sau vài xe đầu, giãn cách ổn định quanh một giá trị bão hòa, và nghịch đảo của nó là \emph{lưu lượng bão hòa}, tức số xe tối đa một làn xả được trong một giờ xanh. Mấy xe đầu hàng cần thêm thời gian để phản ứng và tăng tốc; phần thời gian thêm này là \emph{tổn thất khởi động}. Hàng chờ và độ trễ của xe khi qua nút là hai đại lượng thường dùng để đánh giá một nút có đèn.
+Đèn tín hiệu chia thời gian của nút thành các \emph{pha}; mỗi pha cho một nhóm hướng đi quyền qua nút. Một \emph{chu kỳ} là khoảng thời gian để đèn đi hết các pha và trở lại pha đầu. Mỗi pha gồm thời gian xanh, thời gian vàng và thời gian đỏ toàn phần, khi mọi hướng đều đỏ để xe còn trong nút ra hết. Khi đèn chuyển xanh, các xe trong hàng chờ lần lượt qua vạch dừng. Khoảng thời gian giữa hai xe liên tiếp qua vạch là \emph{giãn cách xả hàng}; sau một số xe đầu, giãn cách ổn định quanh một giá trị bão hòa, và nghịch đảo của nó là \emph{lưu lượng bão hòa}, tức số xe tối đa một làn xả được trong một giờ xanh. Các xe đầu hàng cần thêm thời gian để phản ứng và tăng tốc; phần thời gian thêm này là \emph{tổn thất khởi động}. Hàng chờ và độ trễ của xe khi qua nút là hai đại lượng thường dùng để đánh giá một nút có đèn.
 
-\subsection{An toàn giao thông}
+\subsection{Thời gian sau xâm phạm}
 
-\emph{Thời gian sau xâm phạm} (PET) của một cặp xe xung đột là khoảng thời gian từ lúc xe thứ nhất rời điểm xung đột tới lúc xe thứ hai tới điểm đó. PET nhỏ nghĩa là hai xe qua cùng một điểm cách nhau rất ít thời gian. PET là chỉ số an toàn thay thế, đo trên từng cặp xe.
+\emph{Thời gian sau xâm phạm} (PET) của một cặp xe xung đột là khoảng thời gian từ lúc xe thứ nhất rời điểm xung đột tới lúc xe thứ hai tới điểm đó. PET càng nhỏ thì hai xe đi qua cùng một điểm càng gần nhau về thời gian. PET là chỉ số an toàn thay thế, đo trên từng cặp xe.
 
-\subsection{Mô hình bám xe}
+\subsection{Mô hình bám xe và chuyển làn}
 
-Mô hình bám xe quyết định tốc độ của một xe theo xe phía trước trong cùng làn. Mô hình mặc định của SUMO là mô hình Krauss~\cite{krauss1998}: ở mỗi bước, xe tăng tốc với gia tốc lớn nhất \texttt{accel} tới khi chạm tốc độ an toàn, tức tốc độ mà xe vẫn dừng kịp nếu xe trước phanh với giảm tốc lớn nhất \texttt{decel}; tham số \texttt{tau} là giãn cách thời gian mong muốn tới xe trước, \texttt{minGap} là khoảng cách tối thiểu khi dừng, và \texttt{sigma} làm tốc độ dao động ngẫu nhiên quanh giá trị đó. Mô hình người lái thông minh (IDM)~\cite{treiber2000idm} cho gia tốc là một hàm liên tục của tốc độ, khoảng cách và chênh lệch tốc độ với xe trước, với tham số gia tốc cực đại $a$, giảm tốc thoải mái $b$, khoảng thời gian an toàn $T$ và khoảng cách tối thiểu $s_0$. Hai mô hình đều có một tham số gọi là gia tốc lớn nhất, nhưng tham số này đóng vai trò khác nhau trong hai phương trình, nên một giá trị hiệu chỉnh cho IDM không chắc cho cùng hành vi khi chép sang Krauss. Mô hình chuyển làn MOBIL~\cite{kesting2007mobil} quyết định đổi làn bằng cách so lợi ích gia tốc của xe với mức giảm tốc mà việc đổi làn gây ra cho các xe xung quanh.
+Mô hình bám xe quyết định tốc độ của một xe theo xe phía trước trong cùng làn. Mô hình mặc định của SUMO là mô hình Krauss~\cite{krauss1998}: ở mỗi bước, xe tăng tốc với gia tốc lớn nhất \texttt{accel} tới khi chạm tốc độ an toàn, tức tốc độ mà xe vẫn dừng kịp nếu xe trước phanh với giảm tốc lớn nhất \texttt{decel}; tham số \texttt{tau} là giãn cách thời gian mong muốn tới xe trước, \texttt{minGap} là khoảng cách tối thiểu khi dừng, và \texttt{sigma} làm tốc độ dao động ngẫu nhiên quanh giá trị đó. Mô hình người lái thông minh (IDM)~\cite{treiber2000idm} cho gia tốc là một hàm liên tục của tốc độ, khoảng cách và chênh lệch tốc độ với xe trước, với tham số gia tốc cực đại $a$, giảm tốc thoải mái $b$, khoảng thời gian an toàn $T$ và khoảng cách tối thiểu $s_0$. Hai mô hình đều có một tham số gọi là gia tốc lớn nhất, nhưng tham số này đóng vai trò khác nhau trong hai phương trình, nên một giá trị hiệu chỉnh cho IDM không nhất thiết cho cùng hành vi khi áp dụng cho mô hình Krauss. Mô hình chuyển làn MOBIL~\cite{kesting2007mobil} quyết định đổi làn bằng cách so lợi ích gia tốc của xe với mức giảm tốc mà việc đổi làn gây ra cho các xe xung quanh.
 
-\subsection{Hiệu chỉnh và kiểm định}
+\subsection{Thống kê GEH}
 
-\emph{Hiệu chỉnh} là chỉnh tham số của mô hình mô phỏng cho tới khi đầu ra khớp số đo; \emph{kiểm định} là kiểm tra mô hình đã hiệu chỉnh trên dữ liệu không dùng khi hiệu chỉnh~\cite{hollander2008calibration}. Các hướng dẫn hiệu chỉnh mô phỏng vi mô~\cite{fhwa2004toolbox3,fhwa2019toolbox3} mô tả quy trình nhiều bước, yêu cầu nhiều lần chạy với seed khác nhau, và đặt tiêu chí chấp nhận định lượng cho lưu lượng và thời gian hành trình. Thống kê GEH là một tiêu chí như vậy cho lưu lượng: hướng dẫn TAG Unit M3.1 của Bộ Giao thông Anh định nghĩa GEH trên lưu lượng giờ mô phỏng và quan sát, và yêu cầu GEH nhỏ hơn 5 ở hơn 85\% số lưu lượng~\cite{dft2026tagm31}.
+Thống kê GEH là một tiêu chí chấp nhận cho lưu lượng khi hiệu chỉnh và kiểm định mô hình mô phỏng. \emph{Hiệu chỉnh} là chỉnh tham số của mô hình cho tới khi đầu ra khớp số đo; \emph{kiểm định} (validation) là kiểm tra mô hình đã hiệu chỉnh trên dữ liệu không dùng khi hiệu chỉnh~\cite{hollander2008calibration}. Các hướng dẫn hiệu chỉnh mô phỏng vi mô~\cite{fhwa2004toolbox3,fhwa2019toolbox3} mô tả quy trình nhiều bước, yêu cầu nhiều lần chạy với seed khác nhau, và đặt tiêu chí chấp nhận định lượng cho lưu lượng và thời gian hành trình. Với lưu lượng mô phỏng $m$ và lưu lượng quan sát $c$ tại cùng một vị trí, GEH được tính theo
+\begin{equation}
+\mathrm{GEH} = \sqrt{\frac{2(m-c)^2}{m+c}}.
+\label{eq:geh}
+\end{equation}
+Hướng dẫn TAG Unit M3.1 của Bộ Giao thông Anh tính GEH trên lưu lượng giờ và yêu cầu GEH nhỏ hơn 5 ở hơn 85\% số lưu lượng~\cite{dft2026tagm31}.
 
-\section{Ngữ cảnh của bài toán}
+\section{Hành vi xe máy tại nút có đèn}
 \label{section:2.context}
 \label{subsection:2.1.3}
 
-Bảng~\ref{table:2.1} liệt kê các số liệu đo đã công bố về hành vi xe máy tại nút có đèn. Chương~\ref{chapter:RuleGeneration} dùng chúng để xác định các hành vi cần mô hình hóa, và Chương~\ref{chapter:Experiment} dùng chúng làm giá trị mục tiêu cho các chỉ số hành vi mà video quay tại nút chưa đo được (Mục~\ref{section:3.6}). Không nghiên cứu nào trong bảng đo tại nút được dùng để thực nghiệm.
+Bảng~\ref{table:2.1} liệt kê các số liệu đo đã công bố về hành vi xe máy tại nút có đèn. Chương~\ref{chapter:RuleGeneration} dùng chúng làm cơ sở cho danh mục hành vi, và Chương~\ref{chapter:Experiment} dùng chúng làm giá trị mục tiêu cho các chỉ số hành vi mà video quay tại nút chưa đo được (Mục~\ref{section:3.6}). Không nghiên cứu nào trong bảng đo tại nút được dùng để thực nghiệm.
 
 \begingroup\small
 \begin{longtable}{|>{\raggedright\arraybackslash}p{3.1cm}|>{\raggedright\arraybackslash}p{3.4cm}|>{\raggedright\arraybackslash}p{7.1cm}|}
@@ -41,66 +46,66 @@ Bảng~\ref{table:2.1} liệt kê các số liệu đo đã công bố về hàn
 \textbf{Nguồn} & \textbf{Địa điểm} & \textbf{Số liệu} \\
 \hline
 \endhead
-Mai và cs.~\cite{mai2019signal} & Hai nút có đèn ở Hà Nội (Láng Hạ -- Láng; Vũ Phạm Hàm -- Nguyễn Khang), video 24/10/2018, 7--8~h và 17--18~h & Xe máy chiếm 86,5\% và 79,7\%. Xe máy vượt đỏ 11,06\% và 9,64\%; xuất phát sớm (từ khoảng 5~s trở lên trước đèn xanh) 15,82\% và 13,55\%. Ô tô vượt đỏ 0,50\% và 0,96\%; xuất phát sớm 0,68\% và 1,61\%. Luồng phụ Láng Hạ -- Láng: xe máy vượt đỏ 36,25\%. Xe máy luồng phụ đi vào giữa nút và chờ khi đèn đổi (mô tả định tính, không có số đếm) \\
+Mai và cộng sự~\cite{mai2019signal} & Hai nút có đèn ở Hà Nội (Láng Hạ -- Láng; Vũ Phạm Hàm -- Nguyễn Khang), video 24/10/2018, 7--8~h và 17--18~h & Xe máy chiếm 86,5\% và 79,7\%. Xe máy vượt đỏ 11,06\% và 9,64\%; xuất phát sớm (từ khoảng 5~s trở lên trước đèn xanh) 15,82\% và 13,55\%. Ô tô vượt đỏ 0,50\% và 0,96\%; xuất phát sớm 0,68\% và 1,61\%. Luồng phụ Láng Hạ -- Láng: xe máy vượt đỏ 36,25\%. Xe máy luồng phụ đi vào giữa nút và chờ khi đèn chuyển pha (mô tả định tính, không có số đếm) \\
 \hline
 Vu và Nguyen~\cite{vu2015saturation} & Nút có đèn ở TP. Hồ Chí Minh & Mỗi 1\% ô tô trong dòng giảm lưu lượng bão hòa khoảng 0,4\%; lưu lượng đạt đỉnh trong 6--12~s đầu thời gian xanh \\
 \hline
-Chu Cong Minh và cs.~\cite{chu2005speed} & Bốn vị trí ở Hà Nội & Xe máy 1,87~m~$\times$~0,64~m; tốc độ $27{,}3 \pm 5{,}2$~km/h giữa tuyến, $21{,}3 \pm 5{,}1$~km/h trong dòng hỗn hợp; giãn cách thời gian $1{,}16 \pm 0{,}65$~s; khoảng cách ngang giữa hai xe máy song song 1,10~m \\
+Chu Cong Minh và cộng sự~\cite{chu2005speed} & Bốn vị trí ở Hà Nội & Xe máy 1,87~m~$\times$~0,64~m; tốc độ $27{,}3 \pm 5{,}2$~km/h giữa tuyến, $21{,}3 \pm 5{,}1$~km/h trong dòng hỗn hợp; giãn cách thời gian $1{,}16 \pm 0{,}65$~s; khoảng cách ngang giữa hai xe máy song song 1,10~m \\
 \hline
-Torquato và cs.~\cite{torquato2020motorcycles} (tổng quan) & Các phép đo ở Hà Nội & Hệ số quy đổi xe máy khoảng 0,24; giãn cách bão hòa 2,11~s, cộng 0,51~s cho mỗi xe máy xen giữa hai ô tô; tổn thất khởi động từ 3,3~s (không có xe máy phía trước) lên 5,7~s (hai hàng xe máy phía trước) \\
+Torquato và cộng sự~\cite{torquato2020motorcycles} (tổng quan) & Các phép đo ở Hà Nội & Hệ số quy đổi xe máy khoảng 0,24; giãn cách bão hòa 2,11~s, cộng 0,51~s cho mỗi xe máy xen giữa hai ô tô; tổn thất khởi động từ 3,3~s (không có xe máy phía trước) lên 5,7~s (hai hàng xe máy phía trước) \\
 \hline
-Nguyen và cs.~\cite{nguyen2022motorcycles} & Đô thị Hà Nội & Tốc độ trung bình của xe máy 20,49~km/h \\
+Nguyen và cộng sự~\cite{nguyen2022motorcycles} & Đô thị Hà Nội & Tốc độ trung bình của xe máy 20,49~km/h \\
 \hline
-Phuengprachuab và cs.~\cite{phuengprachuab2023opportunistic} & Tám nút có đèn ở Nakhon Ratchasima, Thái Lan; 2681 người đi xe máy & 61\% số người vượt đỏ là vi phạm ``cơ hội'': xuất phát sớm khi thấy ô tô vượt đèn đỏ. Dừng quá vạch dừng làm tăng hành vi này \\
+Phuengprachuab và cộng sự~\cite{phuengprachuab2023opportunistic} & Tám nút có đèn ở Nakhon Ratchasima, Thái Lan; 2681 người đi xe máy & 61\% số người vượt đỏ là vi phạm ``cơ hội'': xuất phát sớm khi thấy ô tô vượt đèn đỏ. Dừng quá vạch dừng làm tăng hành vi này \\
 \hline
-Hsu và cs.~\cite{hsu2024v2x} & Các nút ở Đài Loan & PET trung bình 2,15~s với xung đột rẽ trái cắt ngang, trước khi lắp hệ thống cảnh báo \\
+Hsu và cộng sự~\cite{hsu2024v2x} & Các nút ở Đài Loan & PET trung bình 2,15~s với xung đột rẽ trái cắt ngang, trước khi lắp hệ thống cảnh báo \\
 \hline
-Mohd Zulkiffli và cs.~\cite{zulkiffli2023stopping} & Bốn nút bốn nhánh có đèn ở bán đảo Malaysia, giờ cao điểm và thấp điểm & Hơn 63\% trong 4133 xe máy dừng quá vạch dừng \\
+Mohd Zulkiffli và cộng sự~\cite{zulkiffli2023stopping} & Bốn nút bốn nhánh có đèn ở bán đảo Malaysia, giờ cao điểm và thấp điểm & Hơn 63\% trong 4133 xe máy dừng quá vạch dừng \\
 \hline
-Gao và cs.~\cite{gao2020redlight} & 2173 người đi xe đạp điện ở Thượng Hải, khoảng một nửa là người giao hàng & Nguy cơ vượt đèn đỏ tăng 33\% khi thấy người khác vi phạm. Đối tượng là xe đạp điện, nên chỉ là bằng chứng gián tiếp cho hiệu ứng bầy đàn \\
+Gao và cộng sự~\cite{gao2020redlight} & 2173 người đi xe đạp điện ở Thượng Hải, khoảng một nửa là người giao hàng & Nguy cơ vượt đèn đỏ tăng 33\% khi thấy người khác vi phạm. Đối tượng là xe đạp điện, nên chỉ là bằng chứng gián tiếp cho hiệu ứng bầy đàn \\
 \hline
-Nguyen-Phuoc và cs.~\cite{nguyenphuoc2019turnsignal} & 24 vị trí ở Đà Nẵng; 17142 xe & Bật xi-nhan khi rẽ: 40,13\% xe máy, 68,27\% ô tô \\
+Nguyen-Phuoc và cộng sự~\cite{nguyenphuoc2019turnsignal} & 24 vị trí ở Đà Nẵng; 17142 xe & Bật xi-nhan khi rẽ: 40,13\% xe máy, 68,27\% ô tô \\
 \hline
 \end{longtable}
 \endgroup
 
-Các số liệu này đo ở địa điểm, thời điểm và định nghĩa khác nhau. Nhiều đại lượng cần cho hiệu chỉnh chưa có số liệu công bố: số xe chờ giữa nút, tỷ lệ đi sai làn, mật độ hàng chờ xe máy, PET tại nút giao ở Việt Nam. Khi lấy giá trị mục tiêu từ tài liệu, mỗi giá trị vì thế được gắn nhãn là chuyển giao từ bối cảnh khác hoặc giả định.
+Các số liệu này được đo ở địa điểm, thời điểm và theo định nghĩa khác nhau. Nhiều đại lượng cần cho hiệu chỉnh chưa có số liệu công bố: số xe chờ giữa nút, tỷ lệ đi sai làn, mật độ hàng chờ xe máy, PET tại nút giao ở Việt Nam. Khi lấy giá trị mục tiêu từ tài liệu, mỗi giá trị vì thế được gắn nhãn là chuyển giao từ bối cảnh khác hoặc giả định.
 
 \section{Mô phỏng vi mô và mô hình làn con}
 \label{section:2.sumo}
 \label{subsection:2.1.1}
 
-SUMO (Simulation of Urban MObility) là bộ công cụ mô phỏng giao thông vi mô mã nguồn mở. Mỗi phương tiện được mô phỏng riêng lẻ trên mạng đường chi tiết đến từng làn và từng kết nối trong nút~\cite{lopez2018sumo}. Luận văn dùng ba phần của bộ công cụ: (i) trình mô phỏng \texttt{sumo}; (ii) công cụ \texttt{netconvert}, chuyển mạng từ nguồn như OpenStreetMap sang định dạng của SUMO; và (iii) giao diện TraCI, cho phép chương trình bên ngoài đọc trạng thái và can thiệp vào xe hoặc đèn khi mô phỏng đang chạy~\cite{lopez2018sumo}. Thư viện \texttt{libsumo} có cùng giao diện lập trình với TraCI nhưng chạy trong cùng tiến trình, nên phù hợp với các thí nghiệm cần nhiều lần chạy.
+SUMO là bộ công cụ mô phỏng giao thông vi mô mã nguồn mở. Mỗi phương tiện được mô phỏng riêng lẻ trên mạng đường chi tiết đến từng làn và từng kết nối trong nút~\cite{lopez2018sumo}. Luận văn dùng ba phần của bộ công cụ: (i) trình mô phỏng \texttt{sumo}; (ii) công cụ \texttt{netconvert}, chuyển mạng từ nguồn như OpenStreetMap sang định dạng của SUMO; và (iii) giao diện TraCI, cho phép chương trình bên ngoài đọc trạng thái và can thiệp vào xe hoặc đèn khi mô phỏng đang chạy~\cite{lopez2018sumo}. Thư viện \texttt{libsumo} có cùng giao diện lập trình với TraCI nhưng chạy trong cùng tiến trình, nên phù hợp với các thí nghiệm cần nhiều lần chạy.
 
-Hành vi của xe được xác định bởi thuộc tính của kiểu phương tiện (vType): tham số bám xe (mặc định là mô hình Krauss), tham số chuyển làn và tham số ứng xử tại nút. Theo mặc định xe đi theo làn, dừng trước vạch khi đèn đỏ và nhường đường theo quyền ưu tiên của kết nối. Xe rẽ trái được phép có thể dừng chờ ở một điểm chờ nội bộ trong nút cho tới khi dòng đối diện có khoảng trống. Mô hình làn con (sublane) chia mỗi làn thành các dải hẹp, nên nhiều xe máy có thể cùng chiếm một làn và mỗi xe có vị trí ngang liên tục. Tài liệu SUMO dẫn Semrau và Erdmann~\cite{semrau2016chinese} làm nguồn của mô hình làn con; công trình này phát triển mô hình để mô phỏng giao thông ở Trung Quốc. Khi bật mô hình làn con, SUMO dùng mô hình chuyển làn SL2015, cho chỉnh khoảng cách ngang tối thiểu, tốc độ di chuyển ngang và mức chen lấn.
+Hành vi của xe được xác định bởi thuộc tính của kiểu phương tiện (vType): tham số bám xe (mặc định là mô hình Krauss), tham số chuyển làn và tham số ứng xử tại nút. Theo mặc định xe đi theo làn, dừng trước vạch khi đèn đỏ và nhường đường theo quyền ưu tiên của kết nối. Xe rẽ trái được phép có thể dừng chờ ở một điểm chờ nội bộ (internal junction) trong nút cho tới khi dòng đối diện có khoảng trống. Mô hình làn con (sublane) chia mỗi làn thành các dải hẹp, nên nhiều xe máy có thể cùng chiếm một làn và mỗi xe có vị trí ngang liên tục. Tài liệu SUMO dẫn Semrau và Erdmann~\cite{semrau2016chinese} làm nguồn của mô hình làn con; công trình này phát triển mô hình để mô phỏng giao thông ở Trung Quốc. Khi bật mô hình làn con, SUMO dùng mô hình chuyển làn SL2015, cho chỉnh khoảng cách ngang tối thiểu, tốc độ di chuyển ngang và mức chen lấn.
 
-Mô hình làn con giải quyết phần không gian của dòng hỗn hợp: xe máy len lên đầu hàng chờ được. Nó không tự tạo ra vượt đèn đỏ có xác suất hay xuất phát sớm. Thuộc tính liên quan đến đèn đỏ (ví dụ thời gian chấp nhận đi tiếp sau khi đèn đỏ) mặc định là không bao giờ vượt, và áp dụng như nhau cho mọi xe cùng kiểu. Vì vậy chúng không biểu diễn được hành vi phụ thuộc ngữ cảnh, như vượt đèn theo đoàn. SUMO cũng không có khái niệm vi phạm cấm rẽ: một kết nối hoặc tồn tại với mọi xe cùng lớp, hoặc không tồn tại.
+Mô hình làn con giải quyết khía cạnh không gian của dòng hỗn hợp: xe máy có thể len lên đầu hàng chờ. Tuy nhiên, mô hình này không tự tạo ra vượt đèn đỏ có xác suất hay xuất phát sớm. Thuộc tính liên quan đến đèn đỏ (ví dụ thời gian chấp nhận đi tiếp sau khi đèn đỏ) mặc định là không bao giờ vượt, và áp dụng như nhau cho mọi xe cùng kiểu. Vì vậy chúng không biểu diễn được hành vi phụ thuộc ngữ cảnh, như vượt đèn theo đoàn. SUMO cũng không có khái niệm vi phạm cấm rẽ: một kết nối hoặc tồn tại với mọi xe cùng lớp, hoặc không tồn tại.
 
-\section{Các kết quả nghiên cứu tương tự}
+\section{Các nghiên cứu liên quan}
 \label{section:2.1}
 
 \subsection{Mô hình hóa dòng xe hỗn hợp có xe máy}
 \label{subsection:2.1.2}
 
-Saval và cộng sự~\cite{saval2023mixed} xây dựng mô hình dựa trên tác tử trên nền GAMA cho giao thông ô tô và xe máy không tuân thủ ở Hà Nội. Mô hình dùng bám xe IDM và chuyển làn MOBIL. Tham số tài xế của ô tô và xe máy được hiệu chỉnh bằng giải thuật di truyền trên video phố Tây Sơn (Bảng 11 của bài báo). Hai quy ước đáng chú ý: ô tô luôn dừng khi đèn đỏ, còn xe máy ở hàng đầu chỉ dừng với xác suất 0,5; mỗi ``làn'' xe máy rộng 0,8~m, gồm 0,7~m bề rộng xe và 0,1~m khoảng cách an toàn. Công trình cho thấy luật xác suất đơn giản đủ đưa hành vi không tuân thủ vào mô phỏng. Nó có bốn giới hạn đối với bài toán của luận văn: cấu trúc luật do người lập mô hình chọn; tham số được hiệu chỉnh cho một đoạn phố, không phải cho một nút; mô hình không có xuất phát sớm, hiệu ứng bầy đàn và rẽ trái dừng chờ giữa nút; và mô hình chạy trên GAMA thay vì SUMO. Luận văn lấy tham số của Saval và cộng sự làm cơ sở cho phương án thủ công B1 (Mục~\ref{section:ex_config}).
+Saval và cộng sự~\cite{saval2023mixed} xây dựng mô hình dựa trên tác tử trên nền GAMA cho giao thông ô tô và xe máy không tuân thủ ở Hà Nội. Mô hình dùng bám xe IDM và chuyển làn MOBIL. Tham số tài xế của ô tô và xe máy được hiệu chỉnh bằng giải thuật di truyền trên video phố Tây Sơn (Bảng 11 của bài báo). Hai quy ước đáng chú ý: ô tô luôn dừng khi đèn đỏ, còn xe máy ở hàng đầu chỉ dừng với xác suất 0,5; mỗi ``làn'' xe máy rộng 0,8~m, gồm 0,7~m bề rộng xe và 0,1~m khoảng cách an toàn. Công trình này cho thấy một luật xác suất đơn giản đủ để đưa hành vi không tuân thủ vào mô phỏng. Công trình có bốn giới hạn đối với bài toán của luận văn: cấu trúc luật do người lập mô hình chọn; tham số được hiệu chỉnh cho một đoạn phố, không phải cho một nút; mô hình không có xuất phát sớm, hiệu ứng bầy đàn và rẽ trái dừng chờ giữa nút; và mô hình chạy trên GAMA thay vì SUMO. Luận văn lấy tham số của Saval và cộng sự làm cơ sở cho phương án thủ công B1 (Mục~\ref{section:ex_config}).
 
-Vu và Preston~\cite{vu2023vissim} dựng và hiệu chỉnh một mô hình VISSIM cho một hành lang giao thông hỗn hợp có xe máy chiếm đa số ở Hà Nội, thay các tham số mặc định theo điều kiện châu Âu (gia tốc và giảm tốc của xe máy, tốc độ mong muốn, khoảng cách ngang khi vượt, khoảng cách khi dừng) bằng giá trị đo tại hiện trường. Công trình này hiệu chỉnh tham số của mô hình tuân thủ, không mô hình hóa hành vi vi phạm. Lee và cộng sự~\cite{lee2009motorcycles} xác định các kiểu hành vi điển hình của xe máy trong dòng hỗn hợp, xây ba mô hình toán học cho chúng, hiệu chỉnh trên số liệu đo ở London, và tích hợp vào một trình mô phỏng dựa trên tác tử. Hai công trình cho thấy hành vi xe máy cần mô hình và tham số riêng, nhưng cấu trúc mô hình vẫn do người lập mô hình chọn một lần.
+Vu và Preston~\cite{vu2023vissim} dựng và hiệu chỉnh một mô hình VISSIM cho một hành lang giao thông hỗn hợp có xe máy chiếm đa số ở Hà Nội, thay các tham số mặc định theo điều kiện châu Âu (gia tốc và giảm tốc của xe máy, tốc độ mong muốn, khoảng cách ngang khi vượt, khoảng cách khi dừng) bằng giá trị đo tại hiện trường. Công trình này hiệu chỉnh tham số của mô hình tuân thủ, không mô hình hóa hành vi vi phạm. Lee và cộng sự~\cite{lee2009motorcycles} xác định các kiểu hành vi điển hình của xe máy trong dòng hỗn hợp, xây ba mô hình toán học cho chúng, hiệu chỉnh trên số liệu đo ở London, và tích hợp vào một trình mô phỏng dựa trên tác tử. Hai công trình này cho thấy hành vi xe máy cần mô hình và tham số riêng, nhưng cấu trúc mô hình vẫn do người lập mô hình chọn một lần.
 
-\subsection{Hiệu chỉnh tự động}
+\subsection{Hiệu chỉnh tự động mô phỏng vi mô}
 \label{subsection:2.1.4}
 
 Hiệu chỉnh mô phỏng vi mô thường được phát biểu là bài toán tối ưu: tìm bộ tham số sao cho chỉ số tính từ đầu ra mô phỏng gần nhất với chỉ số quan sát~\cite{hollander2008calibration}. Mỗi lần đánh giá cần chạy mô phỏng với nhiều seed và hàm mục tiêu không có đạo hàm, nên tối ưu hộp đen được dùng phổ biến. Saval và cộng sự dùng giải thuật di truyền~\cite{saval2023mixed}.
 
-Optuna~\cite{akiba2019optuna} là khung tối ưu siêu tham số mã nguồn mở. Không gian tìm kiếm được định nghĩa ngay trong mã của hàm mục tiêu (define-by-run), và khung hỗ trợ nhiều thuật toán lấy mẫu cùng cơ chế cắt tỉa lần thử kém. Optuna tìm được giá trị số cho tham số vType và tham số luật TraCI trong một không gian cố định. Giới hạn của nó là cấu trúc mô hình (luật nào, cho nhóm tài xế nào) phải có sẵn, và nó không giải thích kết quả. Trong luận văn, Optuna là phương án đối sánh B2, dùng cùng không gian tham số và cùng ngân sách số lần chạy với vòng lặp LLM (Mục~\ref{section:3.8}).
+Optuna~\cite{akiba2019optuna} là khung tối ưu siêu tham số mã nguồn mở. Không gian tìm kiếm được định nghĩa ngay trong mã của hàm mục tiêu (define-by-run), và khung hỗ trợ nhiều thuật toán lấy mẫu cùng cơ chế cắt tỉa lần thử kém. Optuna tìm được giá trị số cho tham số vType và tham số luật TraCI trong một không gian cố định. Giới hạn của nó là cấu trúc mô hình (luật nào, cho nhóm tài xế nào) phải có sẵn, và Optuna không cung cấp lời giải thích cho kết quả. Trong luận văn, Optuna là phương án đối sánh B2, dùng cùng không gian tham số và cùng ngân sách số lần chạy với vòng lặp LLM (Mục~\ref{section:3.8}).
 
-\subsection{LLM như một bộ tối ưu và LLM với trình mô phỏng}
+\subsection{LLM trong tối ưu hóa và mô phỏng giao thông}
 \label{subsection:2.1.llm}
 
 LLM sinh được văn bản có cấu trúc theo lược đồ cho trước và nhận được phản hồi bằng số liệu hay ngôn ngữ tự nhiên. Ba công trình cho thấy cách ghép LLM với một bộ đánh giá trong vòng lặp. Trong OPRO~\cite{yang2024opro}, mỗi bước LLM nhận các lời giải trước cùng điểm của chúng và đề xuất lời giải mới. FunSearch~\cite{romeraparedes2024funsearch} ghép LLM với bộ đánh giá chương trình và tìm được lời giải tốt hơn lời giải tốt nhất đã biết của một bài toán tổ hợp. Eureka~\cite{ma2024eureka} để LLM viết hàm thưởng cho học tăng cường, chấm bằng mô phỏng và sửa theo kết quả qua nhiều vòng. Điểm chung là đề xuất của LLM luôn đi qua một bộ đánh giá tự động; Mục~\ref{section:rg_llm} phân tích các công trình này chi tiết hơn.
 
 Các công trình gần nhất dùng LLM với SUMO. AgentSUMO~\cite{jeong2025agentsumo} để LLM diễn giải yêu cầu bằng ngôn ngữ tự nhiên, suy ra tham số còn thiếu và tách yêu cầu thành các thao tác SUMO cụ thể để sinh kịch bản mô phỏng. SUMO-MCP~\cite{ye2025sumomcp} nối SUMO với tác tử LLM qua Model Context Protocol; đây là một nền tảng công cụ, không phải một phương pháp hiệu chỉnh. ChatSUMO Agent~\cite{li2026chatsumo} là tác tử LLM vòng kín có công cụ dựng mạng, sinh tuyến, hiệu chỉnh và phân tích kết quả, chỉnh tham số và nhu cầu theo các chỉ số người dùng đặt ra. Cả ba hướng tới cấu hình kịch bản và nhu cầu, không sinh luật hành vi tài xế.
 
-\subsection{So sánh và khoảng trống nghiên cứu}
+\subsection{Khoảng trống nghiên cứu}
 \label{subsection:2.1.5}
 
 Bảng~\ref{table:2.compare} so sánh các công trình gần nhất theo năm tiêu chí, và Bảng~\ref{table:2.2} gom các giới hạn cùng cách luận văn xử lý từng giới hạn. Theo khảo sát của luận văn, chưa có công trình nào dùng LLM sinh cấu trúc luật hành vi tài xế (tham số vType cùng luật có điều kiện) cho dòng xe hỗn hợp không tuân thủ tại một nút có đèn, có kiểm tra hợp lệ trước khi chạy và so sánh với một bộ tối ưu trên cùng ngân sách.
@@ -113,9 +118,9 @@ Bảng~\ref{table:2.compare} so sánh các công trình gần nhất theo năm t
 \begin{tabular}{|>{\raggedright\arraybackslash}p{2.9cm}|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}p{2.5cm}|>{\raggedright\arraybackslash}p{1.9cm}|>{\raggedright\arraybackslash}p{1.9cm}|}
 \hline
 \textbf{Công trình} & \textbf{Dòng xe} & \textbf{Hành vi vi phạm} & \textbf{Cấu trúc mô hình} & \textbf{Trình mô phỏng} & \textbf{Vai trò LLM} \\ \hline
-Saval và cs.~\cite{saval2023mixed} & Ô tô, xe máy, Hà Nội & Vượt đỏ xác suất & Cố định, người chọn & GAMA & Không \\ \hline
+Saval và cộng sự~\cite{saval2023mixed} & Ô tô, xe máy, Hà Nội & Vượt đỏ xác suất & Cố định, người chọn & GAMA & Không \\ \hline
 Vu và Preston~\cite{vu2023vissim} & Ô tô, xe máy, Hà Nội & Không & Mô hình tuân thủ của VISSIM & VISSIM & Không \\ \hline
-Lee và cs.~\cite{lee2009motorcycles} & Ô tô, xe máy, London & Không & Ba mô hình hành vi, người chọn & Tác tử, tự xây & Không \\ \hline
+Lee và cộng sự~\cite{lee2009motorcycles} & Ô tô, xe máy, London & Không & Ba mô hình hành vi, người chọn & Mô hình tác tử tự xây dựng & Không \\ \hline
 AgentSUMO~\cite{jeong2025agentsumo}, ChatSUMO~\cite{li2026chatsumo} & Tổng quát & Không & Cấu hình kịch bản & SUMO & Sinh và chỉnh kịch bản, nhu cầu \\ \hline
 Luận văn & Ô tô, xe máy, một nút có đèn ở Hà Nội & 10 hành vi, gồm vượt đỏ theo đoàn, xuất phát sớm, rẽ trái chờ giữa nút & LLM đề xuất, qua kiểm tra hợp lệ & SUMO & Sinh và tinh chỉnh đặc tả luật \\ \hline
 \end{tabular}
@@ -141,6 +146,6 @@ Hiệu chỉnh tự động chỉ tìm giá trị số trong cấu trúc cố đ
 \end{tabular}
 \end{table}
 
-Mỗi hướng hiện có giải quyết được một phần của bài toán. Mô hình làn con của SUMO xử lý được phần không gian của dòng hỗn hợp nhưng không tự tạo hành vi không tuân thủ phụ thuộc ngữ cảnh. Các mô hình dòng hỗn hợp đã công bố có tham số riêng cho xe máy, một số có luật xác suất cho vượt đèn đỏ, nhưng cấu trúc do người chọn và không có các hành vi tại nút. Bộ tối ưu như Optuna chỉ tìm giá trị số trong một cấu trúc có sẵn, còn các công trình dùng LLM với SUMO hướng tới cấu hình kịch bản. Chương~\ref{chapter:RuleGeneration} trình bày phương pháp của luận văn cho các giới hạn này.
+Mỗi hướng hiện có giải quyết được một phần của bài toán. Mô hình làn con của SUMO xử lý được phần không gian của dòng hỗn hợp nhưng không tự tạo hành vi không tuân thủ phụ thuộc ngữ cảnh. Các mô hình dòng hỗn hợp đã công bố có tham số riêng cho xe máy, một số có luật xác suất cho vượt đèn đỏ, nhưng cấu trúc do người chọn và không có các hành vi tại nút. Bộ tối ưu như Optuna chỉ tìm giá trị số trong một cấu trúc có sẵn, còn các công trình dùng LLM với SUMO hướng tới cấu hình kịch bản. Chương~\ref{chapter:RuleGeneration} trình bày phương pháp của luận văn nhằm khắc phục các giới hạn này.
 
 \end{document}

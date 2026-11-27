@@ -1,0 +1,152 @@
+{
+ "spec_id": "P1_v1127_it01_s00",
+ "source": "llm",
+ "provenance": {
+  "model": "qwen3.5:9b",
+  "prompt_version": "v006",
+  "iteration": 1,
+  "sample_idx": 0,
+  "runtime": "ollama"
+ },
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.9,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Saval et al. 2023 (Table 11): base car driver type; shares distribution 'car' with car_seeker."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.1,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "F2 structure: car violators drawn from distribution 'car'; shares space-seeking capacity."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.95,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Saval et al. 2023 (Table 11): base motorcycle driver type; shares distribution 'moto' with moto_seeker."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.05,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "F2 structure: motorcycle violators drawn from distribution 'moto'; shares wrong-lane seeking."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 1.0
+   },
+   "rationale": "Illegal left-turning motorcycles (distribution 'moto_violator'); jmTimegapMinor defaults to 1.0 s as per the paper."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.5,
+    "k": 0.0,
+    "p_max": 0.5,
+    "dt": 10.0
+   },
+   "rationale": "Saval et al. 2023 (Sec 4): motorcycles at the stop line have a 50% chance to run red; no swarm effect (k=0)."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 5.0,
+    "p": 0.1466,
+    "v_max": 2.0
+   },
+   "rationale": "Observed early-start share for motorcycles is ~0.1466; this probability allows them to creep over the stop line in the last seconds of red."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker"
+   ],
+   "params": {
+    "q": 30.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.2145,
+    "p_right_lane": 0.0,
+    "p_sidewalk": 0.0,
+    "v_creep": 3.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Observed wrong-lane share for motorcycles is ~0.2145; moto_seeker activates this behaviour when queues are long."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p": 0.9,
+    "t_wait": 2.0
+   },
+   "rationale": "Field observation: most motorcycles squeeze past a standing U-turner; high probability (0.9) reflects this."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "car_saval",
+    "car_seeker"
+   ],
+   "params": {
+    "p": 0.1,
+    "t_wait": 2.0
+   },
+   "rationale": "Field observation: cars rarely bypass a standing U-turner; low probability (0.1) reflects this conservative behaviour."
+  }
+ ]
+}

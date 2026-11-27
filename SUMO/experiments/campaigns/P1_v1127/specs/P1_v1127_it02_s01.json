@@ -1,0 +1,152 @@
+{
+ "spec_id": "P1_v1127_it02_s01",
+ "source": "llm",
+ "provenance": {
+  "model": "qwen3.5:9b",
+  "prompt_version": "v006",
+  "iteration": 2,
+  "sample_idx": 1,
+  "runtime": "ollama"
+ },
+ "driver_archetypes": [
+  {
+   "id": "car_saval",
+   "base_vclass": "passenger",
+   "share": 0.9,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Base compliant car driver; accel/decal/tau tuned to match discharge headways (M1) and stopping distances."
+  },
+  {
+   "id": "car_seeker",
+   "base_vclass": "custom2",
+   "distribution": "car",
+   "share": 0.1,
+   "params": {
+    "accel": 1.2,
+    "decel": 4.8,
+    "tau": 2.5,
+    "minGap": 1.1
+   },
+   "rationale": "Car violators drawn from car distribution; share 0.1 allows queue_space_seeking capacity without dominating."
+  },
+  {
+   "id": "moto_saval",
+   "base_vclass": "motorcycle",
+   "share": 0.8,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Base compliant motorcycle; share reduced to 0.8 to balance with moto_seeker and match M5/moto_density."
+  },
+  {
+   "id": "moto_seeker",
+   "base_vclass": "custom1",
+   "distribution": "moto",
+   "share": 0.2,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3
+   },
+   "rationale": "Moto violators drawn from moto distribution; share increased to 0.2 (sum=1 with moto_saval) and p_wrong_lane activated to match M8/moto wrong-lane share."
+  },
+  {
+   "id": "moto_violator_saval",
+   "base_vclass": "custom1",
+   "share": 1.0,
+   "params": {
+    "accel": 1.1,
+    "decel": 4.6,
+    "tau": 0.8,
+    "minGap": 1.9,
+    "minGapLat": 0.3,
+    "jmTimegapMinor": 1.0
+   },
+   "rationale": "Illegal left-turning motorcycles (distribution moto_violator); jmTimegapMinor=1.0 matches M7a release dynamics."
+  }
+ ],
+ "traci_rules": [
+  {
+   "rule_type": "swarm_red_running",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p0": 0.2,
+    "k": 0.0,
+    "p_max": 0.2,
+    "dt": 10.0
+   },
+   "rationale": "Reduce motorcycle red-running probability (M3/share/moto) from 50% to ~20% to match observed M3/share/moto=0.076; k=0 as per Saval."
+  },
+  {
+   "rule_type": "early_start",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "t_before_green": 5.0,
+    "p": 0.0,
+    "v_max": 2.0
+   },
+   "rationale": "Saval et al. 2023 models no early start; p=0 disables creep to match M2/early/moto baseline (rule active but inactive)."
+  },
+  {
+   "rule_type": "queue_space_seeking",
+   "applies_to": [
+    "moto_seeker"
+   ],
+   "params": {
+    "q": 30.0,
+    "t_g_s": 0.0,
+    "est_noise": 0.0,
+    "p_wrong_lane": 0.2145,
+    "p_right_lane": 0.0,
+    "p_sidewalk": 0.0,
+    "v_creep": 3.0,
+    "merge_zone_m": 15.0
+   },
+   "rationale": "Activate wrong-lane seeking (p_wrong_lane=0.2145) to match M8/moto wrong-lane share; q=30m triggers on long queues."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "moto_saval",
+    "moto_seeker",
+    "moto_violator_saval"
+   ],
+   "params": {
+    "p": 0.9,
+    "t_wait": 2.0
+   },
+   "rationale": "High probability (0.9) for motorcycles to squeeze past standing U-turners to match field observation."
+  },
+  {
+   "rule_type": "uturn_bypass",
+   "applies_to": [
+    "car_saval",
+    "car_seeker"
+   ],
+   "params": {
+    "p": 0.1,
+    "t_wait": 2.0
+   },
+   "rationale": "Low probability (0.1) for cars to bypass standing U-turners."
+  }
+ ]
+}

@@ -1,0 +1,153 @@
+{
+  "spec_id": "B2_v1127_t010",
+  "source": "optuna",
+  "provenance": {
+    "model": "optuna-tpe",
+    "prompt_version": null,
+    "iteration": 10,
+    "sample_idx": 0,
+    "reference": "sampler_seed=7;trial=10;n_startup=4"
+  },
+  "description": "Optuna parameter values in the structure of B1_manual (PLAN 7.1); archetype and rule rationales are inherited from B1_manual and describe its structure, not these values.",
+  "driver_archetypes": [
+    {
+      "id": "car_saval",
+      "base_vclass": "passenger",
+      "share": 0.35373909856610075,
+      "params": {
+        "accel": 2.4435188233232177,
+        "decel": 4.098871426442521,
+        "tau": 2.0084275566722782,
+        "minGap": 2.5681731506992582
+      },
+      "rationale": "Saval et al. 2023, Table 11 (Driver parameter values for Hanoi, column Car, GA-calibrated on Tay Son): max acceleration a = 1.2 m/s2 -> accel, max deceleration b = 4.8 m/s2 -> decel, time headway T = 2.5 s -> tau, safety distance s0 = 1.1 m -> minGap (IDM -> Krauss, literature_transferred). Sec 4: cars always stop at red, so no red-running rule and the jm* attributes stay at the SUMO defaults (never drive at red). One archetype: the paper has one car driver type."
+    },
+    {
+      "id": "car_seeker",
+      "base_vclass": "custom2",
+      "distribution": "car",
+      "share": 0.6462609014338992,
+      "params": {
+        "accel": 1.5532144771693752,
+        "decel": 6.0071388424039664,
+        "tau": 1.9708527825788247,
+        "minGap": 2.2167161158243642
+      },
+      "rationale": "F2 structure (Viktor 2026-10-27, F2-behaviours fix round 1): car violators (custom2, PLAN 0) drawn from the car distribution, the only cars queue_space_seeking may act on. Params copied from car_saval (Saval et al. 2023 Table 11, literature_transferred), so with every p = 0 they drive exactly like car_saval. Share 0.1 is assumed (no source for the share of space-seeking drivers): small, so the B1 car population stays essentially the Saval one; P1/B2 tune it."
+    },
+    {
+      "id": "moto_saval",
+      "base_vclass": "motorcycle",
+      "share": 0.22208302189037277,
+      "params": {
+        "accel": 5.157588789194132,
+        "decel": 2.0722177551830603,
+        "tau": 1.810371719877104,
+        "minGap": 1.1733434341945674,
+        "minGapLat": 0.6861870616471415
+      },
+      "rationale": "Saval et al. 2023, Table 11 (column Motorcycle): a = 1.1 m/s2 -> accel, b = 4.6 m/s2 -> decel, T = 0.8 s -> tau, s0 = 1.9 m -> minGap (IDM -> Krauss, literature_transferred). minGapLat: Sec 4 sizes a motorcycle 'lane' as 0.8 m = 0.7 m width + 0.1 m safe spacing, i.e. ~0.1 m lateral gap; 0.1 m is below the lower bound 0.3 m of the space (ruling R15), so the bound 0.3 m is used (transferred and clipped). One archetype: the paper has one motorcycle driver type."
+    },
+    {
+      "id": "moto_seeker",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.7779169781096272,
+      "params": {
+        "accel": 5.900539162483817,
+        "decel": 2.465618165595937,
+        "tau": 1.7483530409449104,
+        "minGap": 0.8932426105718285,
+        "minGapLat": 0.4632957958812925
+      },
+      "rationale": "F2 structure (Viktor 2026-10-27, F2-behaviours fix round 1): motorcycle violators (custom1, PLAN 0) drawn from the moto distribution, the only riders that may use the custom1-only sidewalk or the right-lane / wrong-lane spaces of queue_space_seeking. Params copied from moto_saval (Saval et al. 2023 Table 11 / Sec 4, literature_transferred), and the same red-running / early-start rules, so with every p = 0 they ride exactly like moto_saval. Share 0.1 is assumed (no source): small, so B1's motorcycle population stays essentially the Saval one; P1/B2 tune it."
+    },
+    {
+      "id": "moto_violator_saval",
+      "base_vclass": "custom1",
+      "share": 1.0,
+      "params": {
+        "accel": 4.697373405515068,
+        "decel": 4.316264393440633,
+        "tau": 0.6346698630424172,
+        "minGap": 1.8828400246129333,
+        "minGapLat": 0.9553814325324677,
+        "jmTimegapMinor": 2.7413029209081934
+      },
+      "rationale": "Illegal left-turning motorcycles (vTypeDistribution moto_violator). The car-following and lateral values are the motorcycle values of Saval et al. 2023 Table 11 / Sec 4, as for moto_saval: they are the same riders. jmTimegapMinor = 1.0 s is the SUMO default and is assumed (the paper has no illegal left turn and no gap acceptance); it is in the structure because it is the early-leaving lever of the box waiters (ruling R15) that P1/B2 tune."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p0": 0.11908865404810302,
+        "k": 0.32924603901982324,
+        "p_max": 0.505127799051175,
+        "dt": 21.64821923930371
+      },
+      "rationale": "Saval et al. 2023, Sec 4 'Description of the model and parameters used': from the Tay Son footage 'the probability of stopping for motorcycles (in the front row) is only 0.5'; 'a motorcycle arriving at a red light will have only a 50% chance to stop'. Transferred as a constant run-the-red probability p0 = p_max = 0.5 for a motorcycle reaching the stop line during red, k = 0 (the paper has no swarm effect). dt = 10 s is assumed and has no effect while k = 0."
+    },
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "t_before_green": 9.647102149825736,
+        "p": 0.8336481350125071,
+        "v_max": 3.229771430176477
+      },
+      "rationale": "Not in Saval et al. 2023 (assumed): the paper models no early start, so the rule is off (p = 0). It is part of the fixed structure so that P1/B2 can tune the M2 early-start share; t_before_green and v_max are assumed mid-range values without effect while p = 0."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_seeker"
+      ],
+      "params": {
+        "q": 35.741621794218716,
+        "t_g_s": 17.733764810333867,
+        "est_noise": 0.5312134322576239,
+        "p_wrong_lane": 0.27433259101496377,
+        "p_right_lane": 0.45771083398150286,
+        "p_sidewalk": 0.2096254285393781,
+        "v_creep": 2.1186694661725287,
+        "merge_zone_m": 14.824992234972953
+      },
+      "rationale": "Not in Saval et al. 2023 (assumed): the paper has no space seeking (wrong lane, right-turn-lane blocking, sidewalk), so every p = 0 and the green check is off (t_g_s = 0), like early_start p = 0. It is part of the fixed structure (Viktor 2026-10-27) so that P1/B2 can tune behaviours 5-7. q = 30 m, v_creep = 3 m/s and merge_zone_m = 15 m (the Phase 3A setting) are assumed mid-range values without effect while every p = 0. Not applied to car_seeker (custom2) since 2026-10-28: without bollards no option exists for custom2 on the proxy net (right_lane needs bollards, wrong_lane none (R27), the sidewalk is custom1 only), so the validator would reject every spec with p > 0 (R27)."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_saval",
+        "moto_seeker",
+        "moto_violator_saval"
+      ],
+      "params": {
+        "p": 0.8901403365836066,
+        "t_wait": 2.119732696103067
+      },
+      "rationale": "Viktor 2026-10-30 (field): most motorcycles behind a standing U-turner squeeze past it or move to the next lane; p = 0.8 and t_wait = 2 s assumed (no count)."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "car_saval",
+        "car_seeker"
+      ],
+      "params": {
+        "p": 0.347337567988727,
+        "t_wait": 6.552188473553818
+      },
+      "rationale": "Viktor 2026-10-30 (field): cars rarely change lane to pass a standing U-turner; p = 0.1 and t_wait = 2 s assumed (no count)."
+    }
+  ]
+}

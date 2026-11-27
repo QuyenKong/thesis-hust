@@ -74,8 +74,13 @@ def _strip_meta(node):
     return node
 
 
+FREE_KEY_MAPS = {"signal.stage_totals_s."}  # keys are stage names, which differ per signal plan (D30, 2026-11-27)
+
+
 def _structure_diffs(measured, proxy, prefix=""):
     """Key mismatches, descending only where site.yaml has structure (a null may be filled freely)."""
+    if prefix in FREE_KEY_MAPS:
+        return [] if isinstance(proxy, dict) else [prefix]
     if isinstance(measured, dict):
         if not isinstance(proxy, dict) or set(measured) != set(proxy):
             return [prefix or "<root>"]

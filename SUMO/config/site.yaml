@@ -99,30 +99,35 @@ signal:
   type: static
   cycle_s: 160.0               # measured 2026-11-25 PM, IMG_4801: pedestrian head (Dat Bike corner) green onsets
                                # 39.5 s and 199.5 s, green 33 s each (video/runs/V2_IMG_4801/light_rgb.csv)
+  # Split phasing on LVL (Viktor 2026-11-27, field: each LVL approach gets its own green for straight + left + U-turn,
+  # NT-HMG straight 40 s in between). Order and greens measured from the IMG_4801 tracking (video/runs/V2_IMG_4801/
+  # od_tracks.csv, 2 cycles; figure + analysis in docs/DECISIONS_2026-11-27.md D30): LVL_E straight and left discharge
+  # together (~0-45 s, 152-205 s), then NT (44-85 s, 205-245 s; NT green onset = pedestrian green onset 39.5 / 199.5 s),
+  # then LVL_W straight (88-143 s, 256-303 s); each repeats after 160-161 s. Supersedes the 3-stage plan of 2026-11-26.
   stage_totals_s:              # stage length incl. its yellow + all-red; sum = cycle_s
-    LVL_straight: 60           # Viktor 2026-11-26, field estimate ("thuong thi"), not timed
-    LVL_left: 40               # Viktor 2026-11-26, field estimate, not timed (both LVL lefts, LVL straight red)
-    cross: 60                  # derived: 160 - 60 - 40 (NT + HMG); pedestrian green across LVL inside it (33 s, measured)
-  stage_order: [LVL_straight, LVL_left, cross]   # Viktor 2026-10-28 and 2026-11-26 (field)
-  yellow_s: 4                  # PROVISIONAL (Viktor 2026-11-26: fill so the cycle is 160 s, confirm 27/11);
-                               # value from [S2] TCCS 24:2018 cl. 6.7.6 (4 s for V <= 60 km/h), not timed on site
-  all_red_s: 2                 # PROVISIONAL, assumed (same as site.proxy.yaml); TODO_MEASURE, confirm 27/11
-  # green = stage total - yellow - all-red: 54 / 34 / 54 s; sum with intergreens = 160 s.
+    LVL_E: 55                  # green 50 s: discharge window ~50 s (tracking); Viktor 27/11: LVL green 53-60 s, red 107-115 s
+    cross: 45                  # green 40 s: Viktor 27/11 (NT-HMG green 40 s, red 115 s); tracking NT discharge ~40 s
+    LVL_W: 60                  # green 55 s: discharge window ~55 s (tracking)
+  stage_order: [LVL_E, cross, LVL_W]   # measured order (tracking IMG_4801), Viktor 2026-11-27
+  yellow_s: 3                  # ASSUMED (vehicle heads not visible in either video; owner choice 2026-11-27, D30); TODO_MEASURE
+  all_red_s: 2                 # ASSUMED (same as before); TODO_MEASURE
+  # green = stage total - yellow - all-red: 50 / 40 / 55 s; sum with intergreens = 160 s.
   # Approach ids HMG / NT are the new junction's (migration of 2026-11-26: HDT_N -> HMG, HDT_S -> NT).
   phases:
-    - {name: LVL_straight, duration_s: 54, green_movements: [LVL_W:r, LVL_W:s, LVL_E:r, LVL_E:s], yellow_movements: []}
-    - {name: LVL_straight_yellow, duration_s: 4, green_movements: [], yellow_movements: [LVL_W:r, LVL_W:s, LVL_E:r, LVL_E:s]}
-    - {name: LVL_straight_allred, duration_s: 2, green_movements: [], yellow_movements: []}
-    - {name: LVL_left, duration_s: 34, green_movements: [LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t], yellow_movements: []}
-    - {name: LVL_left_yellow, duration_s: 4, green_movements: [], yellow_movements: [LVL_W:l, LVL_W:t, LVL_E:l, LVL_E:t]}
-    - {name: LVL_left_allred, duration_s: 2, green_movements: [], yellow_movements: []}
-    - {name: cross_green, duration_s: 54, green_movements: [HMG:r, HMG:s, HMG:l, NT:r, NT:s, NT:l], yellow_movements: []}
-    - {name: cross_yellow, duration_s: 4, green_movements: [], yellow_movements: [HMG:r, HMG:s, HMG:l, NT:r, NT:s, NT:l]}
+    - {name: LVL_E_green, duration_s: 50, green_movements: [LVL_E:r, LVL_E:s, LVL_E:l, LVL_E:t], yellow_movements: []}
+    - {name: LVL_E_yellow, duration_s: 3, green_movements: [], yellow_movements: [LVL_E:r, LVL_E:s, LVL_E:l, LVL_E:t]}
+    - {name: LVL_E_allred, duration_s: 2, green_movements: [], yellow_movements: []}
+    - {name: cross_green, duration_s: 40, green_movements: [HMG:r, HMG:s, HMG:l, NT:r, NT:s, NT:l], yellow_movements: []}
+    - {name: cross_yellow, duration_s: 3, green_movements: [], yellow_movements: [HMG:r, HMG:s, HMG:l, NT:r, NT:s, NT:l]}
     - {name: cross_allred, duration_s: 2, green_movements: [], yellow_movements: []}
+    - {name: LVL_W_green, duration_s: 55, green_movements: [LVL_W:r, LVL_W:s, LVL_W:l, LVL_W:t], yellow_movements: []}
+    - {name: LVL_W_yellow, duration_s: 3, green_movements: [], yellow_movements: [LVL_W:r, LVL_W:s, LVL_W:l, LVL_W:t]}
+    - {name: LVL_W_allred, duration_s: 2, green_movements: [], yellow_movements: []}
   # HMG:l / NT:l are the banned lefts, open to illegal_left.vclass only (apply_patches): yielding green in their own
-  # approach's green, as on the proxy net (test_illegal_left_green_in_own_through_phase)
-  # evidence: cycle measured (video); stage totals 60/40 Viktor field estimate, 60 derived; yellow 4 s [S2]; all-red 2 s
-  # assumed; all PROVISIONAL until Viktor confirms 2026-11-27
+  # approach's green, as on the proxy net (test_illegal_left_green_in_own_through_phase); tracking IMG_4801 shows the
+  # NT illegal lefts inside NT green (78-87 s)
+  # evidence: cycle measured (pedestrian head, video); order + green lengths measured (tracking, 2 cycles, +-3 s);
+  # NT-HMG 40 s also Viktor field 27/11; yellow 3 s and all-red 2 s assumed
 
 illegal_left:
   approaches: [HMG, NT]        # left banned on both (Viktor 26/11); illegal lefts NT -> LVL_W seen in IMG_4801 tracking (draft)

@@ -1,0 +1,135 @@
+% Phần nhúng, được input từ 5_Experiments.tex.
+\section{So sánh trực quan B0 và bộ luật}
+\label{section:visual}
+
+Mục này minh họa bằng hình ảnh phép so sánh giữa mô hình chuẩn B0 (SUMO mặc định, trước hiệu chỉnh) và bộ luật cuối, đặc tả \texttt{B2\_v1127\_best} của chiến dịch B2 (Bảng~\ref{table:bench}). Mọi hình dùng ngày kiểm định VIDEO\_V1. Các hình tổng hợp lấy trung bình 20 seed; các hình của một lần chạy dùng seed 1, cùng một khung thời gian cho hai phương án. Số thứ tự hành vi theo Bảng~\ref{table:3.1}.
+
+\subsection{Ảnh chụp cùng thời điểm}
+
+Hình~\ref{fig:visual_snapshot} là hai ảnh \texttt{sumo-gui} chụp cùng giây mô phỏng $t = 1220$~s. Khung nhìn được xoay để Lê Văn Lương nằm ngang, phía Tố Hữu bên trái, Hoàng Minh Giám phía trên và Nguyễn Tuân phía dưới, gần với góc quay của video IMG\_4801. Thời điểm này được chọn tự động là giây có nhiều loại hành vi khác nhau nhất trong lần chạy của bộ luật. Ở ảnh của bộ luật, bốn xe máy đã qua vạch dừng của nhánh Lê Văn Lương phía Tố Hữu trước khi đèn chuyển xanh (hành vi 3), mười một xe máy rẽ trái trái phép đứng chờ giữa nút (hành vi 10), và các xe đi thẳng đứng trên đoạn làn rẽ phải liên tục ở cả hai nhánh Lê Văn Lương (hành vi 6). Hành vi 6 và 10 cũng xuất hiện ở ảnh B0, vì chúng sinh ra từ cấu trúc mạng (bản vá rẽ trái và điểm chờ nội bộ, cách SUMO chọn làn) chứ không từ luật. Vượt đèn đỏ, dừng quá vạch, đi sai làn và lách xe quay đầu không xuất hiện ở giây này; chúng có xác suất khác 0 trong bộ luật nhưng hiếm, ví dụ chỉ 0,14\% xe máy vượt đèn đỏ.
+
+\begin{figure}[!htbp]
+\centering
+\begin{subfigure}{\textwidth}
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_FA_A_B0_v1127.png}
+\caption{B0: SUMO mặc định (trước hiệu chỉnh).}
+\end{subfigure}
+
+\vspace{2mm}
+\begin{subfigure}{\textwidth}
+\centering
+\begin{tikzpicture}[x=\textwidth/1600, y=-\textwidth/1600,
+    hvmark/.style={draw=red, line width=1.2pt},
+    num/.style={circle, draw=red, fill=white, text=red, line width=0.8pt, inner sep=1pt, font=\scriptsize\bfseries}]
+\node[anchor=north west, inner sep=0] at (0,0) {\includegraphics[width=\textwidth]{Figure/fig_FA_B_RS_v1127.png}};
+% Hành vi 3: xuất phát sớm, 4 xe máy ở vạch dừng LVL phía Tố Hữu
+\draw[hvmark] (698.5,506) ellipse (16 and 24);
+\node[num] at (660,445) {3};
+\draw[red, line width=0.6pt] (668,452) -- (688,488);
+% Hành vi 10: 11 xe máy rẽ trái trái phép chờ giữa nút
+\draw[hvmark] (788,391) ellipse (26 and 64);
+\node[num] at (845,300) {10};
+\draw[red, line width=0.6pt] (836,309) -- (805,335);
+% Hành vi 6: xe đi thẳng đứng trên đoạn làn rẽ phải liên tục 30 m (LVL phía Tố Hữu)
+\draw[hvmark, rotate around={-10:(622,516)}] (622,516) ellipse (74 and 15);
+\node[num] at (560,575) {6};
+\draw[red, line width=0.6pt] (568,568) -- (590,528);
+% Hành vi 6: đoạn làn rẽ phải liên tục 30 m (LVL phía Láng Hạ)
+\draw[hvmark, rotate around={-10:(968,388)}] (968,388) ellipse (82 and 16);
+\node[num] at (1000,330) {6};
+\draw[red, line width=0.6pt] (995,339) -- (980,374);
+\end{tikzpicture}
+\caption{Bộ luật cuối (\texttt{B2\_v1127\_best}); vòng đỏ đánh dấu các hành vi, số trong vòng tròn là số thứ tự hành vi.}
+\end{subfigure}
+\caption{Hai ảnh \texttt{sumo-gui} cùng thời điểm $t = 1220$~s, ngày VIDEO\_V1, seed 1. 3: xuất phát sớm; 6: xe đi thẳng chặn làn rẽ phải liên tục (chỉ khoanh đoạn 30~m cuối); 10: xe rẽ trái trái phép chờ giữa nút. Ô tím ở mép nút là vòng từ đếm xe; vạch đỏ, xanh ở mép nút là trạng thái đèn của từng liên kết.}
+\label{fig:visual_snapshot}
+\end{figure}
+
+\subsection{Hồ sơ hành vi}
+
+Hình~\ref{fig:visual_profile} đặt các chỉ số của Bảng~\ref{table:6.profile} cạnh nhau cho B0, B2 và hai đặc tả LLM tốt nhất. Ba ô hàng trên bên trái và ô đầu hàng dưới là các hành vi vi phạm tại vạch dừng: B0 bằng 0 hoặc gần 0 ở cả bốn ô, B2 cao nhất ở xuất phát sớm, P2 cao nhất ở vượt đèn đỏ. Ở hai ô xe chờ giữa nút và xe chờ trên làn rẽ phải, bốn phương án gần nhau vì các hành vi này đến chủ yếu từ cấu trúc mạng. Hai ô cuối cho thấy B2 có ít va chạm trên làn và ít xe chờ vào mạng hơn B0, còn hai đặc tả LLM để lại khoảng 1500 xe chờ vào mạng.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_behaviour_v1127.png}
+\caption{Hồ sơ hành vi trên ngày VIDEO\_V1, trung bình 20 seed, thanh sai số là một độ lệch chuẩn giữa các seed. Đường đứt nét là giá trị đo trên ngày quan sát VIDEO\_V1 (dữ liệu sinh từ mục tiêu tài liệu). B2: Optuna; P1: LLM chỉ chỉnh tham số; P2: LLM chỉnh tham số và luật.}
+\label{fig:visual_profile}
+\end{figure}
+
+\subsection{Diễn biến tại vạch dừng}
+
+Hình~\ref{fig:visual_spacetime} là vết thời gian--không gian của các xe trên nhánh Lê Văn Lương phía Láng Hạ trong hai chu kỳ, nền tô theo trạng thái đèn. Ở B0, hàng chờ bắt đầu xả khi đèn chuyển xanh lúc 800~s. Ở bộ luật, nhiều quỹ đạo đã cắt vạch dừng trong vài giây trước thời điểm đó, ứng với luật xuất phát sớm.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_spacetime_v1127.png}
+\caption{Vết thời gian--không gian trên nhánh Lê Văn Lương phía Láng Hạ, 640--960~s, ngày VIDEO\_V1, seed 1. Trục tung là khoảng cách tới vạch dừng, giá trị âm là đã qua vạch.}
+\label{fig:visual_spacetime}
+\end{figure}
+
+\subsection{Vượt đèn đỏ theo chu kỳ}
+
+Hình~\ref{fig:visual_redcycle} là phân phối số xe vượt đèn đỏ trong một chu kỳ ở một nhánh, theo định nghĩa của M3 (vượt đèn đỏ). B0 không có lượt vượt đèn đỏ nào. Ở bộ luật, khoảng 91\% số cặp chu kỳ--nhánh không có lượt nào và nhiều nhất là 3 lượt, trung bình 0,17. Ngày quan sát VIDEO\_V1 có trung bình 13,3 lượt, trải từ 3 tới 27. Tỷ số phương sai/trung bình của bộ luật là 2,03, so với 1,02 của ngày quan sát: các lượt vượt đèn đỏ của bộ luật dồn vào một số ít chu kỳ, đúng với cơ chế theo đoàn, nhưng số lượt còn nhỏ hơn hai bậc.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.9\textwidth]{Figure/fig_D3_redpercycle_v1127.png}
+\caption{Phân phối số xe vượt đèn đỏ mỗi chu kỳ mỗi nhánh (M3), gộp 20 seed của ngày VIDEO\_V1. TB: trung bình. B0 không có lượt nào nên không tính được tỷ số phương sai/trung bình.}
+\label{fig:visual_redcycle}
+\end{figure}
+
+\subsection{Vị trí dừng và quỹ đạo qua nút}
+
+Hình~\ref{fig:visual_lateral} là mật độ vị trí của xe máy đang dừng lúc đầu pha xanh. Ở cả hai phương án, xe máy trải trên toàn bề rộng 0--14~m của nhánh; khác biệt giữa B0 và bộ luật nhỏ, phù hợp với tỷ lệ dừng quá vạch chỉ 0,44\% của bộ luật.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_D4_lateral_v1127.png}
+\caption{Mật độ vị trí xe máy đang dừng lúc đầu pha xanh, mọi nhánh, ngày VIDEO\_V1, seed 1. Trục hoành: vị trí ngang tính từ mép phải đường; trục tung: khoảng cách tới vạch dừng, giá trị âm là đã qua vạch.}
+\label{fig:visual_lateral}
+\end{figure}
+
+Hình~\ref{fig:visual_traj} là quỹ đạo của mọi xe trong một chu kỳ 1600--1760~s, chu kỳ có nhiều lượt vượt đèn đỏ nhất trong lần chạy của bộ luật. Bộ luật có 2 lượt vượt đèn đỏ, đánh dấu bằng dấu nhân; B0 không có lượt nào. Ở cả hai phương án, quỹ đạo của xe máy lớp vi phạm (màu cam) rẽ trái từ hai nhánh phụ và dừng gần tâm nút.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_D5_traj_v1127.png}
+\caption{Quỹ đạo của các xe trong chu kỳ 1600--1760~s, ngày VIDEO\_V1, seed 1, gốc tọa độ tại tâm nút. Dấu nhân: vị trí lúc vượt đèn đỏ theo định nghĩa M3.}
+\label{fig:visual_traj}
+\end{figure}
+
+\subsection{Xe chờ giữa nút}
+
+Hình~\ref{fig:visual_box} là số xe rẽ trái trái phép đứng chờ giữa nút theo thời gian. Hai đường có cùng nhịp theo chu kỳ đèn và cùng bậc độ lớn, từ khoảng 6 tới 15 xe ở đỉnh. Ở các chu kỳ sau 1300~s, đỉnh của bộ luật thấp hơn B0, phù hợp với M7 (chờ giữa nút) trung bình 4,83 so với 5,24 xe mỗi chu kỳ.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_D6_box_v1127.png}
+\caption{Số xe rẽ trái trái phép đứng chờ giữa nút theo thời gian, ngày VIDEO\_V1, seed 1.}
+\label{fig:visual_box}
+\end{figure}
+
+\subsection{Độ ổn định và lưu lượng}
+
+Hình~\ref{fig:visual_stability} so sánh các đại lượng ổn định. Bộ luật có ít va chạm, ít va chạm trên làn và ít xe chờ vào mạng hơn B0, nhưng nhiều teleport kẹt hơn (4,7 so với 1,4/h); độ lệch chuẩn của teleport kẹt lớn ở cả hai phương án vì teleport tập trung ở một số ít lần chạy.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_D7_stability_v1127.png}
+\caption{Các đại lượng ổn định trên ngày VIDEO\_V1, trung bình 20 seed, thanh sai số là một độ lệch chuẩn giữa các seed.}
+\label{fig:visual_stability}
+\end{figure}
+
+Hình~\ref{fig:visual_flows} so sánh lưu lượng qua vạch dừng của từng hướng với lưu lượng đo từ video. Hai phương án xấp xỉ nhau: cùng 7/12 hướng có GEH nhỏ hơn 5. Các hướng lệch nhiều nhất đều thấp hơn số đo, lớn nhất là rẽ phải từ Nguyễn Tuân (khoảng 2700 so với 4970 xe/h), nên bộ luật không thay đổi đáng kể năng lực thông qua của nút.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{Figure/fig_flows_v1127.png}
+\caption{Lưu lượng qua vạch dừng theo hướng trong mô phỏng (trung bình 20 seed) so với lưu lượng từ video. Vùng xám: dải GEH nhỏ hơn 5. Ô vuông: hướng có lưu lượng là ước lượng, không phải số đo.}
+\label{fig:visual_flows}
+\end{figure}
+
+\subsection{Video so sánh}
+
+Đi kèm luận văn là một cặp video quay bằng \texttt{sumo-gui} với cùng khung nhìn như Hình~\ref{fig:visual_snapshot}: Video A là B0, Video B là bộ luật cuối. Hai video dùng cùng ngày VIDEO\_V1, cùng seed 1, cùng khoảng 480--960~s (ba chu kỳ đèn sau khởi động), phát ở tốc độ gấp 3 lần, có lớp ghi pha đèn và đồng hồ mô phỏng. Bản ghép hai khung đặt A và B cạnh nhau; bản ghép ba khung có thêm đoạn video IMG\_4801 quay tại nút, phát cùng tốc độ. Các tệp nằm trong thư mục \texttt{report/\allowbreak 2026-11-27/} của kho mã: \texttt{video\_\allowbreak AB\_\allowbreak VIDEO\_\allowbreak V1\_\allowbreak seed1\_\allowbreak x3.mp4} và \texttt{video\_\allowbreak AB\_\allowbreak real\_\allowbreak VIDEO\_\allowbreak V1\_\allowbreak seed1\_\allowbreak x3.mp4}.

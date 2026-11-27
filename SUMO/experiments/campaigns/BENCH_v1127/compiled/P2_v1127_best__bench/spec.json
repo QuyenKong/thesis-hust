@@ -1,0 +1,250 @@
+{
+  "spec_id": "P2_v1127_best__bench",
+  "source": "llm",
+  "provenance": {
+    "model": "qwen3.5:9b",
+    "prompt_version": "v007",
+    "iteration": 5,
+    "sample_idx": 3,
+    "runtime": "ollama"
+  },
+  "driver_archetypes": [
+    {
+      "id": "car_compliant",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.92,
+      "params": {
+        "tau": 1.0,
+        "minGap": 2.5,
+        "accel": 2.6,
+        "decel": 4.5,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "speedDev": 0.1,
+        "latAlignment": "center",
+        "impatience": 0.0,
+        "jmDriveAfterRedTime": 0.0,
+        "jmDriveRedSpeed": 5.0
+      },
+      "rationale": "Standard compliant car; low `jmDriveAfterRedTime` (0) ensures red-light running is rare (target M3/share/car ~0.0076). High share compensates for low rule probability."
+    },
+    {
+      "id": "car_early",
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "share": 0.08,
+      "params": {
+        "tau": 1.0,
+        "minGap": 2.5,
+        "accel": 2.6,
+        "decel": 4.5,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "speedDev": 0.1,
+        "latAlignment": "center",
+        "impatience": 0.0,
+        "jmDriveAfterRedTime": 5.0,
+        "jmDriveRedSpeed": 8.0
+      },
+      "rationale": "Compliant car subject to early-start rule to match M2/early/car share (0.0025). Increased share offsets the low probability needed for such a rare event."
+    },
+    {
+      "id": "moto_compliant",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.47,
+      "params": {
+        "tau": 1.0,
+        "minGap": 2.5,
+        "accel": 6.0,
+        "decel": 10.0,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "speedDev": 0.1,
+        "latAlignment": "right",
+        "impatience": 0.2,
+        "jmDriveAfterRedTime": 5.0,
+        "jmDriveRedSpeed": 8.0
+      },
+      "rationale": "Standard motorcycle. Increased share to correct `moto` distribution sum (was 1.02). 'right' alignment helps match lateral position M4/lat_moto (~7m)."
+    },
+    {
+      "id": "moto_slow",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.15,
+      "params": {
+        "tau": 3.0,
+        "minGap": 2.5,
+        "accel": 0.8,
+        "decel": 2.0,
+        "sigma": 0.5,
+        "speedFactor": 0.8,
+        "speedDev": 0.1,
+        "latAlignment": "right",
+        "impatience": 0.0,
+        "jmDriveAfterRedTime": 5.0,
+        "jmDriveRedSpeed": 8.0
+      },
+      "rationale": "Slow motorcycle archetype for distribution 'moto' to trigger rule `slow_lane_center`. Increased share (0.1->0.15) to correct distribution sum and contribute to lateral position/overshoot metrics."
+    },
+    {
+      "id": "moto_early",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.15,
+      "params": {
+        "tau": 1.0,
+        "minGap": 2.5,
+        "accel": 6.0,
+        "decel": 10.0,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "speedDev": 0.1,
+        "latAlignment": "right",
+        "impatience": 0.2,
+        "jmDriveAfterRedTime": 5.0,
+        "jmDriveRedSpeed": 8.0
+      },
+      "rationale": "Compliant motorcycle subject to early-start rule to match M2/early/moto share (0.1466). High `jmDriveAfterRedTime` prevents self-run."
+    },
+    {
+      "id": "moto_swarm",
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "share": 0.2,
+      "params": {
+        "tau": 1.0,
+        "minGap": 2.5,
+        "accel": 6.0,
+        "decel": 10.0,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "speedDev": 0.1,
+        "latAlignment": "right",
+        "impatience": 0.2,
+        "jmDriveAfterRedTime": 5.0,
+        "jmDriveRedSpeed": 8.0
+      },
+      "rationale": "Motorcycle subject to swarm_red_running rule to boost red-running share (M3/share/moto ~0.076). Share adjusted to fit distribution sum."
+    },
+    {
+      "id": "moto_right_lane",
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "share": 0.03,
+      "params": {
+        "tau": 0.8,
+        "minGap": 1.5,
+        "accel": 6.0,
+        "decel": 10.0,
+        "sigma": 0.3,
+        "speedFactor": 1.0,
+        "speedDev": 0.2,
+        "latAlignment": "right",
+        "impatience": 0.9,
+        "jmDriveAfterRedTime": 8.0,
+        "jmTimegapMinor": 1.5
+      },
+      "rationale": "Violating motorcycle from HMG/NT entering on red. High impatience and small minGap for queue dodging (rule `queue_space_seeking`). Share reduced to fit distribution sum."
+    },
+    {
+      "id": "moto_illegal_left",
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "share": 1.0,
+      "params": {
+        "tau": 2.0,
+        "minGap": 2.0,
+        "accel": 6.0,
+        "decel": 10.0,
+        "sigma": 0.5,
+        "speedFactor": 1.0,
+        "speedDev": 0.1,
+        "latAlignment": "center",
+        "impatience": 0.5,
+        "jmDriveAfterRedTime": 3.0,
+        "jmTimegapMinor": 2.0
+      },
+      "rationale": "Illegal left-turner (HMG/NT) waiting in box. Moderate impatience and release_lag rule to match M7a/n_waiting and reducing M7b/clear_lag delay."
+    }
+  ],
+  "traci_rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "car_early"
+      ],
+      "params": {
+        "t_before_green": 4,
+        "p": 0.3,
+        "v_max": 2
+      },
+      "rationale": "Controls early start share for cars (~0.0025). Increased probability (0.15->0.3) to compensate for low trigger rate and match target."
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_swarm"
+      ],
+      "params": {
+        "p0": 0.6,
+        "k": 0.4,
+        "p_max": 1.0,
+        "dt": 25
+      },
+      "rationale": "Models swarm pressure for motorcycles to match red-running share M3/share/moto (~0.076). Higher k (0.3->0.4) and p0 (0.5->0.6) boost total red-runners when front-row or swarmed."
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_right_lane"
+      ],
+      "params": {
+        "q": 50,
+        "t_g_s": 7,
+        "est_noise": 0.3,
+        "p_wrong_lane": 1.0,
+        "p_right_lane": 0.0,
+        "p_sidewalk": 0.0,
+        "v_creep": 2,
+        "merge_zone_m": 15
+      },
+      "rationale": "Triggers wrong-lane behavior (riding lane 0) for custom1 motorcycles to match M8/moto share (~0.2145). Full probability ensures the violation happens when conditions are met."
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_illegal_left"
+      ],
+      "params": {
+        "release_lag_s": 2.5
+      },
+      "rationale": "Adds release lag to box waiters for illegal left-turners matching M7a/n_waiting and reducing M7b/clear_lag delay."
+    },
+    {
+      "rule_type": "slow_lane_center",
+      "applies_to": [
+        "moto_slow"
+      ],
+      "params": {
+        "lat_offset": -0.5
+      },
+      "rationale": "Pushes slow motorcycles towards lane center/left to match M4/lat_moto (6.989m) and overshoot depth. Offset adjusted (-0.2->-0.5) to counteract natural right alignment tendency."
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_compliant",
+        "moto_right_lane"
+      ],
+      "params": {
+        "p": 0.8,
+        "t_wait": 5
+      },
+      "rationale": "Allows motorcycles to pass standing U-turners with high probability (M11) while cars stay behind. Applied to compliant and violator archetypes."
+    }
+  ],
+  "description": " Best spec P2_v1127_it05_s03 of LLM campaign P2_v1127 (evaluate.select_best)."
+}

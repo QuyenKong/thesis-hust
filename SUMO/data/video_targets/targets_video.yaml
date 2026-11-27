@@ -40,8 +40,8 @@ targets:
   G0_counts:
     approach_volume_veh_h:
       value:
-        LVL_W: 830
-        HMG: 2283
+        LVL_W: 3448
+        HMG: 2841
         LVL_E: 5365
         NT: 5874
       unit: veh/h crossing the stop line
@@ -54,8 +54,12 @@ targets:
         applied to a Hanoi junction'
       source: 'IMG_4801 (25/11/2026 17:50, 309 s) tracking: exit counts of the visible exits split by complete tracks; movements
         into the hidden HMG exit and HMG straight assumed 15 % of the approach (video/targets_from_tracking.py, data/video_targets/V2.yaml,
-        decision D18)'
+        decision D18). Owner correction 2026-11-27 (decision D33, field judgement): HMG straight raised to the NT straight
+        flow (348 -> 906 veh/h) and LVL_W straight to the LVL_E straight flow (598 -> 3217 veh/h), every other movement
+        flow unchanged; LVL_W 830 -> 3448, HMG 2283 -> 2841 veh/h'
       evidence: measured_video
+      evidence_note: 'LVL_W and HMG straight are owner_estimate (D33), not measured; the hidden HMG exit and the far
+        LVL_W stop line made both under-counted in the 309 s clip'
     moto_share:
       value: 0.902
       unit: share of vehicles that are motorcycles
@@ -76,13 +80,13 @@ targets:
           s: 0.85
           r: 0.15
         LVL_W:
-          l: 0.148
-          r: 0.117
-          s: 0.721
-          u: 0.014
+          l: 0.0356
+          r: 0.0282
+          s: 0.9328
+          u: 0.0034
         HMG:
-          r: 0.8477
-          s: 0.1523
+          r: 0.6812
+          s: 0.3188
         LVL_E:
           l: 0.2472
           r: 0.1491
@@ -94,7 +98,7 @@ targets:
       unit: share of the approach's legal vehicles
       family: multinomial per vehicle
       between_day_cv: 0.0
-      source: 'per approach: IMG_4801 tracking (decision D18; illegal lefts handled by M7); the shared legal / banned_left
+      source: 'per approach: IMG_4801 tracking (decision D18; illegal lefts handled by M7; LVL_W and HMG re-split after the D33 straight correction); the shared legal / banned_left
         splits are kept for files without per-approach values'
       evidence: measured_video
     profile_15min:

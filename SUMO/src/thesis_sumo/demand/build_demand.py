@@ -43,6 +43,12 @@ VEHICLE_TYPES = ("car", "moto", "moto_violator")  # vTypeDistribution ids in rul
 LEGAL_VCLASSES = ("passenger", "motorcycle")
 # insertion only (not driver behaviour): least occupied lane that needs the fewest lane changes, max safe speed
 DEPART_ATTRS = 'departLane="best" departSpeed="max"'
+# Lateral insertion position: SUMO default (departPosLat "center", sumo.dlr.de/docs/Definition_of_Vehicles,_Vehicle_
+# Types,_and_Routes.html). departPosLat="random_free" for motorcycles (decision D31, 2026-11-27) was withdrawn the
+# same night (D35): B0 seed 1 on VIDEO_V2 had 82 collisions/h instead of 22 with the old flows and inserted no more
+# vehicles (6246 vs 6263); riders entering off-centre drift back to the centre line (latAlignment "center") and hit
+# their neighbours. Side-by-side queueing is left to the calibrated vType parameters (latAlignment, minGapLat, ...).
+DEPART_ATTRS_BY_TYPE = {"car": DEPART_ATTRS, "moto": DEPART_ATTRS, "moto_violator": DEPART_ATTRS}
 SEED_STRIDE = 1000  # routeSampler seed per type = seed + k * SEED_STRIDE, so types do not share a random stream
 
 
@@ -142,7 +148,7 @@ def _turn_file(df: pd.DataFrame, cands: dict, path: Path) -> None:
 def _route_sampler(candidates: Path, turns: Path, vtype: str, seed: int, out: Path) -> None:
     script = Path(os.environ["SUMO_HOME"]) / "tools" / "routeSampler.py"
     cmd = [sys.executable, str(script), "--route-files", str(candidates), "--turn-files", str(turns),
-           "--turn-attribute", vtype, "--attributes", f'type="{vtype}" {DEPART_ATTRS}',
+           "--turn-attribute", vtype, "--attributes", f'type="{vtype}" {DEPART_ATTRS_BY_TYPE[vtype]}',
            "--prefix", f"{vtype}_", "--seed", str(seed), "--output-file", str(out)]
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if proc.returncode != 0:

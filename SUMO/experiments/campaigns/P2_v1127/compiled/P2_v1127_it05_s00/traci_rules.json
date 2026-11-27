@@ -1,0 +1,144 @@
+{
+  "spec_id": "P2_v1127_it05_s00",
+  "archetypes": {
+    "car_compliant": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_compliant",
+      "share": 0.95
+    },
+    "car_early": {
+      "base_vclass": "passenger",
+      "distribution": "car",
+      "vtype_id": "car_early",
+      "share": 0.05
+    },
+    "moto_compliant": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_compliant",
+      "share": 0.42
+    },
+    "moto_slow": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_slow",
+      "share": 0.1
+    },
+    "moto_early": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_early",
+      "share": 0.15
+    },
+    "moto_swarm": {
+      "base_vclass": "motorcycle",
+      "distribution": "moto",
+      "vtype_id": "moto_swarm",
+      "share": 0.23
+    },
+    "moto_right_lane": {
+      "base_vclass": "custom1",
+      "distribution": "moto",
+      "vtype_id": "moto_right_lane",
+      "share": 0.1
+    },
+    "moto_illegal_left": {
+      "base_vclass": "custom1",
+      "distribution": "moto_violator",
+      "vtype_id": "moto_illegal_left",
+      "share": 1.0
+    }
+  },
+  "rules": [
+    {
+      "rule_type": "early_start",
+      "applies_to": [
+        "car_early",
+        "moto_early"
+      ],
+      "vtype_ids": [
+        "car_early",
+        "moto_early"
+      ],
+      "params": {
+        "t_before_green": 2.0,
+        "p": 0.15,
+        "v_max": 2.0
+      }
+    },
+    {
+      "rule_type": "swarm_red_running",
+      "applies_to": [
+        "moto_swarm"
+      ],
+      "vtype_ids": [
+        "moto_swarm"
+      ],
+      "params": {
+        "p0": 0.8,
+        "k": 0.3,
+        "p_max": 1.0,
+        "dt": 25.0
+      }
+    },
+    {
+      "rule_type": "queue_space_seeking",
+      "applies_to": [
+        "moto_right_lane"
+      ],
+      "vtype_ids": [
+        "moto_right_lane"
+      ],
+      "params": {
+        "q": 50.0,
+        "t_g_s": 7.0,
+        "est_noise": 0.3,
+        "p_wrong_lane": 1.0,
+        "p_right_lane": 0.0,
+        "p_sidewalk": 0.0,
+        "v_creep": 2.0,
+        "merge_zone_m": 15.0
+      }
+    },
+    {
+      "rule_type": "illegal_left_box",
+      "applies_to": [
+        "moto_illegal_left"
+      ],
+      "vtype_ids": [
+        "moto_illegal_left"
+      ],
+      "params": {
+        "release_lag_s": 2.5
+      }
+    },
+    {
+      "rule_type": "slow_lane_center",
+      "applies_to": [
+        "moto_slow"
+      ],
+      "vtype_ids": [
+        "moto_slow"
+      ],
+      "params": {
+        "lat_offset": -0.5
+      }
+    },
+    {
+      "rule_type": "uturn_bypass",
+      "applies_to": [
+        "moto_compliant",
+        "moto_swarm"
+      ],
+      "vtype_ids": [
+        "moto_compliant",
+        "moto_swarm"
+      ],
+      "params": {
+        "p": 0.9,
+        "t_wait": 3.0
+      }
+    }
+  ]
+}

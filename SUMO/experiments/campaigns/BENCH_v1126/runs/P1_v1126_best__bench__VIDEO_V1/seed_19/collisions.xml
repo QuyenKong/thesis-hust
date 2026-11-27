@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-11-26T11:28:08.960928+07:00 by Eclipse SUMO libsumo 1.27.0
+<libsumoConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/libsumoConfiguration.xsd">
+
+    <input>
+        <net-file value="D:\hust-master\Thesis\SUMO\scenario\net\site.net.xml"/>
+        <route-files value="D:\hust-master\Thesis\SUMO\scenario\demand\routes_VIDEO_V1.rou.xml"/>
+        <additional-files value="D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\compiled\P1_v1126_best__bench\vtypes.add.xml,D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\runs\P1_v1126_best__bench__VIDEO_V1\seed_19\outputs.add.xml"/>
+    </input>
+
+    <output>
+        <fcd-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\runs\P1_v1126_best__bench__VIDEO_V1\seed_19\fcd.xml.gz"/>
+        <fcd-output.attributes value="x,y,angle,type,speed,pos,lane,posLat,speedLat,acceleration"/>
+        <fcd-output.filter-shapes value="fcd_zone"/>
+        <tripinfo-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\runs\P1_v1126_best__bench__VIDEO_V1\seed_19\tripinfo.xml"/>
+        <lanechange-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\runs\P1_v1126_best__bench__VIDEO_V1\seed_19\lanechange.xml"/>
+        <collision-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\runs\P1_v1126_best__bench__VIDEO_V1\seed_19\collisions.xml"/>
+        <statistic-output value="D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\runs\P1_v1126_best__bench__VIDEO_V1\seed_19\statistics.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="1800"/>
+        <step-length value="0.1"/>
+    </time>
+
+    <processing>
+        <lateral-resolution value="0.4"/>
+        <collision.check-junctions value="true"/>
+    </processing>
+
+    <routing>
+        <device.rerouting.probability value="0"/>
+    </routing>
+
+    <report>
+        <aggregate-warnings value="20"/>
+        <log value="D:\hust-master\Thesis\SUMO\experiments\campaigns\BENCH_v1126\runs\P1_v1126_best__bench__VIDEO_V1\seed_19\sumo.log"/>
+        <no-step-log value="true"/>
+    </report>
+
+    <random_number>
+        <seed value="19"/>
+    </random_number>
+
+</libsumoConfiguration>
+-->
+
+<collisions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/collision_file.xsd">
+    <collision time="308.80" type="junction" lane=":cluster_10538711449_10617504197_320101377_444501627_21_1" pos="21.59" collider="moto_0_1064" victim="moto_0_682" colliderType="moto_seeker" victimType="moto_saval" colliderSpeed="7.42" victimSpeed="2.90" colliderFront="150.17,198.76" colliderBack="148.61,200.31" victimFront="149.73,200.50" victimBack="148.34,202.20"/>
+    <collision time="754.10" type="side" lane=":cluster_10538711449_10617504197_320101377_444501627_24_0" pos="8.88" collider="moto_violator_0_48" victim="moto_0_2590" colliderType="moto_violator_saval" victimType="moto_seeker" colliderSpeed="0.00" victimSpeed="1.91" colliderFront="143.30,209.47" colliderBack="141.77,211.06" victimFront="142.25,209.09" victimBack="140.86,210.79"/>
+    <collision time="781.30" type="side" lane=":cluster_10538711449_10617504197_320101377_444501627_10_1" pos="2.46" collider="moto_0_2362" victim="moto_violator_0_51" colliderType="moto_saval" victimType="moto_violator_saval" colliderSpeed="0.37" victimSpeed="0.26" colliderFront="170.93,186.29" colliderBack="172.23,184.52" victimFront="171.50,184.00" victimBack="172.78,182.31"/>
+    <collision time="1081.40" type="junction" lane=":cluster_10538711449_10617504197_320101377_444501627_10_1" pos="8.29" collider="moto_0_3107" victim="moto_violator_0_65" colliderType="moto_seeker" victimType="moto_violator_saval" colliderSpeed="0.00" victimSpeed="2.27" colliderFront="166.48,190.24" colliderBack="167.77,188.47" victimFront="168.05,188.96" victimBack="169.53,187.34"/>
+</collisions>
